@@ -1,0 +1,145 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 15% 6%;
+    --foreground: 0 0% 95%;
+
+    --card: 240 12% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 240 12% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 160 100% 50%;
+    --primary-foreground: 240 15% 6%;
+
+    --secondary: 270 60% 60%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 240 10% 16%;
+    --muted-foreground: 240 8% 75%;
+
+    --accent: 30 100% 60%;
+    --accent-foreground: 240 15% 6%;
+
+    --destructive: 0 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 10% 18%;
+    --input: 240 10% 18%;
+    --ring: 160 100% 50%;
+
+    --radius: 0.75rem;
+
+    --neon-glow: 160 100% 50%;
+    --neon-purple: 270 60% 60%;
+    --neon-orange: 30 100% 60%;
+    --neon-pink: 330 80% 60%;
+
+    --whot-paper: 60 8% 95%;
+    --whot-red: 345 75% 28%;
+    --whot-ink: 0 0% 7%;
+
+    --player-red: 0 80% 55%;
+    --player-green: 140 70% 45%;
+    --player-yellow: 45 100% 55%;
+    --player-blue: 210 80% 55%;
+
+    --sidebar-background: 240 12% 10%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 160 100% 50%;
+    --sidebar-primary-foreground: 240 15% 6%;
+    --sidebar-accent: 240 10% 16%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 240 10% 18%;
+    --sidebar-ring: 160 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-bold;
+  }
+}
+
+@layer utilities {
+  .neon-text {
+    text-shadow: 0 0 10px hsl(var(--neon-glow) / 0.6),
+                 0 0 30px hsl(var(--neon-glow) / 0.3),
+                 0 0 60px hsl(var(--neon-glow) / 0.1);
+  }
+
+  .neon-box {
+    box-shadow: 0 0 10px hsl(var(--neon-glow) / 0.3),
+                0 0 30px hsl(var(--neon-glow) / 0.1),
+                inset 0 0 10px hsl(var(--neon-glow) / 0.05);
+  }
+
+  .neon-border {
+    border-color: hsl(var(--neon-glow) / 0.5);
+    box-shadow: 0 0 8px hsl(var(--neon-glow) / 0.2);
+  }
+
+  .glass {
+    background: hsl(var(--card) / 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border) / 0.5);
+  }
+
+  .display-text {
+    @apply text-4xl md:text-6xl lg:text-8xl font-display font-bold tracking-tight;
+  }
+
+  .controller-button {
+    @apply min-h-[60px] text-lg font-display font-bold rounded-xl active:scale-95 transition-transform;
+  }
+
+  @keyframes star-twinkle {
+    0%, 100% { opacity: 0.25; transform: scale(0.85); }
+    50% { opacity: 1; transform: scale(1.15); }
+  }
+
+  @keyframes shooting-star {
+    0% { transform: rotate(var(--tw-rotate, 20deg)) translateX(0) scaleX(0.2); opacity: 0; }
+    10% { opacity: 1; }
+    100% { transform: rotate(var(--tw-rotate, 20deg)) translateX(60vw) scaleX(1); opacity: 0; }
+  }
+
+  @keyframes falling-star {
+    0%   { transform: translate(0, 0) scaleX(0.15); opacity: 0; }
+    8%   { opacity: var(--star-peak, 1); }
+    85%  { opacity: var(--star-peak, 1); }
+    100% { transform: translate(var(--fall-dx, 30vw), var(--fall-dy, 90vh)) scaleX(1); opacity: 0; }
+  }
+
+  .animate-atmosphere-trail {
+    animation: atmosphere-trail 700ms ease-out forwards;
+  }
+
+  @keyframes atmosphere-trail {
+    from { transform: translate3d(0, 0, 0) scale(1); opacity: 0.9; }
+    to { transform: translate3d(16px, -24px, 0) scale(0.15); opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [style*="star-twinkle"],
+    [style*="shooting-star"],
+    [style*="falling-star"],
+    .animate-atmosphere-trail {
+      animation: none !important;
+    }
+  }
+}

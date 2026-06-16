@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+dev-dist/
+
+# Environment variables
+.env
+.env.local
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local artifacts
+*.local
+
+# AI assistant artifacts (kept local, never committed)
+.claude/
+.taskmaster/
+.cursor/
+.roo/
+.windsurf/
+.windsurfrules
+.mcp.json
+CLAUDE.md
+AGENTS.md
+workspace.md
+docs/agents/
+**/*.ai.md

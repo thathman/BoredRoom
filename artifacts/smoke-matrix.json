@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-05-01T00:00:00.000Z",
+  "httpUrl": "http://localhost:2567",
+  "wsUrl": "ws://localhost:2567",
+  "ok": true,
+  "results": [
+    { "gameType": "ludo", "status": "pass" },
+    { "gameType": "whot", "status": "pass" },
+    { "gameType": "trivia", "status": "pass" },
+    { "gameType": "connect-4", "status": "pass" },
+    { "gameType": "ettt", "status": "pass" },
+    { "gameType": "logo", "status": "pass" },
+    { "gameType": "landlord", "status": "pass" },
+    { "gameType": "color-wahala", "status": "pass" },
+    { "gameType": "hustle", "status": "pass" },
+    { "gameType": "word-wahala", "status": "pass" }
+  ]
+}

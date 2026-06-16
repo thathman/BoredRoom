@@ -1,0 +1,132 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Install server dependencies
+        run: npm --prefix server ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Release gates (lint -> test -> web build -> server build)
+        run: npm run gates:release
+
+      - name: Start preview server
+        run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 8088 > preview.log 2>&1 &
+          echo $! > preview.pid
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:8088 >/dev/null; then
+              echo "Preview server ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Preview did not start"
+          cat preview.log
+          exit 1
+
+      - name: UI entry-flow audit
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8088
+        run: npm run smoke:ui-entry
+
+      - name: UI gameover audit
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8088
+        run: npm run smoke:ui-gameover
+
+      - name: Stop preview server
+        if: always()
+        run: |
+          if [ -f preview.pid ]; then kill "$(cat preview.pid)" || true; fi
+
+      - name: Smoke server start
+        run: npm run smoke:server-start
+
+      - name: Start docker stack
+        run: docker compose up -d --build
+
+      - name: Wait for server health
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://localhost:2567/health >/dev/null; then
+              echo "Server healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Server did not become healthy in time"
+          docker compose logs --tail=300
+          exit 1
+
+      - name: UI room-finish audit (Ludo + Whot)
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8088
+          PLAYWRIGHT_HTTP_API: http://127.0.0.1:2567
+          PLAYWRIGHT_WS_URL: ws://127.0.0.1:2567
+        run: npm run smoke:ui-room-finish
+
+      - name: Run smoke suite
+        env:
+          SMOKE_HTTP_URL: http://localhost:2567
+          SMOKE_WS_URL: ws://localhost:2567
+          SMOKE_USE_EXISTING_SERVER: "1"
+          SMOKE_MATRIX_ARTIFACT: artifacts/smoke-matrix.json
+        run: npm run smoke:live
+
+      - name: Upload smoke matrix artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-matrix
+          path: artifacts/smoke-matrix.json
+
+      - name: Assert smoke matrix contains all expected game rows
+        run: npm run smoke:assert-matrix
+
+      - name: Verify beta game gates are synced with smoke matrix
+        run: npm run gates:verify
+
+      - name: Capture server logs on failure
+        if: failure()
+        run: docker compose logs server > server.log
+
+      - name: Upload server log artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-log
+          path: server.log
+
+      - name: Stop docker stack
+        if: always()
+        run: docker compose down -v

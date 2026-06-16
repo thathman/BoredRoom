@@ -1,0 +1,26 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_TRANSPORT: ${VITE_TRANSPORT:-colyseus}
+        VITE_COLYSEUS_URL: ${VITE_COLYSEUS_URL:-wss://colyseus.hendrix.com.ng}
+    container_name: boredroom-web
+    restart: unless-stopped
+    ports:
+      - "8088:80"
+    depends_on:
+      - server
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: boredroom-server
+    restart: unless-stopped
+    ports:
+      - "2567:2567"
+    environment:
+      NODE_ENV: production
+      PORT: "2567"
