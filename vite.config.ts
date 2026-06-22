@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { VitePWA } from "vite-plugin-pwa";
 
 function resolveBuildHash(): string {
@@ -16,6 +17,10 @@ function resolveBuildHash(): string {
 }
 
 process.env.VITE_BUILD_HASH = resolveBuildHash();
+// ponytail: read version from package.json so the chip tracks the beta scheme automatically
+process.env.VITE_APP_VERSION = JSON.parse(
+  readFileSync(new URL("./package.json", import.meta.url), "utf8"),
+).version;
 
 // https://vitejs.dev/config/
 export default defineConfig(() => ({

@@ -14,6 +14,7 @@ export default function Index() {
   const navigate = useNavigate();
   const defaultRole = classifyDeviceForGame();
   const buildHash = (import.meta.env.VITE_BUILD_HASH as string | undefined) ?? 'dev';
+  const appVersion = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev';
 
   const onPickGame = (slug: string) => {
     const role = classifyDeviceForGame();
@@ -147,7 +148,7 @@ export default function Index() {
           })
         }
       >
-        build {buildHash}
+        v{appVersion} · build {buildHash}
       </button>
     </div>
   );
