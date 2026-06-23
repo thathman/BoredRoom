@@ -10,7 +10,8 @@ import { z } from 'zod';
 export const AgeRating = z.enum(['kids', 'family', 'teen', 'adult']);
 
 const Id = z.string().min(1);
-const Iso = z.string().datetime();
+// Accept both Z-suffixed UTC (our writes) and timezone-offset form (Postgres timestamptz reads).
+const Iso = z.string().datetime({ offset: true });
 
 // --- HouseSession ----------------------------------------------------------
 export const HouseSessionStatus = z.enum([

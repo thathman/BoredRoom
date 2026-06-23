@@ -62,6 +62,16 @@ describe('session schemas', () => {
     expect(GameRun.parse(JSON.parse(JSON.stringify(run)))).toEqual(run);
   });
 
+  it('accepts Postgres timestamptz offset timestamps (read path)', () => {
+    const parsed = HouseSession.parse({
+      id: 's1', code: 'ABCD', status: 'setup', currentStage: 'landing',
+      selectedPackIds: [], hostDeviceId: 'h', settings: {},
+      createdAt: '2026-06-23T16:26:29.752+00:00',
+      updatedAt: '2026-06-23T16:26:29.752+00:00',
+    });
+    expect(parsed.createdAt).toContain('+00:00');
+  });
+
   it('HouseSessionSettings clamps to sane defaults', () => {
     const s = HouseSessionSettings.parse({});
     expect(s.voteCooldownMs).toBe(15_000);
