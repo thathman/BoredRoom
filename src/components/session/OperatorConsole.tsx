@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Loader2, Play, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +11,7 @@ import { fetchSession, startGameRun, type StartedRun } from '@/lib/serverApi';
 // starts a GameRun via POST /sessions/:code/runs. Legacy games return a Colyseus room code players
 // connect to; adapter games (Phase 8) launch roomless. Settings stay off the public display (Art. IV.2).
 export function OperatorConsole({ code, packId }: { code: string; packId?: string }) {
+  const navigate = useNavigate();
   const [packIds, setPackIds] = useState<string[]>(packId ? [packId] : []);
   const [sessionId, setSessionId] = useState<string>(`local_${code}`);
   const [busy, setBusy] = useState<string | null>(null);
@@ -49,6 +51,16 @@ export function OperatorConsole({ code, packId }: { code: string; packId?: strin
     }
   }
 
+  // Enter the live Colyseus room for a started legacy game, reusing the existing host-token flow.
+  function openGameRoom(game: PackGame, run: StartedRun) {
+    if (!run.room) return;
+    sessionStorage.setItem('boredroom_is_host', 'true');
+    sessionStorage.setItem('boredroom_game_type', game.slug);
+    sessionStorage.setItem('boredroom_host_token', run.room.hostToken);
+    sessionStorage.setItem('boredroom_room_code', run.room.code);
+    navigate(`/${game.slug}/room/${run.room.code}`);
+  }
+
   return (
     <div className="w-full max-w-md text-left">
       {started ? (
@@ -59,6 +71,9 @@ export function OperatorConsole({ code, packId }: { code: string; packId?: strin
             <>
               <p className="mt-1 text-sm text-muted-foreground">Players join with this room code:</p>
               <p className="mt-2 font-mono text-3xl tracking-[0.3em]">{started.run.room.code}</p>
+              <Button className="mt-4 w-full" onClick={() => openGameRoom(started.game, started.run!)}>
+                Open game room
+              </Button>
             </>
           ) : (
             <p className="mt-1 text-sm text-muted-foreground">
