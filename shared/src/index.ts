@@ -1,5 +1,6 @@
 export * from './contracts/index.js';
 export * from './rules/index.js';
+export * from './votes/engine.js';
 export * from './games/whot.js';
 export * from './games/whotEngine.js';
 export * from './games/trivia/questions.js';
