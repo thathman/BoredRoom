@@ -22,6 +22,8 @@ const ReplayViewerPage = lazy(() => import("./pages/ReplayViewer"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const SessionScreenPage = lazy(() => import("./pages/SessionScreen"));
 const SessionSetupPage = lazy(() => import("./pages/SessionSetup"));
+const GamesPage = lazy(() => import("./pages/Games"));
+const SessionJoinPage = lazy(() => import("./pages/SessionJoin"));
 
 const RouteFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
@@ -45,6 +47,9 @@ const App = () => (
                   <Route path="/" element={<Index />} />
                   {/* Session-first routing (Phase 4); existing /:game/* routes remain. */}
                   <Route path="/start" element={<SessionSetupPage />} />
+                  <Route path="/games" element={<GamesPage />} />
+                  <Route path="/join" element={<SessionJoinPage />} />
+                  <Route path="/join/:sessionCode" element={<SessionJoinPage />} />
                   <Route path="/session/:code/:screen" element={<SessionScreenPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/display/stats" element={<DisplayStatsPage />} />

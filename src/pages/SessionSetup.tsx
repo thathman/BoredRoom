@@ -19,8 +19,10 @@ import {
   type SetupSettings,
 } from '@/lib/setupFlow';
 import { getPlayerId } from '@/lib/roomUtils';
+import { classifyDeviceForGame } from '@/lib/games';
 import { createSession } from '@/lib/serverApi';
 import { rememberHouseSession } from '@/lib/houseSessionResume';
+import { Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 
 const STEP_TITLE = ['Pick your packs', 'Set the house rules', 'Review & start'];
@@ -37,6 +39,28 @@ export default function SessionSetup() {
   const [creating, setCreating] = useState(false);
   const stepIdx = SETUP_STEPS.indexOf(state.step);
   const activePackId = state.selectedPackIds[0];
+
+  // Phones don't host (constitution: host display is a big screen). Steer them to join instead.
+  if (classifyDeviceForGame() === 'join') {
+    return (
+      <div className="min-h-screen w-full bg-background text-foreground flex flex-col items-center justify-center p-6 text-center">
+        <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-primary/15 text-primary">
+          <Smartphone className="w-7 h-7" />
+        </span>
+        <h1 className="text-xl font-bold">Hosting needs a bigger screen</h1>
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+          Start the night on a TV, laptop, or tablet. On your phone, join as a controller with the
+          code on the display.
+        </p>
+        <Button className="mt-6 rounded-2xl" onClick={() => navigate('/join')}>
+          Join as controller
+        </Button>
+        <Button variant="ghost" className="mt-2" onClick={() => navigate('/')}>
+          Back home
+        </Button>
+      </div>
+    );
+  }
 
   async function start() {
     setCreating(true);
