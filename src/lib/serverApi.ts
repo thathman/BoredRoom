@@ -53,3 +53,28 @@ export async function createSession(input: {
   const data = (await res.json()) as { session: CreatedSession };
   return data.session;
 }
+
+export interface StartedRun {
+  run: { id: string; gameType: string; roomCode?: string; status: string };
+  room: { code: string; hostToken: string } | null;
+}
+
+// Start a GameRun under a session. Legacy games get a Colyseus room (room != null); adapter games
+// run roomless. Returns null when no server is configured (offline/dev).
+export async function startGameRun(input: {
+  code: string;
+  houseSessionId: string;
+  hostDeviceId: string;
+  gameType: string;
+  packId?: string;
+}): Promise<StartedRun | null> {
+  const base = serverHttpBase();
+  if (!base) return null;
+  const res = await fetch(`${base}/sessions/${encodeURIComponent(input.code)}/runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`run_start_failed_${res.status}`);
+  return (await res.json()) as StartedRun;
+}

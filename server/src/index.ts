@@ -34,6 +34,8 @@ import { getRoom, upsertRoom } from './roomDirectory.js';
 import {
   buildHouseSession,
   persistHouseSession,
+  buildGameRun,
+  persistGameRun,
   buildSessionEvent,
   appendSessionEvent,
 } from './foundations.js';
@@ -121,6 +123,59 @@ app.post('/sessions', async (req, res) => {
     log('warn', 'session_persist_failed', { error: String(err) });
   }
   res.json({ session });
+});
+
+const LEGACY_GAME_TYPES = [
+  'ludo', 'whot', 'trivia', 'connect-4', 'ettt', 'logo', 'landlord', 'color-wahala', 'hustle', 'word-wahala',
+] as const;
+type LegacyGameType = (typeof LEGACY_GAME_TYPES)[number];
+
+function maxPlayersFor(gameType: LegacyGameType): number {
+  if (gameType === 'whot' || gameType === 'trivia' || gameType === 'logo' || gameType === 'color-wahala') return 8;
+  if (gameType === 'connect-4' || gameType === 'ettt') return 2;
+  return 4;
+}
+
+// Start a GameRun under a house session. For legacy (Colyseus-room) games it also provisions the
+// realtime room + host token so players can connect; adapter-only games (Phase 8) run without a
+// legacy room. Rematch = call again -> a fresh run id (constitution Art. III.3).
+app.post('/sessions/:code/runs', async (req, res) => {
+  const code = String(req.params.code ?? '');
+  const { houseSessionId, hostDeviceId, gameType, packId } = req.body ?? {};
+  if (!houseSessionId || typeof houseSessionId !== 'string') {
+    return res.status(400).json({ error: 'houseSessionId required' });
+  }
+  if (!gameType || typeof gameType !== 'string') {
+    return res.status(400).json({ error: 'gameType required' });
+  }
+  const run = buildGameRun({ houseSessionId, gameType, packId: typeof packId === 'string' ? packId : 'unknown' });
+
+  let room: { code: string; hostToken: string } | null = null;
+  if ((LEGACY_GAME_TYPES as readonly string[]).includes(gameType)) {
+    const roomCode = generateRoomCode();
+    const hostToken = hostTokenStore.issue(roomCode, typeof hostDeviceId === 'string' ? hostDeviceId : houseSessionId);
+    upsertRoom({
+      code: roomCode,
+      gameType: gameType as LegacyGameType,
+      status: 'lobby',
+      roomPolicy: 'open',
+      players: 0,
+      maxPlayers: maxPlayersFor(gameType as LegacyGameType),
+    });
+    run.roomCode = roomCode;
+    room = { code: roomCode, hostToken };
+  }
+
+  try {
+    await persistGameRun(run);
+    await appendSessionEvent(
+      buildSessionEvent({ sessionId: houseSessionId, gameRunId: run.id, type: 'game_run.created', payload: { gameType } }),
+    );
+  } catch (err) {
+    log('warn', 'game_run_persist_failed', { error: String(err) });
+  }
+  log('info', 'game_run_created', { session: code, gameType, run: run.id, room: run.roomCode ?? null });
+  res.json({ run, room });
 });
 
 app.get('/health', (_req, res) => {
