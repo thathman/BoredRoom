@@ -154,6 +154,39 @@ export const GAME_ADAPTERS: Record<string, GameAdapterCore> = {
     ],
     invalidMoves: { closed: 'Guessing is closed for this item.' },
   }),
+  'pidgin-translator': makeAdapter('pidgin-translator', {
+    playerCount: { min: 1, max: 12 },
+    bots: false,
+    audience: true,
+    rules: [
+      'A phrase is shown in English or Pidgin.',
+      'Pick the correct translation from the options.',
+      'Fastest correct answer each round earns a bonus.',
+    ],
+    invalidMoves: { locked: 'You already answered this round.', too_late: 'Time is up for this phrase.' },
+  }),
+  'faith-feud': makeAdapter('faith-feud', {
+    playerCount: { min: 2, max: 12 },
+    bots: false,
+    audience: true,
+    rules: [
+      'We surveyed the room — guess the top answers.',
+      'Each answer banks its poll points; three strikes ends the round.',
+      'Highest team total wins.',
+    ],
+    invalidMoves: { out_of_strikes: 'Your team is out of strikes this round.' },
+  }),
+  'bible-timeline': makeAdapter('bible-timeline', {
+    playerCount: { min: 1, max: 12 },
+    bots: false,
+    restore: true,
+    rules: [
+      'Arrange the dealt events in chronological order.',
+      'Each correctly-ordered pair scores; a perfect order earns a bonus.',
+      'Highest total after all rounds wins.',
+    ],
+    invalidMoves: { not_a_permutation: 'Use exactly the dealt events, each once.' },
+  }),
 };
 
 export function getAdapter(gameType: string | undefined | null): GameAdapterCore | null {
