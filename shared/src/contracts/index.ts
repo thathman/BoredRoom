@@ -11,6 +11,9 @@ export * from './session.js';
 // Pack system schemas (PackManifest / PackTheme).
 export * from './pack.js';
 
+// Game adapter contract (logic core).
+export * from './adapter.js';
+
 import type {
   Connect4PublicState as _Connect4PublicState,
 } from '../games/connect4/engine.js';
