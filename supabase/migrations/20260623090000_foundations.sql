@@ -167,3 +167,10 @@ CREATE POLICY "Anyone can update an operator device"
 
 CREATE INDEX IF NOT EXISTS idx_operator_devices_session
   ON public.operator_devices(session_id);
+
+-- Grants for PostgREST roles (RLS still governs row access). ----------------
+GRANT ALL ON public.house_sessions TO anon, authenticated, service_role;
+GRANT ALL ON public.game_runs TO anon, authenticated, service_role;
+GRANT ALL ON public.session_events TO anon, authenticated, service_role;
+GRANT ALL ON public.controller_devices TO anon, authenticated, service_role;
+GRANT ALL ON public.operator_devices TO anon, authenticated, service_role;

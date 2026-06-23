@@ -82,21 +82,23 @@ function readCurrentPlayerId(state: unknown): string | null {
 // catalog. Per-game overrides cover rule text and invalid-move messages.
 function makeAdapter(
   gameType: string,
-  overrides: Partial<Pick<GameCapabilities, 'audience' | 'hints' | 'voice' | 'restore'>> &
-    {
-      invalidMoves?: Record<string, string>;
-    } = {},
+  overrides: Partial<Pick<GameCapabilities, 'audience' | 'hints' | 'voice' | 'restore' | 'bots' | 'playerCount'>> & {
+    invalidMoves?: Record<string, string>;
+    // For new games not (yet) in GAME_REGISTRY: supply rules/range explicitly.
+    rules?: string[];
+  } = {},
 ): GameAdapterCore {
-  const meta = getGameMeta(gameType);
+  const meta = getGameMeta(gameType); // null for new games not in the legacy catalog
   const capabilities: GameCapabilities = {
-    playerCount: { min: meta?.minPlayers ?? 2, max: meta?.maxPlayers ?? 4 },
-    bots: meta?.supportsBots ?? false,
+    playerCount: overrides.playerCount ?? { min: meta?.minPlayers ?? 2, max: meta?.maxPlayers ?? 4 },
+    bots: overrides.bots ?? meta?.supportsBots ?? false,
     audience: overrides.audience ?? true,
     hints: overrides.hints ?? false,
     voice: overrides.voice ?? false,
     restore: overrides.restore ?? false,
   };
   const invalidMoves = overrides.invalidMoves ?? {};
+  const rules = overrides.rules ?? meta?.rules ?? [];
   return {
     gameType,
     capabilities,
@@ -111,7 +113,7 @@ function makeAdapter(
       yourTurn: readCurrentPlayerId(state) === playerId,
     }),
     getLegalActions: () => [],
-    explainRules: () => meta?.rules ?? [],
+    explainRules: () => rules,
     explainInvalidMove: (reasonCode) => invalidMoves[reasonCode] ?? 'That move is not allowed right now.',
   };
 }
@@ -138,6 +140,19 @@ export const GAME_ADAPTERS: Record<string, GameAdapterCore> = {
     hints: false,
     voice: true,
     invalidMoves: { too_late: 'Time is up for this question.' },
+  }),
+  // New games (Phase 8) — not in the legacy GAME_REGISTRY, so capabilities/rules are explicit.
+  'market-price': makeAdapter('market-price', {
+    playerCount: { min: 1, max: 12 },
+    bots: false,
+    audience: true,
+    restore: true,
+    rules: [
+      'A market item is revealed each round.',
+      'Guess its price in Naira — closer guesses score more.',
+      'Nail it (within 1%) for a bonus. Highest total after all rounds wins.',
+    ],
+    invalidMoves: { closed: 'Guessing is closed for this item.' },
   }),
 };
 

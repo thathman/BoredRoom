@@ -19,12 +19,19 @@ describe('game adapters', () => {
     expect(a.gameType).toBe('whot');
   });
 
-  it('capabilities derive from the game catalog (no drift)', () => {
+  it('catalog-backed adapters derive capabilities from the catalog (no drift)', () => {
     for (const [slug, adapter] of Object.entries(GAME_ADAPTERS)) {
-      const meta = getGameMeta(slug)!;
+      const meta = getGameMeta(slug);
+      if (!meta) continue; // new games (Phase 8) declare capabilities explicitly
       expect(adapter.capabilities.playerCount).toEqual({ min: meta.minPlayers, max: meta.maxPlayers });
       expect(adapter.capabilities.bots).toBe(meta.supportsBots ?? false);
     }
+  });
+
+  it('new games register with explicit capabilities + rules', () => {
+    const mp = getAdapter('market-price')!;
+    expect(mp.capabilities.playerCount).toEqual({ min: 1, max: 12 });
+    expect(mp.explainRules().length).toBeGreaterThan(0);
   });
 
   it('projects a public summary defensively from arbitrary state', () => {
