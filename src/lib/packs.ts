@@ -5,7 +5,38 @@
 // canonical Zod schemas in @boredroom/shared (shared/src/contracts/pack.ts); the mirror is
 // validated against the Zod schema in src/test/packs.test.ts so it cannot drift.
 
-import { GAME_REGISTRY, getGameMeta, type GameMeta } from '@/lib/games';
+import { getGameMeta } from '@/lib/games';
+import { getNewGameMeta } from '@/lib/newGames';
+
+// Common display shape across legacy (Colyseus) games and Phase 8 adapter games.
+export interface PackGame {
+  slug: string;
+  name: string;
+  emoji: string;
+  tagline: string;
+  minPlayers: number;
+  maxPlayers: number;
+  /** 'legacy' = has a Colyseus room; 'adapter' = runs via the GameAdapter registry. */
+  kind: 'legacy' | 'adapter';
+}
+
+function resolvePackGame(slug: string): PackGame | null {
+  const legacy = getGameMeta(slug);
+  if (legacy && legacy.enabled !== false) {
+    return {
+      slug: legacy.slug,
+      name: legacy.name,
+      emoji: legacy.emoji,
+      tagline: legacy.tagline,
+      minPlayers: legacy.minPlayers,
+      maxPlayers: legacy.maxPlayers,
+      kind: 'legacy',
+    };
+  }
+  const fresh = getNewGameMeta(slug);
+  if (fresh) return { ...fresh, kind: 'adapter' };
+  return null;
+}
 
 export interface PackTheme {
   id: string;
@@ -92,6 +123,40 @@ export const PACK_REGISTRY: PackManifest[] = [
     supportsVoice: false,
     offlineReady: false,
   },
+  {
+    id: 'pack.faith',
+    name: 'Faith & Family',
+    version: '1.0.0',
+    category: 'faith',
+    ageRating: 'family',
+    description: 'Church-night favourites: feud, scripture timelines, and trivia.',
+    games: ['faith-feud', 'bible-timeline', 'trivia'],
+    contentPacks: [],
+    themes: ['theme.faith'],
+    defaultThemeId: 'theme.faith',
+    hostPersonalities: ['pastor-mc'],
+    requiresModeration: false,
+    supportsAudience: true,
+    supportsVoice: false,
+    offlineReady: false,
+  },
+  {
+    id: 'pack.market',
+    name: 'Market Day',
+    version: '1.0.0',
+    category: 'lifestyle',
+    ageRating: 'family',
+    description: 'Naija street-smarts: prices, pidgin, and quick wits.',
+    games: ['market-price', 'pidgin-translator', 'color-wahala'],
+    contentPacks: [],
+    themes: ['theme.market'],
+    defaultThemeId: 'theme.market',
+    hostPersonalities: ['market-mama'],
+    requiresModeration: false,
+    supportsAudience: true,
+    supportsVoice: false,
+    offlineReady: false,
+  },
 ];
 
 const PACK_BY_ID = new Map(PACK_REGISTRY.map((p) => [p.id, p]));
@@ -105,19 +170,30 @@ export function getPackTheme(id: string | undefined | null): PackTheme | null {
   return (id && THEME_BY_ID.get(id)) || null;
 }
 
-// Pack-aware catalog: the games a pack exposes, in pack order, only those still registered+enabled.
-export function getGamesForPack(packId: string): GameMeta[] {
+// Pack-aware catalog: the games a pack exposes, in pack order, resolving legacy + adapter games.
+export function getGamesForPack(packId: string): PackGame[] {
   const pack = getPack(packId);
   if (!pack) return [];
   return pack.games
-    .map((slug) => getGameMeta(slug))
-    .filter((g): g is GameMeta => g !== null && g.enabled !== false);
+    .map((slug) => resolvePackGame(slug))
+    .filter((g): g is PackGame => g !== null);
 }
 
-// Union catalog across a selection of packs (de-duped, registry order preserved).
-export function getGamesForPacks(packIds: string[]): GameMeta[] {
-  const wanted = new Set(packIds.flatMap((id) => getPack(id)?.games ?? []));
-  return GAME_REGISTRY.filter((g) => wanted.has(g.slug) && g.enabled !== false);
+// Union catalog across a selection of packs (de-duped, pack order preserved).
+export function getGamesForPacks(packIds: string[]): PackGame[] {
+  const seen = new Set<string>();
+  const out: PackGame[] = [];
+  for (const id of packIds) {
+    for (const slug of getPack(id)?.games ?? []) {
+      if (seen.has(slug)) continue;
+      const game = resolvePackGame(slug);
+      if (game) {
+        seen.add(slug);
+        out.push(game);
+      }
+    }
+  }
+  return out;
 }
 
 export function resolvePackTheme(packId: string): PackTheme | null {

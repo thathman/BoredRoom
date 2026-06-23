@@ -7,6 +7,7 @@ import {
   resolvePackTheme,
 } from '@/lib/packs';
 import { isSupportedGame } from '@/lib/games';
+import { getNewGameMeta } from '@/lib/newGames';
 import { PackManifest, PackTheme } from '../../shared/src/contracts/pack';
 
 // AC-2.1: pack-first catalog is driven by manifests (no hardcoded game list in the UI),
@@ -24,10 +25,11 @@ describe('pack system', () => {
     }
   });
 
-  it('every pack references only real, registered game slugs', () => {
+  it('every pack references a real legacy or adapter game slug', () => {
     for (const pack of PACK_REGISTRY) {
       for (const slug of pack.games) {
-        expect(isSupportedGame(slug), `${pack.id} -> ${slug}`).toBe(true);
+        const known = isSupportedGame(slug) || getNewGameMeta(slug) !== null;
+        expect(known, `${pack.id} -> ${slug}`).toBe(true);
       }
     }
   });
@@ -52,6 +54,16 @@ describe('pack system', () => {
     expect(new Set(slugs).size).toBe(slugs.length);
     expect(slugs).toContain('connect-4'); // from classics
     expect(slugs).toContain('whot'); // from naija
+  });
+
+  it('new adapter games are reachable through their packs', () => {
+    const faith = getGamesForPack('pack.faith').map((g) => g.slug);
+    expect(faith).toContain('faith-feud');
+    expect(faith).toContain('bible-timeline');
+    const market = getGamesForPack('pack.market');
+    const mp = market.find((g) => g.slug === 'market-price');
+    expect(mp?.kind).toBe('adapter');
+    expect(mp?.name).toBe('Market Price');
   });
 
   it('resolves a pack default theme', () => {
