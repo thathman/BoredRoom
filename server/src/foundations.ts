@@ -216,6 +216,37 @@ function rowToSession(r: Record<string, unknown>): HouseSession {
   });
 }
 
+// The most recent game run for a session (the "now playing"), or null. Lets screens follow along
+// by polling the read endpoint — a session-scoped realtime channel can replace this later.
+export async function readActiveRun(houseSessionId: string): Promise<GameRun | null> {
+  if (!getBackendConfig()) return null;
+  const resp = await apiFetch(
+    `game_runs?house_session_id=eq.${encodeURIComponent(houseSessionId)}&order=started_at.desc.nullslast&limit=1`,
+  );
+  if (!resp.ok) return null;
+  const rows = (await resp.json()) as Record<string, unknown>[];
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const r = rows[0];
+  try {
+    return GameRunSchema.parse({
+      id: r.id,
+      houseSessionId: r.house_session_id,
+      gameType: r.game_type,
+      packId: r.pack_id,
+      roomCode: r.room_code ?? undefined,
+      status: r.status,
+      settings: r.settings ?? {},
+      startedAt: r.started_at ?? undefined,
+      endedAt: r.ended_at ?? undefined,
+      winnerPlayerIds: r.winner_player_ids ?? undefined,
+      recapId: r.recap_id ?? undefined,
+      latestSnapshotId: r.latest_snapshot_id ?? undefined,
+    });
+  } catch {
+    return null;
+  }
+}
+
 // Read a house session by code. Returns null when absent or when no backend is configured.
 export async function readHouseSession(code: string): Promise<HouseSession | null> {
   if (!getBackendConfig()) return null;

@@ -54,14 +54,30 @@ export async function createSession(input: {
   return data.session;
 }
 
+export interface ActiveRun {
+  id: string;
+  gameType: string;
+  roomCode?: string;
+  status: string;
+}
+
 // Hydrate a session by code (screens use this on load). null when no server or unknown code.
 export async function fetchSession(code: string): Promise<CreatedSession | null> {
+  const res = await fetchSessionWithRun(code);
+  return res?.session ?? null;
+}
+
+// Session + its current run ("now playing"). Screens poll this to follow along.
+export async function fetchSessionWithRun(
+  code: string,
+): Promise<{ session: CreatedSession; activeRun: ActiveRun | null } | null> {
   const base = serverHttpBase();
   if (!base) return null;
   const res = await fetch(`${base}/sessions/${encodeURIComponent(code)}`);
   if (!res.ok) return null;
-  const data = (await res.json()) as { session?: CreatedSession };
-  return data.session ?? null;
+  const data = (await res.json()) as { session?: CreatedSession; activeRun?: ActiveRun | null };
+  if (!data.session) return null;
+  return { session: data.session, activeRun: data.activeRun ?? null };
 }
 
 export interface StartedRun {

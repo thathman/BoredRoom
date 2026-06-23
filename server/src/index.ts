@@ -35,6 +35,7 @@ import {
   buildHouseSession,
   persistHouseSession,
   readHouseSession,
+  readActiveRun,
   buildGameRun,
   persistGameRun,
   buildSessionEvent,
@@ -132,7 +133,8 @@ app.get('/sessions/:code', async (req, res) => {
   try {
     const session = await readHouseSession(code);
     if (!session) return res.status(404).json({ exists: false, code });
-    return res.json({ session });
+    const activeRun = await readActiveRun(session.id);
+    return res.json({ session, activeRun });
   } catch (err) {
     log('warn', 'session_read_failed', { error: String(err) });
     return res.status(503).json({ error: 'session_read_failed' });

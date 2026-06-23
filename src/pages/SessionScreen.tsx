@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useParams, Navigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Monitor, Sliders, Smartphone, Users } from 'lucide-react';
@@ -9,7 +10,14 @@ import {
   type SessionScreen as Screen,
 } from '@/lib/sessionRoutes';
 import { getPack, getGamesForPack } from '@/lib/packs';
+import { getGameMeta } from '@/lib/games';
+import { getNewGameMeta } from '@/lib/newGames';
 import { OperatorConsole } from '@/components/session/OperatorConsole';
+import { fetchSessionWithRun, type ActiveRun } from '@/lib/serverApi';
+
+function getGameDisplayName(slug: string): string {
+  return getGameMeta(slug)?.name ?? getNewGameMeta(slug)?.name ?? slug;
+}
 
 // Phase 4 multi-screen shells, themed by the active pack (Phase 7). One route, four roles. These are
 // designed structural shells; live game rendering arrives via the GameAdapter Display/Controller/
@@ -26,6 +34,28 @@ export default function SessionScreen() {
   const { code, screen } = useParams<{ code: string; screen: string }>();
   const [params] = useSearchParams();
   const packId = params.get('pack') ?? undefined;
+  const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
+
+  // Public surfaces (display/crowd) follow the live game by polling the session. A session-scoped
+  // realtime channel can replace this poll later without changing the UI.
+  const follows = screen === 'display' || screen === 'crowd';
+  useEffect(() => {
+    if (!follows || !code) return;
+    let live = true;
+    const tick = () => {
+      fetchSessionWithRun(code)
+        .then((r) => {
+          if (live) setActiveRun(r?.activeRun ?? null);
+        })
+        .catch(() => {});
+    };
+    tick();
+    const id = setInterval(tick, 4000);
+    return () => {
+      live = false;
+      clearInterval(id);
+    };
+  }, [follows, code]);
 
   if (!isSessionScreen(screen)) {
     return <Navigate to={`/session/${code ?? ''}/display`} replace />;
@@ -73,7 +103,19 @@ export default function SessionScreen() {
           >
             <p className="text-muted-foreground">{meta.blurb}</p>
 
-            {screen === 'display' && games.length > 0 && (
+            {screen === 'display' && activeRun && activeRun.status !== 'finished' && (
+              <div className="mt-6 rounded-2xl border border-primary/40 bg-primary/10 px-6 py-4">
+                <p className="text-xs uppercase tracking-widest text-primary mb-1">Now playing</p>
+                <p className="text-xl font-bold">{getGameDisplayName(activeRun.gameType)}</p>
+                {activeRun.roomCode && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Join room <span className="font-mono tracking-widest">{activeRun.roomCode}</span>
+                  </p>
+                )}
+              </div>
+            )}
+
+            {screen === 'display' && !activeRun && games.length > 0 && (
               <div className="mt-6">
                 <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Tonight's lineup</p>
                 <div className="flex flex-wrap justify-center gap-2">
