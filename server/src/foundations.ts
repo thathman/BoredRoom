@@ -196,6 +196,40 @@ export async function persistHouseSession(s: HouseSession): Promise<WriteResult>
   return 'ok';
 }
 
+function rowToSession(r: Record<string, unknown>): HouseSession {
+  return HouseSessionSchema.parse({
+    id: r.id,
+    code: r.code,
+    status: r.status,
+    currentStage: r.current_stage,
+    selectedPackIds: r.selected_pack_ids ?? [],
+    activePackId: r.active_pack_id ?? undefined,
+    hostDeviceId: r.host_device_id,
+    activeDisplayId: r.active_display_id ?? undefined,
+    activeOperatorIds: r.active_operator_ids ?? [],
+    currentGameRunId: r.current_game_run_id ?? undefined,
+    walkthroughCompleted: r.walkthrough_completed ?? false,
+    settings: r.settings ?? {},
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    endedAt: r.ended_at ?? undefined,
+  });
+}
+
+// Read a house session by code. Returns null when absent or when no backend is configured.
+export async function readHouseSession(code: string): Promise<HouseSession | null> {
+  if (!getBackendConfig()) return null;
+  const resp = await apiFetch(`house_sessions?code=eq.${encodeURIComponent(code)}&limit=1`);
+  if (!resp.ok) return null;
+  const rows = (await resp.json()) as Record<string, unknown>[];
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  try {
+    return rowToSession(rows[0]);
+  } catch {
+    return null;
+  }
+}
+
 export async function persistGameRun(run: GameRun): Promise<WriteResult> {
   if (!getBackendConfig()) return 'skipped';
   await apiFetch('game_runs', {

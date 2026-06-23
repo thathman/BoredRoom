@@ -34,6 +34,7 @@ import { getRoom, upsertRoom } from './roomDirectory.js';
 import {
   buildHouseSession,
   persistHouseSession,
+  readHouseSession,
   buildGameRun,
   persistGameRun,
   buildSessionEvent,
@@ -123,6 +124,19 @@ app.post('/sessions', async (req, res) => {
     log('warn', 'session_persist_failed', { error: String(err) });
   }
   res.json({ session });
+});
+
+// Read a house session by code (for screens to hydrate). 404 when unknown / no backend.
+app.get('/sessions/:code', async (req, res) => {
+  const code = String(req.params.code ?? '');
+  try {
+    const session = await readHouseSession(code);
+    if (!session) return res.status(404).json({ exists: false, code });
+    return res.json({ session });
+  } catch (err) {
+    log('warn', 'session_read_failed', { error: String(err) });
+    return res.status(503).json({ error: 'session_read_failed' });
+  }
 });
 
 const LEGACY_GAME_TYPES = [
