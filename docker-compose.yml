@@ -6,6 +6,9 @@ services:
       args:
         VITE_TRANSPORT: ${VITE_TRANSPORT:-colyseus}
         VITE_COLYSEUS_URL: ${VITE_COLYSEUS_URL:-wss://colyseus.hendrix.com.ng}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-}
+        VITE_SUPABASE_PROJECT_ID: ${VITE_SUPABASE_PROJECT_ID:-}
     container_name: boredroom-web
     restart: unless-stopped
     ports:
@@ -24,3 +27,6 @@ services:
     environment:
       NODE_ENV: production
       PORT: "2567"
+      # Server-side session persistence (Phase 1 spine). Skips gracefully if unset.
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
