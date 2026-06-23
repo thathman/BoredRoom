@@ -120,6 +120,8 @@ try {
   // ---------- DESKTOP: other session screens (flows 4 + crowd + redirect) ----------
   await dpage.goto(`${BASE_URL}/session/TESTCODE/operator?pack=pack.naija`, { waitUntil: 'networkidle' });
   await see(dpage, 'Operator Console', 'operator shell');
+  await see(dpage, 'Start a game', 'operator lineup');
+  if ((await dpage.getByRole('button', { name: /Start/i }).count()) === 0) fail('operator should list startable games');
   await dpage.goto(`${BASE_URL}/session/TESTCODE/crowd?pack=pack.market`, { waitUntil: 'networkidle' });
   await see(dpage, 'Crowd', 'crowd shell');
   await dpage.goto(`${BASE_URL}/session/TESTCODE/bogus`, { waitUntil: 'networkidle' });

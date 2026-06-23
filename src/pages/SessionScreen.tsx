@@ -9,6 +9,7 @@ import {
   type SessionScreen as Screen,
 } from '@/lib/sessionRoutes';
 import { getPack, getGamesForPack } from '@/lib/packs';
+import { OperatorConsole } from '@/components/session/OperatorConsole';
 
 // Phase 4 multi-screen shells, themed by the active pack (Phase 7). One route, four roles. These are
 // designed structural shells; live game rendering arrives via the GameAdapter Display/Controller/
@@ -82,6 +83,12 @@ export default function SessionScreen() {
                     </Badge>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {screen === 'operator' && (
+              <div className="mt-6 flex justify-center">
+                <OperatorConsole code={code ?? ''} packId={packId} />
               </div>
             )}
 
