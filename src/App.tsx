@@ -20,6 +20,7 @@ const DevGameOverPage = lazy(() => import("./pages/DevGameOver"));
 const RecapPage = lazy(() => import("./pages/Recap"));
 const ReplayViewerPage = lazy(() => import("./pages/ReplayViewer"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const SessionScreenPage = lazy(() => import("./pages/SessionScreen"));
 
 const RouteFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
@@ -41,6 +42,8 @@ const App = () => (
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   <Route path="/" element={<Index />} />
+                  {/* Session-first routing (Phase 4); existing /:game/* routes remain. */}
+                  <Route path="/session/:code/:screen" element={<SessionScreenPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/display/stats" element={<DisplayStatsPage />} />
                   <Route path="/dev/gameover/:gameId" element={<DevGameOverPage />} />
