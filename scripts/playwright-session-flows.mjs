@@ -82,6 +82,10 @@ try {
   await dpage.getByText(/Tonight's lineup/i).waitFor({ timeout: 8000 });
   await assertNoVerticalScroll(dpage, 'session-display'); // AC-4.2
 
+  // Flow 2: returning home now offers a one-tap resume of the house just created.
+  await dpage.goto(`${BASE_URL}/`, { waitUntil: 'networkidle' });
+  await dpage.getByRole('button', { name: /Continue your house/i }).waitFor({ timeout: 8000 });
+
   // Flow 3: controller shell on a phone.
   await ppage.goto(`${BASE_URL}/session/TESTCODE/controller?pack=pack.naija`, { waitUntil: 'networkidle' });
   await ppage.getByText('Controller').first().waitFor({ timeout: 8000 });

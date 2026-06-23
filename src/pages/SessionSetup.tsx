@@ -20,6 +20,7 @@ import {
 } from '@/lib/setupFlow';
 import { getPlayerId } from '@/lib/roomUtils';
 import { createSession } from '@/lib/serverApi';
+import { rememberHouseSession } from '@/lib/houseSessionResume';
 import { toast } from 'sonner';
 
 const STEP_TITLE = ['Pick your packs', 'Set the house rules', 'Review & start'];
@@ -41,8 +42,9 @@ export default function SessionSetup() {
     setCreating(true);
     try {
       const session = await createSession(toCreateSessionInput(state, getPlayerId()));
-      toast.success(`House session ${session.code} ready`);
       const pack = session.activePackId ?? activePackId ?? '';
+      rememberHouseSession({ code: session.code, packId: pack || undefined });
+      toast.success(`House session ${session.code} ready`);
       navigate(`/session/${session.code}/display?pack=${encodeURIComponent(pack)}`);
     } catch {
       toast.error('Could not start the session. Try again.');

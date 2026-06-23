@@ -7,6 +7,7 @@ import { HeroSky } from '@/components/game/HeroSky';
 import { GameGlyph } from '@/components/game/GameGlyph';
 import { GAME_REGISTRY, classifyDeviceForGame } from '@/lib/games';
 import { ContinueSessionCard } from '@/components/system/ContinueSessionCard';
+import { getLastHouseSession } from '@/lib/houseSessionResume';
 import { resetPwaCacheAndReload } from '@/lib/pwa';
 import { toast } from 'sonner';
 
@@ -15,6 +16,7 @@ export default function Index() {
   const defaultRole = classifyDeviceForGame();
   const buildHash = (import.meta.env.VITE_BUILD_HASH as string | undefined) ?? 'dev';
   const appVersion = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev';
+  const lastHouse = getLastHouseSession();
 
   const onPickGame = (slug: string) => {
     const role = classifyDeviceForGame();
@@ -50,6 +52,19 @@ export default function Index() {
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
               <p className="mt-2 text-xs text-muted-foreground">Pick a pack. Gather the room. Let the house play.</p>
+              {lastHouse && (
+                <div className="mt-3">
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      navigate(`/session/${lastHouse.code}/display?pack=${encodeURIComponent(lastHouse.packId ?? '')}`)
+                    }
+                    className="rounded-2xl"
+                  >
+                    Continue your house ({lastHouse.code})
+                  </Button>
+                </div>
+              )}
             </div>
           </motion.div>
         </motion.div>
