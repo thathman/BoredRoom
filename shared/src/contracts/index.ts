@@ -5,6 +5,9 @@
 // (clients tolerate missing fields via `?? defaults`), so no version churn.
 export const PROTOCOL_VERSION = 2;
 
+// Session-aware platform schemas (HouseSession / GameRun / devices / votes).
+export * from './session.js';
+
 import type {
   Connect4PublicState as _Connect4PublicState,
 } from '../games/connect4/engine.js';
