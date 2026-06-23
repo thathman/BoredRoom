@@ -31,6 +31,12 @@ import { PROTOCOL_VERSION } from '../../shared/src/contracts/index.js';
 import { isValidRoomCode } from '../../shared/src/roomCodes.js';
 import { log } from './logger.js';
 import { getRoom, upsertRoom } from './roomDirectory.js';
+import {
+  buildHouseSession,
+  persistHouseSession,
+  buildSessionEvent,
+  appendSessionEvent,
+} from './foundations.js';
 
 const PORT = Number(process.env.PORT ?? 2567);
 
@@ -90,6 +96,31 @@ app.get('/rooms/:code', (req, res) => {
     maxPlayers: room.maxPlayers,
     joinable: room.roomPolicy !== 'locked' && room.players < room.maxPlayers,
   });
+});
+
+// Create a HouseSession (Phase 1 spine). The realtime game container is still a Colyseus room,
+// created later under a GameRun. Persistence degrades gracefully when Supabase env is absent.
+app.post('/sessions', async (req, res) => {
+  const { hostDeviceId, selectedPackIds, activePackId, settings } = req.body ?? {};
+  if (!hostDeviceId || typeof hostDeviceId !== 'string') {
+    return res.status(400).json({ error: 'hostDeviceId required' });
+  }
+  if (!Array.isArray(selectedPackIds) || selectedPackIds.length === 0) {
+    return res.status(400).json({ error: 'selectedPackIds required' });
+  }
+  const session = buildHouseSession({
+    hostDeviceId,
+    selectedPackIds,
+    activePackId,
+    settings: settings && typeof settings === 'object' ? settings : undefined,
+  });
+  try {
+    await persistHouseSession(session);
+    await appendSessionEvent(buildSessionEvent({ sessionId: session.id, type: 'session.created', actorId: hostDeviceId }));
+  } catch (err) {
+    log('warn', 'session_persist_failed', { error: String(err) });
+  }
+  res.json({ session });
 });
 
 app.get('/health', (_req, res) => {

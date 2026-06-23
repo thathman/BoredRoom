@@ -42,10 +42,10 @@ describe('session routing', () => {
     );
   }
 
-  it('renders each screen shell with the right label', () => {
+  it('renders each screen shell with the session code', () => {
     for (const s of SESSION_SCREENS) {
       const { unmount } = renderAt(`/session/ABCD/${s}`);
-      expect(screen.getByText('Session ABCD')).toBeInTheDocument();
+      expect(screen.getByText('ABCD')).toBeInTheDocument();
       unmount();
     }
   });

@@ -44,6 +44,13 @@ export default function Index() {
             <p className="text-lg text-muted-foreground max-w-md mx-auto">
               Pick a game. Share the screen. Play together in the same room.
             </p>
+            <div className="mt-6">
+              <Button size="lg" onClick={() => navigate('/start')} className="rounded-2xl">
+                <Gamepad2 className="w-5 h-5 mr-2" /> Host a game night
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+              <p className="mt-2 text-xs text-muted-foreground">Pick a pack. Gather the room. Let the house play.</p>
+            </div>
           </motion.div>
         </motion.div>
       </div>
