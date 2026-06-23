@@ -105,7 +105,7 @@ export function resolveRound(round: VoteRound, now: number): VoteRound {
 
   let leader: string | null = null;
   let leadCount = 0;
-  for (const [opt, count] of Object.entries(tally)) {
+  for (const [opt, count] of Object.entries(tally) as [string, number][]) {
     if (count > leadCount) {
       leader = opt;
       leadCount = count;
@@ -126,7 +126,7 @@ export function winningOption(round: VoteRound): string | null {
   if (round.vote.status !== 'passed') return null;
   let leader: string | null = null;
   let leadCount = -1;
-  for (const [opt, count] of Object.entries(round.vote.tally)) {
+  for (const [opt, count] of Object.entries(round.vote.tally) as [string, number][]) {
     if (count > leadCount) {
       leader = opt;
       leadCount = count;
