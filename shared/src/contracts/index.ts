@@ -8,6 +8,9 @@ export const PROTOCOL_VERSION = 2;
 // Session-aware platform schemas (HouseSession / GameRun / devices / votes).
 export * from './session.js';
 
+// Pack system schemas (PackManifest / PackTheme).
+export * from './pack.js';
+
 import type {
   Connect4PublicState as _Connect4PublicState,
 } from '../games/connect4/engine.js';
