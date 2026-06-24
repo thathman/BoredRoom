@@ -113,12 +113,18 @@ app.post('/sessions', async (req, res) => {
   // A session isn't scoped to chosen packs anymore — all installed games are available. Packs are
   // an install mechanism, not a play-time choice.
   const packIds = Array.isArray(selectedPackIds) ? selectedPackIds : [];
-  const session = buildHouseSession({
-    hostDeviceId,
-    selectedPackIds: packIds,
-    activePackId,
-    settings: settings && typeof settings === 'object' ? settings : undefined,
-  });
+  let session: ReturnType<typeof buildHouseSession>;
+  try {
+    session = buildHouseSession({
+      hostDeviceId,
+      selectedPackIds: packIds,
+      activePackId,
+      settings: settings && typeof settings === 'object' ? settings : undefined,
+    });
+  } catch (err) {
+    log('warn', 'session_build_failed', { error: String(err) });
+    return res.status(400).json({ error: 'invalid_session_input' });
+  }
   // Respond immediately; persistence is best-effort and must not block room creation.
   void persistHouseSession(session)
     .then(() => appendSessionEvent(buildSessionEvent({ sessionId: session.id, type: 'session.created', actorId: hostDeviceId })))
@@ -163,7 +169,16 @@ app.post('/sessions/:code/runs', async (req, res) => {
   if (!gameType || typeof gameType !== 'string') {
     return res.status(400).json({ error: 'gameType required' });
   }
-  const run = buildGameRun({ houseSessionId, gameType, packId: typeof packId === 'string' ? packId : 'unknown' });
+  let run: ReturnType<typeof buildGameRun>;
+  try {
+    // packId is required by the schema; treat empty/missing as 'unknown' so a thin client payload
+    // can't crash the handler.
+    const pid = typeof packId === 'string' && packId.trim() ? packId : 'unknown';
+    run = buildGameRun({ houseSessionId, gameType, packId: pid });
+  } catch (err) {
+    log('warn', 'game_run_build_failed', { error: String(err) });
+    return res.status(400).json({ error: 'invalid_run_input' });
+  }
 
   let room: { code: string; hostToken: string } | null = null;
   if ((LEGACY_GAME_TYPES as readonly string[]).includes(gameType)) {
