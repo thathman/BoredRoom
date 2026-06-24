@@ -45,7 +45,7 @@ describe('session routing', () => {
   it('renders each screen shell with the session code', () => {
     for (const s of SESSION_SCREENS) {
       const { unmount } = renderAt(`/session/ABCD/${s}`);
-      expect(screen.getByText('ABCD')).toBeInTheDocument();
+      expect(screen.getAllByText('ABCD').length).toBeGreaterThan(0);
       unmount();
     }
   });

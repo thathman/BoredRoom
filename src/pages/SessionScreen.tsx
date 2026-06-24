@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useParams, Navigate, useSearchParams } from 'react-router-dom';
+import { useParams, Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Monitor, Sliders, Smartphone, Users } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ThemeProvider } from '@/components/system/ThemeProvider';
 import {
   isSessionScreen,
@@ -32,6 +34,7 @@ const SCREEN_META: Record<Screen, { label: string; icon: typeof Monitor; blurb: 
 
 export default function SessionScreen() {
   const { code, screen } = useParams<{ code: string; screen: string }>();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const packId = params.get('pack') ?? undefined;
   const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
@@ -65,6 +68,10 @@ export default function SessionScreen() {
   const Icon = meta.icon;
   const games = getAllGames();
   const isPublic = screenIsPublic(screen);
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const joinHost = typeof window !== 'undefined' ? window.location.host : '';
+  const joinUrl = `${origin}/join/${code ?? ''}`;
+  const operatorUrl = `/session/${code ?? ''}/operator`;
 
   return (
     <ThemeProvider packId={packId}>
@@ -89,9 +96,16 @@ export default function SessionScreen() {
               <h1 className="text-lg font-bold leading-tight">{meta.label}</h1>
             </div>
           </div>
-          <Badge variant="secondary" className="font-mono text-base tracking-[0.3em] px-3 py-1">
-            {code}
-          </Badge>
+          <div className="flex items-center gap-3">
+            {screen === 'display' && (
+              <Button variant="outline" size="sm" onClick={() => navigate(operatorUrl)}>
+                <Sliders className="w-4 h-4 mr-1" /> Operator
+              </Button>
+            )}
+            <Badge variant="secondary" className="font-mono text-base tracking-[0.3em] px-3 py-1">
+              {code}
+            </Badge>
+          </div>
         </header>
 
         <div className="flex-1 grid place-items-center p-6 text-center">
@@ -101,6 +115,19 @@ export default function SessionScreen() {
             className="max-w-md"
           >
             <p className="text-muted-foreground">{meta.blurb}</p>
+
+            {/* Join QR + code so phones can actually join the night. */}
+            {screen === 'display' && !activeRun && (
+              <div className="mt-6 flex flex-col items-center gap-3">
+                <div className="rounded-2xl bg-white p-3">
+                  <QRCodeSVG value={joinUrl} size={150} level="M" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Scan, or go to <span className="font-medium text-foreground">{joinHost}/join</span> and enter
+                </p>
+                <p className="font-mono text-3xl tracking-[0.4em] font-bold">{code}</p>
+              </div>
+            )}
 
             {screen === 'display' && activeRun && activeRun.status !== 'finished' && (
               <div className="mt-6 rounded-2xl border border-primary/40 bg-primary/10 px-6 py-4">
