@@ -105,22 +105,31 @@ export function OperatorConsole({ code }: { code: string; packId?: string }) {
             {games.length === 0 && (
               <p className="text-sm text-muted-foreground">No games in this session yet.</p>
             )}
-            {games.map((g) => (
-              <div key={g.slug} className="flex items-center justify-between rounded-xl border border-border bg-card/60 p-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">{g.emoji}</span>
-                  <div>
-                    <p className="font-medium leading-none">{g.name}</p>
-                    <Badge variant="outline" className="mt-1 text-[10px]">
-                      {g.kind === 'legacy' ? 'live room' : 'adapter'}
-                    </Badge>
+            {games.map((g) => {
+              // Only legacy games have a live play surface today. Adapter/pack games have engines
+              // but no room/UI yet — show them as coming soon instead of dead-ending on Start.
+              const playable = g.kind === 'legacy';
+              return (
+                <div key={g.slug} className="flex items-center justify-between rounded-xl border border-border bg-card/60 p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{g.emoji}</span>
+                    <div>
+                      <p className={`font-medium leading-none ${playable ? '' : 'text-muted-foreground'}`}>{g.name}</p>
+                      {!playable && (
+                        <Badge variant="outline" className="mt-1 text-[10px]">Coming soon</Badge>
+                      )}
+                    </div>
                   </div>
+                  {playable ? (
+                    <Button size="sm" onClick={() => start(g)} disabled={busy !== null}>
+                      {busy === g.slug ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Play className="h-4 w-4 mr-1" /> Start</>}
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="ghost" disabled>Soon</Button>
+                  )}
                 </div>
-                <Button size="sm" onClick={() => start(g)} disabled={busy !== null}>
-                  {busy === g.slug ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Play className="h-4 w-4 mr-1" /> Start</>}
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

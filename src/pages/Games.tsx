@@ -49,12 +49,12 @@ export default function Games() {
             </div>
             <div className="mt-4 flex items-center gap-2">
               <h3 className="text-2xl font-display font-bold">{game.name}</h3>
-              <ArrowRight className="w-4 h-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+              {game.kind === 'legacy' && <ArrowRight className="w-4 h-4 text-muted-foreground transition-transform group-hover:translate-x-1" />}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">{game.tagline}</p>
             <p className="mt-3 text-[11px] uppercase tracking-wider text-muted-foreground/80">
               {game.minPlayers === game.maxPlayers ? `${game.maxPlayers}` : `${game.minPlayers}-${game.maxPlayers}`} players
-              {game.kind === 'adapter' && ' · pack game'}
+              {game.kind === 'adapter' && ' · coming soon'}
             </p>
           </button>
         ))}
