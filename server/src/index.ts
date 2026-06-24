@@ -26,6 +26,7 @@ import { LandlordRoom } from './rooms/LandlordRoom.js';
 import { ColorWahalaRoom } from './rooms/ColorWahalaRoom.js';
 import { HustleRoom } from './rooms/HustleRoom.js';
 import { WordWahalaRoom } from './rooms/WordWahalaRoom.js';
+import { HalfHalfRoom } from './rooms/HalfHalfRoom.js';
 import { hostTokenStore } from './auth/hostTokens.js';
 import { PROTOCOL_VERSION } from '../../shared/src/contracts/index.js';
 import { isValidRoomCode } from '../../shared/src/roomCodes.js';
@@ -56,8 +57,8 @@ app.post('/rooms', (req, res) => {
   if (!hostDeviceId || typeof hostDeviceId !== 'string') {
     return res.status(400).json({ error: 'hostDeviceId required' });
   }
-  const validGameType: 'ludo' | 'whot' | 'trivia' | 'connect-4' | 'ettt' | 'logo' | 'landlord' | 'color-wahala' | 'hustle' | 'word-wahala' =
-    gameType === 'whot' || gameType === 'trivia' || gameType === 'connect-4' || gameType === 'ettt' || gameType === 'logo' || gameType === 'landlord' || gameType === 'color-wahala' || gameType === 'hustle' || gameType === 'word-wahala'
+  const validGameType: 'ludo' | 'whot' | 'trivia' | 'connect-4' | 'ettt' | 'logo' | 'landlord' | 'half-half' | 'color-wahala' | 'hustle' | 'word-wahala' =
+    gameType === 'whot' || gameType === 'trivia' || gameType === 'connect-4' || gameType === 'ettt' || gameType === 'logo' || gameType === 'landlord' || gameType === 'half-half' || gameType === 'color-wahala' || gameType === 'hustle' || gameType === 'word-wahala'
       ? gameType
       : 'ludo';
   const code = generateRoomCode();
@@ -66,6 +67,7 @@ app.post('/rooms', (req, res) => {
     validGameType === 'whot' ? 8
     : validGameType === 'trivia' ? 8
     : validGameType === 'logo' ? 8
+    : validGameType === 'half-half' ? 8
     : validGameType === 'color-wahala' ? 8
     : validGameType === 'connect-4' ? 2
     : validGameType === 'ettt' ? 2
@@ -147,12 +149,12 @@ app.get('/sessions/:code', async (req, res) => {
 });
 
 const LEGACY_GAME_TYPES = [
-  'ludo', 'whot', 'trivia', 'connect-4', 'ettt', 'logo', 'landlord', 'color-wahala', 'hustle', 'word-wahala',
+  'ludo', 'whot', 'trivia', 'connect-4', 'ettt', 'logo', 'landlord', 'half-half', 'color-wahala', 'hustle', 'word-wahala',
 ] as const;
 type LegacyGameType = (typeof LEGACY_GAME_TYPES)[number];
 
 function maxPlayersFor(gameType: LegacyGameType): number {
-  if (gameType === 'whot' || gameType === 'trivia' || gameType === 'logo' || gameType === 'color-wahala') return 8;
+  if (gameType === 'whot' || gameType === 'trivia' || gameType === 'logo' || gameType === 'half-half' || gameType === 'color-wahala') return 8;
   if (gameType === 'connect-4' || gameType === 'ettt') return 2;
   return 4;
 }
@@ -258,6 +260,7 @@ gameServer.define('landlord', LandlordRoom).filterBy(['code']);
 gameServer.define('color-wahala', ColorWahalaRoom).filterBy(['code']);
 gameServer.define('hustle', HustleRoom).filterBy(['code']);
 gameServer.define('word-wahala', WordWahalaRoom).filterBy(['code']);
+gameServer.define('half-half', HalfHalfRoom).filterBy(['code']);
 
 httpServer.listen(PORT, () => {
   log('info', 'server_listening', { port: PORT, protocolVersion: PROTOCOL_VERSION });

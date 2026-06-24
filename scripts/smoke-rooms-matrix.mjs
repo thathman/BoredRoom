@@ -20,6 +20,7 @@ const GAME_CASES = [
   { gameType: 'ettt', roomType: 'ettt', action: { type: 'ettt:place', row: 0, col: 0 } },
   { gameType: 'logo', roomType: 'logo', action: { type: 'send_reaction', emoji: '🎯' } },
   { gameType: 'landlord', roomType: 'landlord', action: { type: 'landlord:roll' } },
+  { gameType: 'half-half', roomType: 'half-half', action: { type: 'send_reaction', emoji: '🪙' } },
   { gameType: 'color-wahala', roomType: 'color-wahala', action: { type: 'send_reaction', emoji: '🎨' } },
   { gameType: 'hustle', roomType: 'hustle', action: { type: 'hustle:roll' } },
   { gameType: 'word-wahala', roomType: 'word-wahala', action: { type: 'wordwahala:pass' } },

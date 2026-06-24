@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-24T05:53:31.471Z",
+  "generatedAt": "2026-06-24T06:25:22.919Z",
   "httpUrl": "http://localhost:2567",
   "wsUrl": "ws://localhost:2567",
   "ok": true,
@@ -30,6 +30,10 @@
     },
     {
       "gameType": "landlord",
+      "status": "pass"
+    },
+    {
+      "gameType": "half-half",
       "status": "pass"
     },
     {
