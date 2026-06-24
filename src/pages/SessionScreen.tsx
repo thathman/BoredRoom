@@ -39,9 +39,9 @@ export default function SessionScreen() {
   const packId = params.get('pack') ?? undefined;
   const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
 
-  // Public surfaces (display/crowd) follow the live game by polling the session. A session-scoped
+  // Display/crowd/controller all follow the live game by polling the session. A session-scoped
   // realtime channel can replace this poll later without changing the UI.
-  const follows = screen === 'display' || screen === 'crowd';
+  const follows = screen === 'display' || screen === 'crowd' || screen === 'controller';
   useEffect(() => {
     if (!follows || !code) return;
     let live = true;
@@ -59,6 +59,14 @@ export default function SessionScreen() {
       clearInterval(id);
     };
   }, [follows, code]);
+
+  // When a game starts, send controllers straight into that game's join flow (room code prefilled).
+  useEffect(() => {
+    if (screen !== 'controller') return;
+    if (activeRun && activeRun.roomCode && activeRun.status !== 'finished') {
+      navigate(`/${activeRun.gameType}/join/${activeRun.roomCode}`);
+    }
+  }, [screen, activeRun, navigate]);
 
   if (!isSessionScreen(screen)) {
     return <Navigate to={`/session/${code ?? ''}/display`} replace />;
