@@ -4,7 +4,7 @@ import { Loader2, Play, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getAllGames, type CatalogGame } from '@/lib/catalog';
-import { getPlayerId } from '@/lib/roomUtils';
+import { ensureHostDisplayId } from '@/lib/roomUtils';
 import { fetchSession, startGameRun, listPacks, type StartedRun } from '@/lib/serverApi';
 
 // Operator console (Phase 9 surface): the host runs the night here. Lists the session's lineup and
@@ -54,7 +54,9 @@ export function OperatorConsole({ code }: { code: string; packId?: string }) {
       const run = await startGameRun({
         code,
         houseSessionId: sessionId,
-        hostDeviceId: getPlayerId(),
+        // The legacy host display joins the Colyseus room as hostDisplayId, so the host token must
+        // be bound to that same id (not getPlayerId) or the server rejects host_token_invalid.
+        hostDeviceId: ensureHostDisplayId(),
         gameType: game.slug,
       });
       setStarted({ game, run });
