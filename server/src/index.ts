@@ -119,12 +119,10 @@ app.post('/sessions', async (req, res) => {
     activePackId,
     settings: settings && typeof settings === 'object' ? settings : undefined,
   });
-  try {
-    await persistHouseSession(session);
-    await appendSessionEvent(buildSessionEvent({ sessionId: session.id, type: 'session.created', actorId: hostDeviceId }));
-  } catch (err) {
-    log('warn', 'session_persist_failed', { error: String(err) });
-  }
+  // Respond immediately; persistence is best-effort and must not block room creation.
+  void persistHouseSession(session)
+    .then(() => appendSessionEvent(buildSessionEvent({ sessionId: session.id, type: 'session.created', actorId: hostDeviceId })))
+    .catch((err) => log('warn', 'session_persist_failed', { error: String(err) }));
   res.json({ session });
 });
 
@@ -183,14 +181,10 @@ app.post('/sessions/:code/runs', async (req, res) => {
     room = { code: roomCode, hostToken };
   }
 
-  try {
-    await persistGameRun(run);
-    await appendSessionEvent(
-      buildSessionEvent({ sessionId: houseSessionId, gameRunId: run.id, type: 'game_run.created', payload: { gameType } }),
-    );
-  } catch (err) {
-    log('warn', 'game_run_persist_failed', { error: String(err) });
-  }
+  // Respond immediately; the room is live in-memory. Persistence is best-effort in the background.
+  void persistGameRun(run)
+    .then(() => appendSessionEvent(buildSessionEvent({ sessionId: houseSessionId, gameRunId: run.id, type: 'game_run.created', payload: { gameType } })))
+    .catch((err) => log('warn', 'game_run_persist_failed', { error: String(err) }));
   log('info', 'game_run_created', { session: code, gameType, run: run.id, room: run.roomCode ?? null });
   res.json({ run, room });
 });

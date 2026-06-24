@@ -153,8 +153,10 @@ function getBackendConfig(): BackendConfig | null {
 async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const cfg = getBackendConfig();
   if (!cfg) throw new Error('backend_env_missing');
+  // Hard timeout so a slow/hung Supabase never blocks a request indefinitely.
   return fetch(`${cfg.url}/rest/v1/${path}`, {
     ...init,
+    signal: AbortSignal.timeout(8000),
     headers: {
       apikey: cfg.key,
       authorization: `Bearer ${cfg.key}`,

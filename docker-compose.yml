@@ -28,9 +28,15 @@ services:
       NODE_ENV: production
       PORT: "2567"
       # Server-side session persistence (Phase 1 spine). Skips gracefully if unset.
-      # Server reaches Supabase Kong internally via the host gateway (no public DNS hairpin);
-      # the browser uses the public VITE_SUPABASE_URL instead.
+      # Reaches Supabase Kong directly over the shared docker network (container-to-container,
+      # no host-gateway hairpin). The browser uses the public VITE_SUPABASE_URL instead.
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - supabase
+
+networks:
+  supabase:
+    external: true
+    name: supabase_default
