@@ -66,7 +66,7 @@ export default function RecapPage() {
     ?? (replay.standings.length
         ? `${replay.standings.map((s) => s.displayName).slice(0, 4).join(', ')} played a match. See the full recap.`
         : 'A BoredRoom match recap.');
-  const ogImage = `${window.location.origin}/images/nigerian-skyline-header.png`;
+  const ogImage = `${window.location.origin}/icons/icon-512.png`;
   const canonical = `${window.location.origin}/r/${replay.shareToken}`;
 
   return (

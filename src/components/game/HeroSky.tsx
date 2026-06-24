@@ -126,21 +126,8 @@ export function HeroSky() {
         />
       ))}
 
-      {/* Skyline image anchored to hero bottom. */}
-      <div
-        className="absolute inset-x-0 bottom-0"
-        style={{
-          height: '62%',
-          opacity: 0.9,
-          backgroundImage: "url('/images/nigerian-skyline-header.png')",
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center bottom',
-          backgroundSize: 'cover',
-          filter: 'drop-shadow(0 0 20px hsl(var(--primary) / 0.25))',
-          maskImage: 'linear-gradient(to top, black 45%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(to top, black 45%, transparent 100%)',
-        }}
-      />
+      {/* Neon skyline (inline SVG — themeable, crisp, no binary asset). */}
+      <SkylineSvg />
 
       {/* Soft ground haze under skyline (no procedural block buildings). */}
       <div
@@ -161,5 +148,76 @@ export function HeroSky() {
         }}
       />
     </div>
+  );
+}
+
+// Stylized Naija night skyline — deterministic vector silhouette with lit windows and neon antenna
+// tips. Themeable via CSS vars; anchored to the hero bottom and faded at the top.
+function SkylineSvg() {
+  // [x, width, height] in viewBox units (viewBox 0..1200 wide, 0..200 tall, ground = 200).
+  const buildings: [number, number, number][] = [
+    [0, 70, 90], [64, 46, 130], [104, 90, 70], [186, 40, 160], [220, 64, 110],
+    [280, 54, 150], [330, 80, 95], [404, 44, 175], [442, 70, 120], [508, 58, 140],
+    [560, 96, 80], [650, 48, 165], [692, 66, 115], [752, 84, 100], [830, 44, 150],
+    [868, 72, 128], [934, 90, 88], [1018, 46, 158], [1058, 70, 112], [1122, 90, 96],
+  ];
+  const windowsFor = (bx: number, bw: number, bh: number) => {
+    const cells: { x: number; y: number }[] = [];
+    const top = 200 - bh;
+    for (let y = top + 10; y < 196; y += 12) {
+      for (let x = bx + 6; x < bx + bw - 6; x += 12) {
+        // deterministic sparse lighting
+        if (((x * 7 + y * 13) % 5) < 2) cells.push({ x, y });
+      }
+    }
+    return cells;
+  };
+
+  return (
+    <svg
+      className="absolute inset-x-0 bottom-0 w-full"
+      style={{
+        height: '60%',
+        opacity: 0.92,
+        maskImage: 'linear-gradient(to top, black 55%, transparent 100%)',
+        WebkitMaskImage: 'linear-gradient(to top, black 55%, transparent 100%)',
+        filter: 'drop-shadow(0 0 18px hsl(var(--primary) / 0.25))',
+      }}
+      viewBox="0 0 1200 200"
+      preserveAspectRatio="xMidYMax slice"
+      aria-hidden="true"
+    >
+      {buildings.map(([x, w, h], i) => (
+        <g key={i}>
+          <rect
+            x={x}
+            y={200 - h}
+            width={w}
+            height={h}
+            fill="hsl(230 40% 8%)"
+            stroke="hsl(var(--primary) / 0.35)"
+            strokeWidth={1}
+          />
+          {windowsFor(x, w, h).map((c, j) => (
+            <rect
+              key={j}
+              x={c.x}
+              y={c.y}
+              width={3}
+              height={4}
+              fill={j % 7 === 0 ? 'hsl(var(--secondary))' : 'hsl(var(--primary))'}
+              opacity={0.85}
+            />
+          ))}
+          {/* antenna + glow tip on the taller towers */}
+          {h > 140 && (
+            <>
+              <line x1={x + w / 2} y1={200 - h} x2={x + w / 2} y2={200 - h - 14} stroke="hsl(var(--primary) / 0.6)" strokeWidth={1} />
+              <circle cx={x + w / 2} cy={200 - h - 14} r={2.2} fill="hsl(var(--accent))" />
+            </>
+          )}
+        </g>
+      ))}
+    </svg>
   );
 }
