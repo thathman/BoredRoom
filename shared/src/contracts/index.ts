@@ -11,6 +11,9 @@ export * from './session.js';
 // Pack system schemas (PackManifest / PackTheme).
 export * from './pack.js';
 
+// Installable pack repo format + URL resolution.
+export * from './packRepo.js';
+
 // Game adapter contract (logic core).
 export * from './adapter.js';
 

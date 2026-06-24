@@ -3,27 +3,44 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Play, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getGamesForPacks, type PackGame } from '@/lib/packs';
+import { getAllGames, type CatalogGame } from '@/lib/catalog';
 import { getPlayerId } from '@/lib/roomUtils';
-import { fetchSession, startGameRun, type StartedRun } from '@/lib/serverApi';
+import { fetchSession, startGameRun, listPacks, type StartedRun } from '@/lib/serverApi';
 
 // Operator console (Phase 9 surface): the host runs the night here. Lists the session's lineup and
 // starts a GameRun via POST /sessions/:code/runs. Legacy games return a Colyseus room code players
 // connect to; adapter games (Phase 8) launch roomless. Settings stay off the public display (Art. IV.2).
-export function OperatorConsole({ code, packId }: { code: string; packId?: string }) {
+export function OperatorConsole({ code }: { code: string; packId?: string }) {
   const navigate = useNavigate();
-  const [packIds, setPackIds] = useState<string[]>(packId ? [packId] : []);
   const [sessionId, setSessionId] = useState<string>(`local_${code}`);
+  const [games, setGames] = useState<CatalogGame[]>(getAllGames());
   const [busy, setBusy] = useState<string | null>(null);
-  const [started, setStarted] = useState<{ game: PackGame; run: StartedRun | null } | null>(null);
+  const [started, setStarted] = useState<{ game: CatalogGame; run: StartedRun | null } | null>(null);
 
   useEffect(() => {
     let live = true;
     fetchSession(code)
       .then((s) => {
-        if (!live || !s) return;
-        setSessionId(s.id);
-        if (s.selectedPackIds?.length) setPackIds(s.selectedPackIds);
+        if (live && s) setSessionId(s.id);
+      })
+      .catch(() => {});
+    // All installed games are available in any room (built-in + pack-installed).
+    listPacks()
+      .then((packs) => {
+        if (!live) return;
+        const packGames: CatalogGame[] = packs.flatMap((p) =>
+          p.manifest.games.map((g) => ({
+            slug: g.slug,
+            name: g.name,
+            emoji: g.emoji,
+            tagline: g.tagline,
+            minPlayers: g.minPlayers,
+            maxPlayers: g.maxPlayers,
+            kind: 'adapter' as const,
+          })),
+        );
+        const seen = new Set(getAllGames().map((g) => g.slug));
+        setGames([...getAllGames(), ...packGames.filter((g) => !seen.has(g.slug))]);
       })
       .catch(() => {});
     return () => {
@@ -31,9 +48,7 @@ export function OperatorConsole({ code, packId }: { code: string; packId?: strin
     };
   }, [code]);
 
-  const games = getGamesForPacks(packIds);
-
-  async function start(game: PackGame) {
+  async function start(game: CatalogGame) {
     setBusy(game.slug);
     try {
       const run = await startGameRun({
@@ -41,7 +56,6 @@ export function OperatorConsole({ code, packId }: { code: string; packId?: strin
         houseSessionId: sessionId,
         hostDeviceId: getPlayerId(),
         gameType: game.slug,
-        packId: packId ?? packIds[0],
       });
       setStarted({ game, run });
     } catch {
@@ -52,7 +66,7 @@ export function OperatorConsole({ code, packId }: { code: string; packId?: strin
   }
 
   // Enter the live Colyseus room for a started legacy game, reusing the existing host-token flow.
-  function openGameRoom(game: PackGame, run: StartedRun) {
+  function openGameRoom(game: CatalogGame, run: StartedRun) {
     if (!run.room) return;
     sessionStorage.setItem('boredroom_is_host', 'true');
     sessionStorage.setItem('boredroom_game_type', game.slug);

@@ -9,9 +9,9 @@ import {
   screenIsPublic,
   type SessionScreen as Screen,
 } from '@/lib/sessionRoutes';
-import { getPack, getGamesForPack } from '@/lib/packs';
 import { getGameMeta } from '@/lib/games';
 import { getNewGameMeta } from '@/lib/newGames';
+import { getAllGames } from '@/lib/catalog';
 import { OperatorConsole } from '@/components/session/OperatorConsole';
 import { fetchSessionWithRun, type ActiveRun } from '@/lib/serverApi';
 
@@ -63,8 +63,7 @@ export default function SessionScreen() {
 
   const meta = SCREEN_META[screen];
   const Icon = meta.icon;
-  const pack = getPack(packId);
-  const games = packId ? getGamesForPack(packId) : [];
+  const games = getAllGames();
   const isPublic = screenIsPublic(screen);
 
   return (
@@ -85,7 +84,7 @@ export default function SessionScreen() {
             </span>
             <div>
               <p className="text-xs uppercase tracking-widest text-muted-foreground leading-none">
-                {pack?.name ?? 'House Session'}
+                House Session
               </p>
               <h1 className="text-lg font-bold leading-tight">{meta.label}</h1>
             </div>
@@ -117,13 +116,16 @@ export default function SessionScreen() {
 
             {screen === 'display' && !activeRun && games.length > 0 && (
               <div className="mt-6">
-                <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Tonight's lineup</p>
+                <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">
+                  {games.length} games ready — pick one from the operator
+                </p>
                 <div className="flex flex-wrap justify-center gap-2">
-                  {games.map((g) => (
+                  {games.slice(0, 8).map((g) => (
                     <Badge key={g.slug} variant="outline" className="text-sm py-1">
                       {g.emoji} {g.name}
                     </Badge>
                   ))}
+                  {games.length > 8 && <Badge variant="secondary">+{games.length - 8}</Badge>}
                 </div>
               </div>
             )}

@@ -2,29 +2,20 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { OperatorConsole } from '@/components/session/OperatorConsole';
-import { getGamesForPack } from '@/lib/packs';
+import { getAllGames } from '@/lib/catalog';
 
-// Operator can launch any game in the session's pack (Phase 9 surface; flow toward 10).
+// The operator can launch any installed game in the room (not pack-scoped).
 describe('OperatorConsole', () => {
-  it('lists the pack lineup with Start controls', () => {
+  it('lists installed games with Start controls', () => {
     render(
       <MemoryRouter>
-        <OperatorConsole code="ABCDE" packId="pack.market" />
+        <OperatorConsole code="ABCDE" />
       </MemoryRouter>,
     );
     expect(screen.getByText('Start a game')).toBeInTheDocument();
-    for (const g of getGamesForPack('pack.market')) {
-      expect(screen.getByText(g.name)).toBeInTheDocument();
-    }
-    expect(screen.getAllByRole('button', { name: /Start/i }).length).toBeGreaterThan(0);
-  });
-
-  it('shows an empty state when the session has no games', () => {
-    render(
-      <MemoryRouter>
-        <OperatorConsole code="ZZZZZ" />
-      </MemoryRouter>,
-    );
-    expect(screen.getByText(/No games in this session/i)).toBeInTheDocument();
+    // a built-in game and a new adapter game both appear
+    expect(screen.getByText('Whot')).toBeInTheDocument();
+    expect(screen.getByText('Market Price')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Start/i }).length).toBe(getAllGames().length);
   });
 });

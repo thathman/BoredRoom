@@ -23,6 +23,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const SessionScreenPage = lazy(() => import("./pages/SessionScreen"));
 const SessionSetupPage = lazy(() => import("./pages/SessionSetup"));
 const GamesPage = lazy(() => import("./pages/Games"));
+const PacksPage = lazy(() => import("./pages/Packs"));
 const SessionJoinPage = lazy(() => import("./pages/SessionJoin"));
 
 const RouteFallback = () => (
@@ -48,6 +49,7 @@ const App = () => (
                   {/* Session-first routing (Phase 4); existing /:game/* routes remain. */}
                   <Route path="/start" element={<SessionSetupPage />} />
                   <Route path="/games" element={<GamesPage />} />
+                  <Route path="/packs" element={<PacksPage />} />
                   <Route path="/join" element={<SessionJoinPage />} />
                   <Route path="/join/:sessionCode" element={<SessionJoinPage />} />
                   <Route path="/session/:code/:screen" element={<SessionScreenPage />} />

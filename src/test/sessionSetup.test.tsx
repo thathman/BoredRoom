@@ -1,8 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import SessionSetup from '@/pages/SessionSetup';
-import { PACK_REGISTRY } from '@/lib/packs';
 
 // Setup is host-only; simulate a big screen so the wizard (not the phone gate) renders.
 vi.mock('@/lib/games', async (importOriginal) => {
@@ -10,22 +9,19 @@ vi.mock('@/lib/games', async (importOriginal) => {
   return { ...actual, classifyDeviceForGame: () => 'host' as const };
 });
 
-// UI pass: the pack-first wizard renders packs and gates "Next" until a pack is chosen.
+// New model: no pack-picking step — the wizard opens a room with all installed games available.
 describe('SessionSetup page', () => {
-  it('shows the wizard on a host device and gates Next', () => {
+  it('renders the room setup wizard at the settings step (no pack chooser)', () => {
     render(
       <MemoryRouter initialEntries={['/start']}>
         <SessionSetup />
       </MemoryRouter>,
     );
-    expect(screen.getByText('Host a game night')).toBeInTheDocument();
-    for (const pack of PACK_REGISTRY) {
-      expect(screen.getByText(pack.name)).toBeInTheDocument();
-    }
-    const next = screen.getByRole('button', { name: /next/i });
-    expect(next).toBeDisabled();
-
-    fireEvent.click(screen.getByText(PACK_REGISTRY[0].name));
-    expect(screen.getByRole('button', { name: /next/i })).not.toBeDisabled();
+    expect(screen.getByText('Start a game night')).toBeInTheDocument();
+    expect(screen.getByText('Set the house rules')).toBeInTheDocument();
+    expect(screen.getByText('Allow bots')).toBeInTheDocument();
+    // No "Pick your packs" step exists anymore.
+    expect(screen.queryByText(/Pick your packs/i)).toBeNull();
+    expect(screen.getByRole('button', { name: /next/i })).toBeEnabled();
   });
 });

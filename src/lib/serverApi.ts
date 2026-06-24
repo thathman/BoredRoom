@@ -54,6 +54,54 @@ export async function createSession(input: {
   return data.session;
 }
 
+export interface InstalledPackGame {
+  slug: string;
+  engine: string;
+  name: string;
+  emoji: string;
+  tagline: string;
+  minPlayers: number;
+  maxPlayers: number;
+}
+export interface InstalledPack {
+  packId: string;
+  name: string;
+  version: string;
+  sourceUrl: string;
+  manifest: { id: string; name: string; theme?: { tokenSet: string }; games: InstalledPackGame[] };
+  installedAt: string;
+}
+
+export async function listPacks(): Promise<InstalledPack[]> {
+  const base = serverHttpBase();
+  if (!base) return [];
+  const res = await fetch(`${base}/packs`);
+  if (!res.ok) return [];
+  return ((await res.json()) as { packs?: InstalledPack[] }).packs ?? [];
+}
+
+// Install a pack from a GitHub repo URL. Throws with a readable code on failure.
+export async function installPack(repoUrl: string): Promise<InstalledPack> {
+  const base = serverHttpBase();
+  if (!base) throw new Error('no_server');
+  const res = await fetch(`${base}/packs/install`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoUrl }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `install_failed_${res.status}`);
+  }
+  return ((await res.json()) as { pack: InstalledPack }).pack;
+}
+
+export async function uninstallPack(packId: string): Promise<void> {
+  const base = serverHttpBase();
+  if (!base) return;
+  await fetch(`${base}/packs/${encodeURIComponent(packId)}`, { method: 'DELETE' });
+}
+
 export interface ActiveRun {
   id: string;
   gameType: string;

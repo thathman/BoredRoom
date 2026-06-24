@@ -31,6 +31,7 @@ import { PROTOCOL_VERSION } from '../../shared/src/contracts/index.js';
 import { isValidRoomCode } from '../../shared/src/roomCodes.js';
 import { log } from './logger.js';
 import { getRoom, upsertRoom } from './roomDirectory.js';
+import { installPack, listInstalledPacks, uninstallPack } from './packs.js';
 import {
   buildHouseSession,
   persistHouseSession,
@@ -109,12 +110,12 @@ app.post('/sessions', async (req, res) => {
   if (!hostDeviceId || typeof hostDeviceId !== 'string') {
     return res.status(400).json({ error: 'hostDeviceId required' });
   }
-  if (!Array.isArray(selectedPackIds) || selectedPackIds.length === 0) {
-    return res.status(400).json({ error: 'selectedPackIds required' });
-  }
+  // A session isn't scoped to chosen packs anymore — all installed games are available. Packs are
+  // an install mechanism, not a play-time choice.
+  const packIds = Array.isArray(selectedPackIds) ? selectedPackIds : [];
   const session = buildHouseSession({
     hostDeviceId,
-    selectedPackIds,
+    selectedPackIds: packIds,
     activePackId,
     settings: settings && typeof settings === 'object' ? settings : undefined,
   });
@@ -192,6 +193,38 @@ app.post('/sessions/:code/runs', async (req, res) => {
   }
   log('info', 'game_run_created', { session: code, gameType, run: run.id, room: run.roomCode ?? null });
   res.json({ run, room });
+});
+
+// Pack installation (server-wide). Install a content pack from a GitHub repo URL.
+app.get('/packs', async (_req, res) => {
+  try {
+    res.json({ packs: await listInstalledPacks() });
+  } catch (err) {
+    log('warn', 'packs_list_failed', { error: String(err) });
+    res.json({ packs: [] });
+  }
+});
+
+app.post('/packs/install', async (req, res) => {
+  const repoUrl = typeof req.body?.repoUrl === 'string' ? req.body.repoUrl : '';
+  if (!repoUrl) return res.status(400).json({ error: 'repoUrl required' });
+  const result = await installPack(repoUrl);
+  if (!result.ok) {
+    log('info', 'pack_install_rejected', { repoUrl, error: result.error });
+    return res.status(422).json({ error: result.error });
+  }
+  log('info', 'pack_installed', { packId: result.pack.packId, games: result.pack.manifest.games.length });
+  res.json({ pack: result.pack });
+});
+
+app.delete('/packs/:packId', async (req, res) => {
+  try {
+    await uninstallPack(String(req.params.packId));
+    res.json({ ok: true });
+  } catch (err) {
+    log('warn', 'pack_uninstall_failed', { error: String(err) });
+    res.status(503).json({ error: 'uninstall_failed' });
+  }
 });
 
 app.get('/health', (_req, res) => {

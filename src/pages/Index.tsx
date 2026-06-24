@@ -1,12 +1,11 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Gamepad2, Smartphone, ArrowRight, Grid3x3 } from 'lucide-react';
+import { Gamepad2, Smartphone, ArrowRight, Grid3x3, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
 import { HeroSky } from '@/components/game/HeroSky';
 import { classifyDeviceForGame } from '@/lib/games';
-import { PACK_REGISTRY, getGamesForPack } from '@/lib/packs';
+import { getAllGames } from '@/lib/catalog';
 import { ContinueSessionCard } from '@/components/system/ContinueSessionCard';
 import { getLastHouseSession } from '@/lib/houseSessionResume';
 import { resetPwaCacheAndReload } from '@/lib/pwa';
@@ -20,11 +19,12 @@ export default function Index() {
   const buildHash = (import.meta.env.VITE_BUILD_HASH as string | undefined) ?? 'dev';
   const appVersion = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev';
   const lastHouse = getLastHouseSession();
+  const gameCount = getAllGames().length;
 
   return (
     <div className="min-h-screen flex flex-col items-center px-6 pb-10 relative overflow-hidden">
       {/* Hero */}
-      <div className="relative w-full -mx-6 px-6 pt-16 pb-20" style={{ minHeight: '520px' }}>
+      <div className="relative w-full -mx-6 px-6 pt-16 pb-24" style={{ minHeight: '620px' }}>
         <HeroSky />
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -37,7 +37,7 @@ export default function Index() {
             Bored<span className="text-secondary">Room</span>
           </h1>
           <p className="text-lg text-muted-foreground max-w-md mx-auto">
-            Pick a pack. Gather the room. Let the house play.
+            Gather the room. Pick any game. Play together on one screen.
           </p>
 
           <div className="mt-6 flex flex-col items-center gap-3">
@@ -83,40 +83,30 @@ export default function Index() {
         transition={{ duration: 0.6, delay: 0.2 }}
         className="relative z-10 w-full max-w-6xl"
       >
-        {/* Pack-first catalog */}
-        <div className="flex items-end justify-between mb-4">
-          <h2 className="text-xl font-display font-bold">Game-night packs</h2>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/games')} className="gap-2">
-            <Grid3x3 className="w-4 h-4" /> Browse all games
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 text-left mb-10">
-          {PACK_REGISTRY.map((pack) => {
-            const games = getGamesForPack(pack.id);
-            return (
-              <button
-                key={pack.id}
-                onClick={() => navigate(isPhone ? '/join' : '/start')}
-                className="group glass rounded-3xl p-6 text-left transition-all hover:-translate-y-1 hover:border-primary/50 border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                aria-label={`${pack.name} pack`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-2xl font-display font-bold">{pack.name}</h3>
-                  <ArrowRight className="w-4 h-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">{pack.description}</p>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {games.slice(0, 4).map((g) => (
-                    <Badge key={g.slug} variant="secondary" className="text-xs">
-                      {g.emoji} {g.name}
-                    </Badge>
-                  ))}
-                  {games.length > 4 && <Badge variant="outline">+{games.length - 4}</Badge>}
-                </div>
-              </button>
-            );
-          })}
+        {/* Your server's games + pack management (packs install games, you don't pick a pack to play) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-left mb-10">
+          <button
+            onClick={() => navigate('/games')}
+            className="group glass rounded-3xl p-6 text-left transition-all hover:-translate-y-1 hover:border-primary/50 border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <Grid3x3 className="w-10 h-10 text-primary" />
+            <div className="mt-4 flex items-center gap-2">
+              <h3 className="text-2xl font-display font-bold">{gameCount} games installed</h3>
+              <ArrowRight className="w-4 h-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">Browse everything you can play in a room.</p>
+          </button>
+          <button
+            onClick={() => navigate('/packs')}
+            className="group glass rounded-3xl p-6 text-left transition-all hover:-translate-y-1 hover:border-primary/50 border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <Package className="w-10 h-10 text-secondary" />
+            <div className="mt-4 flex items-center gap-2">
+              <h3 className="text-2xl font-display font-bold">Game packs</h3>
+              <ArrowRight className="w-4 h-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">Install more games from a GitHub repo.</p>
+          </button>
         </div>
 
         <div className="mb-8 max-w-2xl mx-auto">

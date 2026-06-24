@@ -77,52 +77,53 @@ async function assertNoVerticalScroll(page, label) {
 try {
   await ensurePreviewServer();
 
-  // ---------- DESKTOP: pack-first landing (bug fix #1) ----------
+  // ---------- DESKTOP: pack-first install model (bug fix #1) ----------
   await dpage.goto(`${BASE_URL}/`, { waitUntil: 'networkidle' });
-  await see(dpage, 'Game-night packs', 'desktop home pack heading');
-  await see(dpage, 'Naija Party', 'pack card');
-  await see(dpage, 'Faith & Family', 'pack card');
-  await see(dpage, 'Market Day', 'pack card');
+  await see(dpage, 'games installed', 'desktop home games tile');
+  await see(dpage, 'Game packs', 'desktop home packs tile');
   await dpage.getByRole('button', { name: /Host a game night/i }).waitFor({ timeout: 8000 });
-  await dpage.getByRole('button', { name: /Browse all games/i }).waitFor({ timeout: 8000 });
+  // packs are NOT play-time categories on the home page
+  await notSee(dpage, 'Game-night packs', 'no pack-as-category heading');
 
-  // ---------- DESKTOP: /games legacy catalog ----------
-  await dpage.getByRole('button', { name: /Browse all games/i }).click();
+  // ---------- DESKTOP: /games lists ALL games (built-in + adapter) ----------
+  await dpage.getByText('games installed').click();
   await dpage.waitForURL(/\/games/, { timeout: 8000 });
   await see(dpage, 'All games', 'games page header');
   await see(dpage, 'Ludo', 'legacy game');
   await see(dpage, 'Whot', 'legacy game');
-  // legacy game tile routes into the single-game flow
+  await see(dpage, 'Market Price', 'adapter game listed'); // was missing before
   await dpage.getByRole('button', { name: /Play Ludo/i }).click();
   await dpage.waitForURL(/\/ludo\/(host|join)/, { timeout: 8000 });
 
-  // ---------- DESKTOP: full host wizard (flows 1,5,6) ----------
+  // ---------- DESKTOP: manage packs page ----------
+  await dpage.goto(`${BASE_URL}/packs`, { waitUntil: 'networkidle' });
+  await see(dpage, 'Game packs', 'packs page');
+  await dpage.getByLabel('Pack repo URL').waitFor({ timeout: 8000 });
+
+  // ---------- DESKTOP: create a room (no pack step) ----------
   await dpage.goto(`${BASE_URL}/`, { waitUntil: 'networkidle' });
   await dpage.getByRole('button', { name: /Host a game night/i }).click();
   await dpage.waitForURL(/\/start/, { timeout: 8000 });
-  await see(dpage, 'Pick your packs', 'wizard step 1');
-  if (!(await dpage.getByRole('button', { name: 'Next' }).isDisabled())) fail('Next should gate before pack selection');
-  await dpage.getByText('Naija Party').click();
+  await see(dpage, 'Set the house rules', 'wizard settings step');
+  await notSee(dpage, 'Pick your packs', 'no pack-selection step');
   await dpage.getByRole('button', { name: 'Next' }).click();
-  await see(dpage, 'Set the house rules', 'wizard step 2');
-  await dpage.getByRole('button', { name: 'Next' }).click();
-  await see(dpage, 'Review & start', 'wizard step 3');
-  await dpage.getByRole('button', { name: /Start the house/i }).click();
+  await see(dpage, 'Review & start', 'wizard review');
+  await dpage.getByRole('button', { name: /Open the room/i }).click();
   await dpage.waitForURL(/\/session\/.+\/display/, { timeout: 10000 });
   await see(dpage, 'Public Display', 'display shell');
-  await see(dpage, "Tonight's lineup", 'display lineup');
+  await see(dpage, 'games ready', 'display shows installed game count');
   await assertNoVerticalScroll(dpage, 'session-display'); // AC-4.2
 
   // ---------- DESKTOP: resume offered after hosting (flow 2) ----------
   await dpage.goto(`${BASE_URL}/`, { waitUntil: 'networkidle' });
   await dpage.getByRole('button', { name: /Continue your house/i }).waitFor({ timeout: 8000 });
 
-  // ---------- DESKTOP: other session screens (flows 4 + crowd + redirect) ----------
-  await dpage.goto(`${BASE_URL}/session/TESTCODE/operator?pack=pack.naija`, { waitUntil: 'networkidle' });
+  // ---------- DESKTOP: other session screens (flow 4 + crowd + redirect) ----------
+  await dpage.goto(`${BASE_URL}/session/TESTCODE/operator`, { waitUntil: 'networkidle' });
   await see(dpage, 'Operator Console', 'operator shell');
   await see(dpage, 'Start a game', 'operator lineup');
   if ((await dpage.getByRole('button', { name: /Start/i }).count()) === 0) fail('operator should list startable games');
-  await dpage.goto(`${BASE_URL}/session/TESTCODE/crowd?pack=pack.market`, { waitUntil: 'networkidle' });
+  await dpage.goto(`${BASE_URL}/session/TESTCODE/crowd`, { waitUntil: 'networkidle' });
   await see(dpage, 'Crowd', 'crowd shell');
   await dpage.goto(`${BASE_URL}/session/TESTCODE/bogus`, { waitUntil: 'networkidle' });
   await dpage.waitForURL(/\/session\/TESTCODE\/display/, { timeout: 8000 });
