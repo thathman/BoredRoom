@@ -43,10 +43,10 @@ jobs:
 
       - name: Start preview server
         run: |
-          nohup npm run preview -- --host 127.0.0.1 --port 8088 > preview.log 2>&1 &
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 > preview.log 2>&1 &
           echo $! > preview.pid
           for i in {1..40}; do
-            if curl -fsS http://127.0.0.1:8088 >/dev/null; then
+            if curl -fsS http://127.0.0.1:4173 >/dev/null; then
               echo "Preview server ready"
               exit 0
             fi
@@ -58,7 +58,7 @@ jobs:
 
       - name: UI entry-flow audit
         env:
-          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8088
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
         run: npm run smoke:ui-entry
 
       - name: Stop preview server
