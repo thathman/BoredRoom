@@ -165,8 +165,11 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
 
 type WriteResult = 'ok' | 'skipped';
 
-function sessionRow(s: HouseSession): Record<string, unknown> {
-  return {
+function sessionRow(
+  s: HouseSession,
+  credentials?: { ownerCredentialHash?: string; companionCredentialHashes?: string[] },
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {
     id: s.id,
     code: s.code,
     status: s.status,
@@ -183,14 +186,22 @@ function sessionRow(s: HouseSession): Record<string, unknown> {
     updated_at: s.updatedAt,
     ended_at: s.endedAt ?? null,
   };
+  if (credentials?.ownerCredentialHash) row.owner_credential_hash = credentials.ownerCredentialHash;
+  if (credentials?.companionCredentialHashes) {
+    row.companion_credential_hashes = credentials.companionCredentialHashes;
+  }
+  return row;
 }
 
-export async function persistHouseSession(s: HouseSession): Promise<WriteResult> {
+export async function persistHouseSession(
+  s: HouseSession,
+  credentials?: { ownerCredentialHash?: string; companionCredentialHashes?: string[] },
+): Promise<WriteResult> {
   if (!getBackendConfig()) return 'skipped';
   const response = await apiFetch('house_sessions', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify(sessionRow(s)),
+    body: JSON.stringify(sessionRow(s, credentials)),
   });
   if (!response.ok) throw new Error(`house_session_write_${response.status}:${await response.text()}`);
   return 'ok';
@@ -259,6 +270,27 @@ export async function readHouseSession(code: string): Promise<HouseSession | nul
   } catch {
     return null;
   }
+}
+
+export async function readSessionCredentialHashes(code: string): Promise<{
+  ownerCredentialHash: string;
+  companionCredentialHashes: string[];
+} | null> {
+  if (!getBackendConfig()) return null;
+  const resp = await apiFetch(
+    `house_sessions?code=eq.${encodeURIComponent(code)}&select=owner_credential_hash,companion_credential_hashes&limit=1`,
+  );
+  if (!resp.ok) return null;
+  const rows = (await resp.json()) as Array<{
+    owner_credential_hash?: string | null;
+    companion_credential_hashes?: string[] | null;
+  }>;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    ownerCredentialHash: row.owner_credential_hash ?? '',
+    companionCredentialHashes: row.companion_credential_hashes ?? [],
+  };
 }
 
 export async function persistGameRun(run: GameRun): Promise<WriteResult> {

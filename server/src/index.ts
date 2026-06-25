@@ -38,6 +38,7 @@ import {
   buildHouseSession,
   persistHouseSession,
   readHouseSession,
+  readSessionCredentialHashes,
   readActiveRun,
   buildGameRun,
   persistGameRun,
@@ -50,6 +51,7 @@ import {
   finishActiveGame,
   getPublicSession,
   getSessionRecord,
+  getSessionCredentialHashes,
   hydrateSession,
   issueOwnerCredential,
   redeemCompanionPairing,
@@ -180,7 +182,7 @@ app.post('/sessions', async (req, res) => {
   const ownerCredential = issueOwnerCredential();
   registerSession(session, ownerCredential);
   try {
-    await persistHouseSession(session);
+    await persistHouseSession(session, getSessionCredentialHashes(session.code) ?? undefined);
     await appendSessionEvent(buildSessionEvent({ sessionId: session.id, type: 'session.created', actorId: hostDeviceId }));
   } catch (err) {
     log('warn', 'session_persist_failed', { error: String(err) });
@@ -197,7 +199,8 @@ app.get('/sessions/:code', async (req, res) => {
     if (live) return res.json(live);
     const session = await readHouseSession(code);
     if (!session) return res.status(404).json({ exists: false, code });
-    hydrateSession(session);
+    const credentials = await readSessionCredentialHashes(code);
+    hydrateSession(session, credentials ?? undefined);
     const activeRun = await readActiveRun(session.id);
     return res.json({
       session,
@@ -361,11 +364,15 @@ app.post('/sessions/:code/pairing', (req, res) => {
   res.json(createCompanionPairing(code));
 });
 
-app.post('/sessions/:code/pairing/redeem', (req, res) => {
+app.post('/sessions/:code/pairing/redeem', async (req, res) => {
   const code = String(req.params.code ?? '').toUpperCase();
   const pairingCode = typeof req.body?.pairingCode === 'string' ? req.body.pairingCode : '';
   const result = redeemCompanionPairing(code, pairingCode);
   if (!result) return res.status(410).json({ error: 'pairing_invalid_or_expired' });
+  const record = getSessionRecord(code);
+  if (record) {
+    await persistHouseSession(record.session, getSessionCredentialHashes(code) ?? undefined);
+  }
   res.json(result);
 });
 

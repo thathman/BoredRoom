@@ -1,5 +1,9 @@
 -- Unified session replacement: only the trusted server may mutate session-spine tables.
 
+ALTER TABLE public.house_sessions
+  ADD COLUMN IF NOT EXISTS owner_credential_hash TEXT,
+  ADD COLUMN IF NOT EXISTS companion_credential_hashes TEXT[] NOT NULL DEFAULT '{}';
+
 DROP POLICY IF EXISTS "Anyone can create a house session" ON public.house_sessions;
 DROP POLICY IF EXISTS "Anyone can update a house session" ON public.house_sessions;
 DROP POLICY IF EXISTS "Anyone can create a game run" ON public.game_runs;

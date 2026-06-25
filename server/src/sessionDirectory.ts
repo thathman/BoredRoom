@@ -112,6 +112,19 @@ export function redeemCompanionPairing(
   return { companionCredential };
 }
 
+export function getSessionCredentialHashes(code: string): {
+  ownerCredentialHash: string;
+  companionCredentialHashes: string[];
+} | null {
+  const record = getSessionRecord(code);
+  return record
+    ? {
+        ownerCredentialHash: record.ownerCredentialHash,
+        companionCredentialHashes: Array.from(record.companionCredentialHashes),
+      }
+    : null;
+}
+
 export function registerSession(session: HouseSession, ownerCredential: string): SessionRecord {
   const key = normalizeCode(session.code);
   const record: SessionRecord = {
@@ -126,14 +139,17 @@ export function registerSession(session: HouseSession, ownerCredential: string):
   return record;
 }
 
-export function hydrateSession(session: HouseSession): SessionRecord {
+export function hydrateSession(
+  session: HouseSession,
+  credentials?: { ownerCredentialHash?: string; companionCredentialHashes?: string[] },
+): SessionRecord {
   const key = normalizeCode(session.code);
   const existing = sessions.get(key);
   if (existing) return existing;
   const record: SessionRecord = {
     session,
-    ownerCredentialHash: '',
-    companionCredentialHashes: new Set(),
+    ownerCredentialHash: credentials?.ownerCredentialHash ?? '',
+    companionCredentialHashes: new Set(credentials?.companionCredentialHashes ?? []),
     members: new Map(),
     activeRuntime: null,
   };
