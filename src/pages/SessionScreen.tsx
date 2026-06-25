@@ -23,9 +23,11 @@ import {
   redeemCompanionPairing,
   startGameRun,
   type StartedRun,
+  fetchGamesCatalog,
 } from '@/lib/serverApi';
 import { getAllGames, type CatalogGame } from '@/lib/catalog';
 import { toast } from 'sonner';
+import { canUseSessionScreen, detectDeviceClass } from '@/lib/deviceExperience';
 
 const SESSION_ROLES = new Set<HouseSessionRole>(['display', 'controller', 'crowd', 'companion']);
 const NATIVE_GAMES = new Set(['market-price', 'pidgin-translator', 'faith-feud', 'bible-timeline']);
@@ -57,6 +59,8 @@ export default function SessionScreen() {
   const role = SESSION_ROLES.has(screen as HouseSessionRole)
     ? (screen as HouseSessionRole)
     : null;
+  const deviceClass = detectDeviceClass();
+  const compatibleRole = role ? canUseSessionScreen(deviceClass, role) : false;
   const isHost = role === 'display' || role === 'companion';
   const deviceId = isHost ? ensureHostDisplayId() : getPlayerId();
   const displayName = isHost ? (role === 'companion' ? 'Host companion' : 'Host display') : getPlayerName() || 'Player';
@@ -75,7 +79,7 @@ export default function SessionScreen() {
     deviceId,
     displayName,
     role: role ?? 'controller',
-    enabled: role !== 'companion' || Boolean(companionCredential),
+    enabled: compatibleRole && (role !== 'companion' || Boolean(companionCredential)),
   });
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -88,6 +92,27 @@ export default function SessionScreen() {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [pairingInput, setPairingInput] = useState('');
   const [pairingBusy, setPairingBusy] = useState(false);
+  const [installedGames, setInstalledGames] = useState<CatalogGame[]>([]);
+
+  useEffect(() => {
+    let live = true;
+    void fetchGamesCatalog().then(({ games }) => {
+      if (!live) return;
+      setInstalledGames(games.filter((game) => game.installed).map((game) => ({
+        slug: game.id,
+        name: game.name,
+        emoji: game.emoji,
+        tagline: game.description,
+        minPlayers: game.minPlayers,
+        maxPlayers: game.maxPlayers,
+        available: true,
+        capabilities: game.capabilities,
+      })));
+    }).catch(() => {
+      if (live) setInstalledGames([]);
+    });
+    return () => { live = false; };
+  }, []);
 
   const activeRun = snapshot?.activeRun ?? null;
   const members = snapshot?.members ?? [];
@@ -165,7 +190,10 @@ export default function SessionScreen() {
     setDrawerOpen(isHost);
   }, [isHost, activeRun, normalizedCode]);
 
-  if (!role) return <Navigate to={`/session/${normalizedCode}/display`} replace />;
+  if (!role) return <Navigate to={deviceClass === 'desktop_host' ? `/session/${normalizedCode}/display` : `/session/${normalizedCode}/controller`} replace />;
+  if (!compatibleRole) {
+    return <Navigate to={deviceClass === 'desktop_host' ? '/' : `/join/${normalizedCode}`} replace />;
+  }
 
   if (role === 'companion' && !companionCredential) {
     const pair = async () => {
@@ -254,6 +282,7 @@ export default function SessionScreen() {
             .then((pairing) => setPairingCode(pairing.pairingCode))
             .catch(() => toast.error('Could not create a pairing code.'));
         }}
+        games={installedGames}
       />
     </>
   );

@@ -60,12 +60,11 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
 
 export interface CreateSessionInput {
   hostDeviceId: string;
+  /** Deprecated transport compatibility; sessions are never scoped to packs. */
   selectedPackIds: string[];
   settings: SetupSettings;
 }
 
-// Review -> the payload consumed by foundations.buildHouseSession. Sessions are not pack-scoped, so
-// selectedPackIds is empty; all installed games are available to the room.
 export function toCreateSessionInput(state: SetupState, hostDeviceId: string): CreateSessionInput {
   return { hostDeviceId, selectedPackIds: [], settings: state.settings };
 }

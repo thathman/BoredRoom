@@ -17,6 +17,7 @@ export * from './packRepo.js';
 // Game adapter contract (logic core).
 export * from './adapter.js';
 export * from './gameRuntime.js';
+export * from './gamePlugin.js';
 
 import type {
   Connect4PublicState as _Connect4PublicState,

@@ -24,18 +24,17 @@ interface QrScannerProps {
 function extractCode(text: string): string | null {
   if (!text) return null;
   const trimmed = text.trim();
-    // Try URLs such as /join/XXXX, /ludo/join/XXXX, /whot/join/XXXX, /color-wahala/join/XXXX.
+    // Unified session URLs only. Game routes and secondary room codes are deliberately rejected.
     try {
       const url = new URL(trimmed);
-      const gameSegment = '(?:ludo|whot|trivia|connect-4|ettt|logo|landlord|half-half|color-wahala)';
       const match =
-        url.pathname.match(new RegExp(`/${gameSegment}/join/([A-Za-z0-9]{4})`, 'i')) ??
-        url.pathname.match(/\/join\/([A-Za-z0-9]{4})/i);
-    const raw = match?.[1];
-    if (raw) {
-      const code = normalizeRoomCode(raw);
-      return isValidRoomCode(code) ? code : null;
-    }
+        url.pathname.match(/^\/join\/([A-Za-z0-9]{4})\/?$/i) ??
+        url.pathname.match(/^\/session\/([A-Za-z0-9]{4})\/(?:display|controller|crowd|companion)\/?$/i);
+      const raw = match?.[1];
+      if (raw) {
+        const code = normalizeRoomCode(raw);
+        return isValidRoomCode(code) ? code : null;
+      }
   } catch {
     // not a URL
   }
@@ -43,7 +42,7 @@ function extractCode(text: string): string | null {
   const bare = normalizeRoomCode(trimmed);
   if (isValidRoomCode(bare)) return bare;
   // Last resort: search anywhere
-  const m = trimmed.match(/\/join\/([A-Za-z0-9]{4})/i);
+  const m = trimmed.match(/\/(?:join|session)\/([A-Za-z0-9]{4})(?:\/|$)/i);
   if (m) {
     const code = normalizeRoomCode(m[1]);
     return isValidRoomCode(code) ? code : null;

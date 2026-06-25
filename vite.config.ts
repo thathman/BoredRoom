@@ -53,13 +53,13 @@ export default defineConfig(() => ({
         theme_color: "#12f7ff",
         background_color: "#080b1a",
         display: "standalone",
-        orientation: "portrait",
+        orientation: "any",
         start_url: "/",
         scope: "/",
         shortcuts: [
-          { name: "Host Ludo", short_name: "Host", url: "/ludo/host", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-          { name: "Join Game", short_name: "Join", url: "/ludo/join", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-          { name: "Naija Arcade", short_name: "Arcade", url: "/arcade", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] }
+          { name: "Host a game night", short_name: "Host", url: "/start", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+          { name: "Join a game night", short_name: "Join", url: "/join", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+          { name: "Games Library", short_name: "Games", url: "/games", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] }
         ],
         screenshots: [
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", form_factor: "narrow" },
@@ -94,7 +94,18 @@ export default defineConfig(() => ({
         navigateFallback: "/index.html",
         cleanupOutdatedCaches: true,
         skipWaiting: true,
-        clientsClaim: true
+        clientsClaim: true,
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/colyseus\.hendrix\.com\.ng\/games\/catalog/,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "boredroom-game-catalog",
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 1, maxAgeSeconds: 3600 }
+            }
+          }
+        ]
       },
       devOptions: {
         enabled: true

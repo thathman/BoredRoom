@@ -2,6 +2,7 @@
 // validate :game URL params. Keep this list in sync with shared GameType.
 
 import type { GameType } from '@/lib/transport/types';
+import { detectDeviceClass } from '@/lib/deviceExperience';
 
 export type GameCategory = 'board' | 'cards' | 'trivia' | 'arcade';
 
@@ -242,14 +243,5 @@ export function isGameEnabled(slug: string | undefined | null): boolean {
  * Mirrors the previous global Index logic, now scoped per-game.
  */
 export function classifyDeviceForGame(): 'host' | 'join' {
-  if (typeof window === 'undefined') return 'join';
-  const width = window.innerWidth;
-  const isLandscape = window.matchMedia('(orientation: landscape)').matches;
-  const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
-  const isFinePointer = window.matchMedia('(pointer: fine)').matches;
-
-  if (isCoarsePointer && width < 1024) return 'join';
-  if (width >= 1200) return 'host';
-  if (width >= 768 && width < 1200 && isLandscape && isFinePointer) return 'host';
-  return 'join';
+  return detectDeviceClass() === 'desktop_host' ? 'host' : 'join';
 }

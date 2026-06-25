@@ -33,6 +33,11 @@ services:
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       PACK_ADMIN_TOKEN: ${PACK_ADMIN_TOKEN:-}
+      BOREDROOM_GAMES_DIR: /var/lib/boredroom/games
+      BOREDROOM_GAMES_CATALOG_URL: ${BOREDROOM_GAMES_CATALOG_URL:-https://raw.githubusercontent.com/thathman/BoredRoom-Games/main/catalog.json}
+      BOREDROOM_GAMES_PUBLIC_KEY: ${BOREDROOM_GAMES_PUBLIC_KEY:-}
+    volumes:
+      - boredroom-games:/var/lib/boredroom/games
     networks:
       - default
       - supabase
@@ -41,3 +46,6 @@ networks:
   supabase:
     external: true
     name: supabase_default
+
+volumes:
+  boredroom-games:

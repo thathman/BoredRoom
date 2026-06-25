@@ -22,8 +22,6 @@ export interface CreatedSession {
   id: string;
   code: string;
   status: string;
-  selectedPackIds: string[];
-  activePackId?: string;
 }
 
 export interface SessionMember {
@@ -68,8 +66,7 @@ export function getControlCredential(code: string): string {
 
 export async function createSession(input: {
   hostDeviceId: string;
-  selectedPackIds: string[];
-  activePackId?: string;
+  selectedPackIds?: string[];
   settings?: SetupSettings;
 }): Promise<{ session: CreatedSession; ownerCredential: string }> {
   const base = serverHttpBase();
@@ -116,7 +113,7 @@ export async function listPacks(): Promise<InstalledPack[]> {
 export async function getPackAdminAuth(): Promise<boolean> {
   const base = serverHttpBase();
   if (!base) return false;
-  const res = await fetch(`${base}/packs/auth`, { credentials: 'include' });
+  const res = await fetch(`${base}/games/auth`, { credentials: 'include' });
   if (!res.ok) return false;
   return ((await res.json()) as { authenticated?: boolean }).authenticated === true;
 }
@@ -124,7 +121,7 @@ export async function getPackAdminAuth(): Promise<boolean> {
 export async function loginPackAdmin(passphrase: string): Promise<void> {
   const base = serverHttpBase();
   if (!base) throw new Error('no_server');
-  const res = await fetch(`${base}/packs/auth`, {
+  const res = await fetch(`${base}/games/auth`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -139,7 +136,89 @@ export async function loginPackAdmin(passphrase: string): Promise<void> {
 export async function logoutPackAdmin(): Promise<void> {
   const base = serverHttpBase();
   if (!base) return;
-  await fetch(`${base}/packs/auth`, { method: 'DELETE', credentials: 'include' });
+  await fetch(`${base}/games/auth`, { method: 'DELETE', credentials: 'include' });
+}
+
+export type GameUpdateOverride = 'inherit' | 'enabled' | 'disabled';
+
+export interface LibraryGame {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  version: string;
+  minPlayers: number;
+  maxPlayers: number;
+  capabilities: {
+    bots: boolean;
+    audience: boolean;
+    hints: boolean;
+    restore: boolean;
+  };
+  installed: boolean;
+  installedVersion?: string;
+  updateAvailable: boolean;
+  updateOverride: GameUpdateOverride;
+  status?: 'installed' | 'error';
+}
+
+export interface GameUpdatePolicy {
+  automatic: boolean;
+  overrides: Record<string, GameUpdateOverride>;
+}
+
+export async function fetchGamesCatalog(): Promise<{
+  games: LibraryGame[];
+  updatePolicy: GameUpdatePolicy;
+}> {
+  const base = serverHttpBase();
+  if (!base) throw new Error('no_server');
+  const res = await fetch(`${base}/games/catalog`, { credentials: 'include' });
+  if (!res.ok) throw new Error(`catalog_failed_${res.status}`);
+  return (await res.json()) as { games: LibraryGame[]; updatePolicy: GameUpdatePolicy };
+}
+
+async function mutateGame(gameId: string, method: 'POST' | 'DELETE', action = ''): Promise<void> {
+  const base = serverHttpBase();
+  if (!base) throw new Error('no_server');
+  const suffix = action ? `/${action}` : '';
+  const res = await fetch(`${base}/games/${encodeURIComponent(gameId)}${suffix}`, {
+    method,
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `game_mutation_failed_${res.status}`);
+  }
+}
+
+export function installGame(gameId: string): Promise<void> {
+  return mutateGame(gameId, 'POST', 'install');
+}
+
+export function updateGame(gameId: string): Promise<void> {
+  return mutateGame(gameId, 'POST', 'update');
+}
+
+export function uninstallGame(gameId: string): Promise<void> {
+  return mutateGame(gameId, 'DELETE');
+}
+
+export async function updateGamesPolicy(input: {
+  automatic?: boolean;
+  gameId?: string;
+  override?: GameUpdateOverride;
+}): Promise<GameUpdatePolicy> {
+  const base = serverHttpBase();
+  if (!base) throw new Error('no_server');
+  const res = await fetch(`${base}/games/update-policy`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`update_policy_failed_${res.status}`);
+  return ((await res.json()) as { updatePolicy: GameUpdatePolicy }).updatePolicy;
 }
 
 // Install a pack from a GitHub repo URL. Throws with a readable code on failure.
@@ -221,7 +300,6 @@ export async function startGameRun(input: {
   houseSessionId: string;
   hostDeviceId: string;
   gameType: string;
-  packId?: string;
 }): Promise<StartedRun> {
   const base = serverHttpBase();
   if (!base) throw new Error('session_server_required');

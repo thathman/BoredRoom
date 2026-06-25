@@ -1,4 +1,4 @@
-import { useReducer, useState } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Loader2, Smartphone, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,9 +12,8 @@ import {
   type SetupSettings,
 } from '@/lib/setupFlow';
 import { getPlayerId } from '@/lib/roomUtils';
-import { classifyDeviceForGame } from '@/lib/games';
-import { getAllGames } from '@/lib/catalog';
-import { createSession } from '@/lib/serverApi';
+import { createSession, fetchGamesCatalog } from '@/lib/serverApi';
+import { detectDeviceClass } from '@/lib/deviceExperience';
 import { rememberHouseSession } from '@/lib/houseSessionResume';
 import { toast } from 'sonner';
 
@@ -31,19 +30,21 @@ export default function SessionSetup() {
   const [state, dispatch] = useReducer(setupReducer, undefined, initialSetupState);
   const [creating, setCreating] = useState(false);
   const stepIdx = SETUP_STEPS.indexOf(state.step);
-  const gameCount = getAllGames().length;
+  const [gameCount, setGameCount] = useState(0);
+  useEffect(() => {
+    void fetchGamesCatalog().then(({ games }) => setGameCount(games.filter((game) => game.installed).length)).catch(() => {});
+  }, []);
 
-  // Phones don't host (host display is a big screen). Steer them to join instead.
-  if (classifyDeviceForGame() === 'join') {
+  if (detectDeviceClass() !== 'desktop_host') {
     return (
       <div className="min-h-screen w-full bg-background text-foreground flex flex-col items-center justify-center p-6 text-center">
         <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-primary/15 text-primary">
           <Smartphone className="w-7 h-7" />
         </span>
-        <h1 className="text-xl font-bold">Hosting needs a bigger screen</h1>
+        <h1 className="text-xl font-bold">Hosting belongs on the big screen</h1>
         <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-          Start the night on a TV, laptop, or tablet. On your phone, join as a controller with the
-          code on the display.
+          Start the public display on a TV, desktop, or laptop. Tablets can join as a controller or
+          pair as a private host companion.
         </p>
         <Button className="mt-6 rounded-2xl" onClick={() => navigate('/join')}>Join as controller</Button>
         <Button variant="ghost" className="mt-2" onClick={() => navigate('/')}>Back home</Button>
@@ -118,10 +119,15 @@ export default function SessionSetup() {
           <div className="max-w-md space-y-4">
             <div className="rounded-2xl border border-border bg-card p-4">
               <p className="text-sm">
-                A room will open with <span className="font-bold">{gameCount} games</span> ready to play.
+                A room will open with <span className="font-bold">{gameCount} installed games</span> ready to play.
               </p>
             </div>
-            <Button className="w-full" size="lg" onClick={start} disabled={creating}>
+            {gameCount === 0 && (
+              <Button variant="outline" className="w-full" onClick={() => navigate('/games')}>
+                Install games first
+              </Button>
+            )}
+            <Button className="w-full" size="lg" onClick={start} disabled={creating || gameCount === 0}>
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Open the room'}
             </Button>
           </div>

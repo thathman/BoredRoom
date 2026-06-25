@@ -60,11 +60,11 @@ export function readCookie(cookieHeader: string | undefined, name: string): stri
 }
 
 export function packAdminCookie(token: string): string {
-  return `${PACK_ADMIN_COOKIE}=${encodeURIComponent(token)}; Max-Age=${PACK_ADMIN_TTL_MS / 1000}; Path=/packs; HttpOnly; Secure; SameSite=Strict`;
+  return `${PACK_ADMIN_COOKIE}=${encodeURIComponent(token)}; Max-Age=${PACK_ADMIN_TTL_MS / 1000}; Path=/; HttpOnly; Secure; SameSite=Strict`;
 }
 
 export function clearPackAdminCookie(): string {
-  return `${PACK_ADMIN_COOKIE}=; Max-Age=0; Path=/packs; HttpOnly; Secure; SameSite=Strict`;
+  return `${PACK_ADMIN_COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict`;
 }
 
 export function consumeLoginAttempt(

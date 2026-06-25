@@ -306,3 +306,13 @@ export function getRuntimeSnapshot(code: string): unknown {
   const snapshot = getSessionRecord(code)?.activeRuntime?.snapshot;
   return snapshot === undefined ? undefined : structuredClone(snapshot);
 }
+
+export function isGameActive(gameType: string): boolean {
+  for (const record of sessions.values()) {
+    if (
+      record.activeRuntime?.run.gameType === gameType &&
+      ['setup', 'active', 'paused', 'recoverable'].includes(record.activeRuntime.run.status)
+    ) return true;
+  }
+  return false;
+}

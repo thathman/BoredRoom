@@ -2,7 +2,7 @@ import { Gamepad2, Settings, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getAllGames, type CatalogGame } from '@/lib/catalog';
+import type { CatalogGame } from '@/lib/catalog';
 import type { SessionMember } from '@/lib/serverApi';
 
 interface HostGameDrawerProps {
@@ -14,6 +14,7 @@ interface HostGameDrawerProps {
   onSelectGame: (game: CatalogGame) => void;
   pairingCode?: string | null;
   onCreatePairing: () => void;
+  games: CatalogGame[];
 }
 
 export function HostGameDrawer({
@@ -25,8 +26,8 @@ export function HostGameDrawer({
   onSelectGame,
   pairingCode,
   onCreatePairing,
+  games,
 }: HostGameDrawerProps) {
-  const games = getAllGames();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -45,6 +46,15 @@ export function HostGameDrawer({
             <TabsTrigger value="settings"><Settings className="mr-1 h-4 w-4" /> Settings</TabsTrigger>
           </TabsList>
           <TabsContent value="games" className="mt-4 space-y-2">
+            {games.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-border p-6 text-center">
+                <p className="font-medium">No games installed</p>
+                <p className="mt-1 text-sm text-muted-foreground">Open the Games Library to install what this house can play.</p>
+                <Button className="mt-4" variant="outline" onClick={() => { window.location.href = '/games'; }}>
+                  Open Games Library
+                </Button>
+              </div>
+            )}
             {games.map((game) => (
               <div
                 key={game.slug}

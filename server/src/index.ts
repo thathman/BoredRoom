@@ -33,7 +33,6 @@ import { PROTOCOL_VERSION } from '../../shared/src/contracts/index.js';
 import { isValidRoomCode } from '../../shared/src/roomCodes.js';
 import { log } from './logger.js';
 import { getRoom, upsertRoom } from './roomDirectory.js';
-import { installPack, listInstalledPacks, uninstallPack } from './packs.js';
 import {
   buildHouseSession,
   persistHouseSession,
@@ -73,6 +72,15 @@ import {
   verifyPackAdminPassphrase,
   verifyPackAdminSession,
 } from './packAdminAuth.js';
+import {
+  applyAutomaticUpdates,
+  installOfficialGame,
+  isGameInstalled,
+  listGamesCatalog,
+  reconcileInstalledGames,
+  setUpdatePolicy,
+  uninstallOfficialGame,
+} from './installedGames.js';
 
 const PORT = Number(process.env.PORT ?? 2567);
 
@@ -183,19 +191,15 @@ app.get('/rooms/:code', (req, res) => {
 // Create a HouseSession (Phase 1 spine). The realtime game container is still a Colyseus room,
 // created later under a GameRun. Persistence degrades gracefully when Supabase env is absent.
 app.post('/sessions', async (req, res) => {
-  const { hostDeviceId, selectedPackIds, activePackId, settings } = req.body ?? {};
+  const { hostDeviceId, settings } = req.body ?? {};
   if (!hostDeviceId || typeof hostDeviceId !== 'string') {
     return res.status(400).json({ error: 'hostDeviceId required' });
   }
-  // A session isn't scoped to chosen packs anymore — all installed games are available. Packs are
-  // an install mechanism, not a play-time choice.
-  const packIds = Array.isArray(selectedPackIds) ? selectedPackIds : [];
   let session: ReturnType<typeof buildHouseSession>;
   try {
     session = buildHouseSession({
       hostDeviceId,
-      selectedPackIds: packIds,
-      activePackId,
+      selectedPackIds: [],
       settings: settings && typeof settings === 'object' ? settings : undefined,
     });
   } catch (err) {
@@ -277,6 +281,9 @@ app.post('/sessions/:code/runs', async (req, res) => {
   }
   if (!gameType || typeof gameType !== 'string') {
     return res.status(400).json({ error: 'gameType required' });
+  }
+  if (!isGameInstalled(gameType)) {
+    return res.status(409).json({ error: 'game_not_installed' });
   }
   let run: ReturnType<typeof buildGameRun>;
   try {
@@ -400,12 +407,12 @@ app.post('/sessions/:code/pairing/redeem', async (req, res) => {
   res.json(result);
 });
 
-app.get('/packs/auth', (req, res) => {
+app.get(['/games/auth', '/packs/auth'], (req, res) => {
   const token = readCookie(req.header('cookie'), PACK_ADMIN_COOKIE);
   res.json({ authenticated: verifyPackAdminSession(token, process.env.PACK_ADMIN_TOKEN) });
 });
 
-app.post('/packs/auth', (req, res) => {
+app.post(['/games/auth', '/packs/auth'], (req, res) => {
   if (!requirePackAdminOrigin(req, res)) return;
   const key =
     req.header('cf-connecting-ip')?.trim() ||
@@ -428,46 +435,65 @@ app.post('/packs/auth', (req, res) => {
   res.json({ authenticated: true });
 });
 
-app.delete('/packs/auth', (req, res) => {
+app.delete(['/games/auth', '/packs/auth'], (req, res) => {
   if (!requirePackAdminOrigin(req, res)) return;
   res.setHeader('Set-Cookie', clearPackAdminCookie());
   res.json({ authenticated: false });
 });
 
-// Pack installation (server-wide). Install a content pack from a GitHub repo URL.
-app.get('/packs', async (req, res) => {
-  if (!requirePackAdmin(req, res)) return;
+app.get('/games/catalog', async (_req, res) => {
   try {
-    res.json({ packs: await listInstalledPacks() });
+    res.json(await listGamesCatalog());
   } catch (err) {
-    log('warn', 'packs_list_failed', { error: String(err) });
-    res.json({ packs: [] });
+    log('warn', 'game_catalog_failed', { error: String(err) });
+    res.status(503).json({ error: 'game_catalog_unavailable' });
   }
 });
 
-app.post('/packs/install', async (req, res) => {
-  if (!requirePackAdminOrigin(req, res)) return;
-  if (!requirePackAdmin(req, res)) return;
-  const repoUrl = typeof req.body?.repoUrl === 'string' ? req.body.repoUrl : '';
-  if (!repoUrl) return res.status(400).json({ error: 'repoUrl required' });
-  const result = await installPack(repoUrl);
-  if (!result.ok) {
-    log('info', 'pack_install_rejected', { repoUrl, error: result.error });
-    return res.status(422).json({ error: result.error });
-  }
-  log('info', 'pack_installed', { packId: result.pack.packId, games: result.pack.manifest.games.length });
-  res.json({ pack: result.pack });
-});
-
-app.delete('/packs/:packId', async (req, res) => {
+app.post('/games/:gameId/install', async (req, res) => {
   if (!requirePackAdminOrigin(req, res)) return;
   if (!requirePackAdmin(req, res)) return;
   try {
-    await uninstallPack(String(req.params.packId));
+    const game = await installOfficialGame(String(req.params.gameId));
+    log('info', 'game_installed', { gameId: game.id, version: game.version });
+    res.json({ game });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : 'install_failed';
+    res.status(code === 'game_active' ? 409 : code === 'game_not_found' ? 404 : 422).json({ error: code });
+  }
+});
+
+app.post('/games/:gameId/update', async (req, res) => {
+  if (!requirePackAdminOrigin(req, res)) return;
+  if (!requirePackAdmin(req, res)) return;
+  try {
+    const game = await installOfficialGame(String(req.params.gameId));
+    res.json({ game });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : 'update_failed';
+    res.status(code === 'game_active' ? 409 : 422).json({ error: code });
+  }
+});
+
+app.delete('/games/:gameId', async (req, res) => {
+  if (!requirePackAdminOrigin(req, res)) return;
+  if (!requirePackAdmin(req, res)) return;
+  try {
+    await uninstallOfficialGame(String(req.params.gameId));
     res.json({ ok: true });
-  } catch (err) {
-    log('warn', 'pack_uninstall_failed', { error: String(err) });
-    res.status(503).json({ error: 'uninstall_failed' });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : 'uninstall_failed';
+    res.status(code === 'game_active' ? 409 : 503).json({ error: code });
+  }
+});
+
+app.patch('/games/update-policy', async (req, res) => {
+  if (!requirePackAdminOrigin(req, res)) return;
+  if (!requirePackAdmin(req, res)) return;
+  try {
+    res.json({ updatePolicy: await setUpdatePolicy(req.body ?? {}) });
+  } catch {
+    res.status(400).json({ error: 'update_policy_invalid' });
   }
 });
 
@@ -496,6 +522,10 @@ gameServer.define('word-wahala', WordWahalaRoom).filterBy(['code']);
 gameServer.define('half-half', HalfHalfRoom).filterBy(['code']);
 gameServer.define('house-session', HouseSessionRoom).filterBy(['code']);
 
+await reconcileInstalledGames();
+void applyAutomaticUpdates();
+setInterval(() => { void applyAutomaticUpdates(); }, 60 * 60 * 1000).unref();
+
 httpServer.listen(PORT, () => {
   log('info', 'server_listening', { port: PORT, protocolVersion: PROTOCOL_VERSION });
 });
@@ -512,7 +542,7 @@ function makeUniqueSessionCode(): string {
   let code = '';
   do {
     code = '';
-    for (let i = 0; i < 5; i += 1) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  for (let i = 0; i < 4; i += 1) code += alphabet[Math.floor(Math.random() * alphabet.length)];
   } while (getSessionRecord(code));
   return code;
 }

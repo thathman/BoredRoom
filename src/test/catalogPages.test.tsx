@@ -11,6 +11,11 @@ const serverApi = vi.hoisted(() => ({
   listPacks: vi.fn(),
   installPack: vi.fn(),
   uninstallPack: vi.fn(),
+  fetchGamesCatalog: vi.fn(),
+  installGame: vi.fn(),
+  updateGame: vi.fn(),
+  uninstallGame: vi.fn(),
+  updateGamesPolicy: vi.fn(),
 }));
 
 vi.mock('@/lib/serverApi', () => serverApi);
@@ -20,14 +25,14 @@ describe('catalog and pack pages', () => {
     vi.clearAllMocks();
     serverApi.getPackAdminAuth.mockResolvedValue(false);
     serverApi.listPacks.mockResolvedValue([]);
+    serverApi.fetchGamesCatalog.mockResolvedValue({ games: [], updatePolicy: { automatic: false, overrides: {} } });
   });
 
-  it('renders all games as browse-only content', () => {
+  it('renders the unified games library', () => {
     render(<MemoryRouter><Games /></MemoryRouter>);
-    expect(screen.getByText('All games')).toBeInTheDocument();
-    expect(screen.getByText(/return home and host a game night/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('article')).toHaveLength(15);
-    expect(screen.queryByRole('button', { name: /play /i })).not.toBeInTheDocument();
+    expect(screen.getByText('Games Library')).toBeInTheDocument();
+    expect(screen.getByText(/choose what is installed/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Owner passphrase')).toBeInTheDocument();
   });
 
   it('requires owner login before exposing pack management', async () => {

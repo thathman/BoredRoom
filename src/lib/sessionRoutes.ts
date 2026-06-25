@@ -4,7 +4,7 @@
 // not game-scoped (the old /:game/* routes stay for existing games — strangler-fig). This module
 // holds the pure path/role logic so the router and screens stay thin and testable.
 
-import { classifyDeviceForGame } from '@/lib/games';
+import { detectDeviceClass } from '@/lib/deviceExperience';
 
 export type SessionScreen = 'display' | 'controller' | 'crowd' | 'companion';
 
@@ -21,7 +21,7 @@ export function sessionPath(code: string, screen: SessionScreen): string {
 // Which screen a fresh device should land on: big screens host the public display, phones become
 // controllers. Operator and crowd are always explicit (chosen from the display/QR).
 export function defaultScreenForDevice(): SessionScreen {
-  return classifyDeviceForGame() === 'host' ? 'display' : 'controller';
+  return detectDeviceClass() === 'desktop_host' ? 'display' : 'controller';
 }
 
 // State-boundary helper (constitution Art. II): which screens may see private player state.

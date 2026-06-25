@@ -151,73 +151,57 @@ export function HeroSky() {
   );
 }
 
-// Stylized Naija night skyline — deterministic vector silhouette with lit windows and neon antenna
-// tips. Themeable via CSS vars; anchored to the hero bottom and faded at the top.
 function SkylineSvg() {
-  // [x, width, height] in viewBox units (viewBox 0..1200 wide, 0..200 tall, ground = 200).
-  const buildings: [number, number, number][] = [
-    [0, 70, 90], [64, 46, 130], [104, 90, 70], [186, 40, 160], [220, 64, 110],
-    [280, 54, 150], [330, 80, 95], [404, 44, 175], [442, 70, 120], [508, 58, 140],
-    [560, 96, 80], [650, 48, 165], [692, 66, 115], [752, 84, 100], [830, 44, 150],
-    [868, 72, 128], [934, 90, 88], [1018, 46, 158], [1058, 70, 112], [1122, 90, 96],
-  ];
-  const windowsFor = (bx: number, bw: number, bh: number) => {
-    const cells: { x: number; y: number }[] = [];
-    const top = 200 - bh;
-    for (let y = top + 10; y < 196; y += 12) {
-      for (let x = bx + 6; x < bx + bw - 6; x += 12) {
-        // deterministic sparse lighting
-        if (((x * 7 + y * 13) % 5) < 2) cells.push({ x, y });
-      }
-    }
-    return cells;
-  };
-
   return (
     <svg
       className="absolute inset-x-0 bottom-0 w-full"
       style={{
-        height: '60%',
-        opacity: 0.92,
-        maskImage: 'linear-gradient(to top, black 55%, transparent 100%)',
-        WebkitMaskImage: 'linear-gradient(to top, black 55%, transparent 100%)',
-        filter: 'drop-shadow(0 0 18px hsl(var(--primary) / 0.25))',
+        height: '49%',
+        opacity: 0.9,
+        filter: 'drop-shadow(0 0 16px hsl(var(--primary) / 0.22))',
       }}
-      viewBox="0 0 1200 200"
+      viewBox="0 0 1600 330"
       preserveAspectRatio="xMidYMax slice"
       aria-hidden="true"
     >
-      {buildings.map(([x, w, h], i) => (
-        <g key={i}>
-          <rect
-            x={x}
-            y={200 - h}
-            width={w}
-            height={h}
-            fill="hsl(230 40% 8%)"
-            stroke="hsl(var(--primary) / 0.35)"
-            strokeWidth={1}
-          />
-          {windowsFor(x, w, h).map((c, j) => (
-            <rect
-              key={j}
-              x={c.x}
-              y={c.y}
-              width={3}
-              height={4}
-              fill={j % 7 === 0 ? 'hsl(var(--secondary))' : 'hsl(var(--primary))'}
-              opacity={0.85}
-            />
-          ))}
-          {/* antenna + glow tip on the taller towers */}
-          {h > 140 && (
-            <>
-              <line x1={x + w / 2} y1={200 - h} x2={x + w / 2} y2={200 - h - 14} stroke="hsl(var(--primary) / 0.6)" strokeWidth={1} />
-              <circle cx={x + w / 2} cy={200 - h - 14} r={2.2} fill="hsl(var(--accent))" />
-            </>
-          )}
-        </g>
-      ))}
+      <defs>
+        <linearGradient id="lagosNeon" x1="0" x2="1">
+          <stop offset="0" stopColor="hsl(var(--primary))" />
+          <stop offset=".52" stopColor="hsl(var(--primary))" />
+          <stop offset="1" stopColor="hsl(var(--secondary))" />
+        </linearGradient>
+        <linearGradient id="lagosWater" x1="0" y1="0" x2="0" y2="1">
+          <stop stopColor="hsl(var(--primary) / .22)" />
+          <stop offset="1" stopColor="transparent" />
+        </linearGradient>
+      </defs>
+      <path d="M0 287H1600V330H0Z" fill="hsl(232 40% 5%)" />
+      <g fill="hsl(232 38% 7%)" stroke="url(#lagosNeon)" strokeWidth="2">
+        {/* Third Mainland Bridge */}
+        <path d="M0 267 C110 216 225 211 356 264 L356 286 H0Z" />
+        <path d="M18 263 L90 232 L166 220 L244 231 L332 263" fill="none" />
+        <path d="M52 248V286M113 226V286M176 220V286M240 230V286M302 252V286" opacity=".65" />
+        {/* National Theatre */}
+        <path d="M384 286 V237 Q449 190 517 237 V286Z" />
+        <path d="M402 240 Q450 215 499 240M412 253H489M423 266H478" fill="none" />
+        {/* Marina towers and NECOM */}
+        <path d="M548 286V143H603V286M616 286V91H670V286M685 286V126H756V286M771 286V64H827V286" />
+        <path d="M799 64V28M790 28H808" fill="none" />
+        <path d="M842 286V115H904V286M918 286V165H978V286M993 286V102H1058V286" />
+        {/* Civic clock / cathedral silhouette */}
+        <path d="M1080 286V175H1122V286M1088 175V145H1114V175M1095 145V128H1107V145" />
+        <circle cx="1101" cy="157" r="7" fill="none" />
+        {/* Lekki-Ikoyi Link Bridge */}
+        <path d="M1152 286H1600V269H1152Z" />
+        <path d="M1190 269 Q1354 154 1564 269M1358 269V129M1358 129L1268 269M1358 129L1454 269" fill="none" />
+        <path d="M1217 253H1541M1244 234H1513M1275 213H1484" fill="none" opacity=".55" />
+      </g>
+      <g fill="hsl(var(--accent))">
+        {[571, 637, 704, 795, 866, 940, 1015].map((x, index) => (
+          <circle key={x} cx={x} cy={180 + (index % 3) * 24} r="2.5" opacity=".8" />
+        ))}
+      </g>
+      <path d="M0 293 Q180 307 356 292 T720 296 T1100 294 T1600 298V330H0Z" fill="url(#lagosWater)" />
     </svg>
   );
 }
