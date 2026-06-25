@@ -1,25 +1,22 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Gamepad2, Smartphone, ArrowRight, Grid3x3, Package } from 'lucide-react';
+import { Gamepad2, Smartphone, ArrowRight, Grid3x3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
 import { HeroSky } from '@/components/game/HeroSky';
 import { classifyDeviceForGame } from '@/lib/games';
-import { getAllGames } from '@/lib/catalog';
 import { ContinueSessionCard } from '@/components/system/ContinueSessionCard';
 import { getLastHouseSession } from '@/lib/houseSessionResume';
 import { resetPwaCacheAndReload } from '@/lib/pwa';
 import { toast } from 'sonner';
 
-// Pack-first landing (spec: pack-first landing page). Phones join as controllers; bigger screens
-// host the night. The legacy single-game catalog lives at /games.
+// Phones join as controllers; bigger screens host the night. The catalog is informational only.
 export default function Index() {
   const navigate = useNavigate();
   const isPhone = classifyDeviceForGame() === 'join';
   const buildHash = (import.meta.env.VITE_BUILD_HASH as string | undefined) ?? 'dev';
   const appVersion = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev';
   const lastHouse = getLastHouseSession();
-  const gameCount = getAllGames().length;
 
   return (
     <div className="min-h-screen flex flex-col items-center px-6 pb-10 relative overflow-hidden">
@@ -83,34 +80,16 @@ export default function Index() {
         transition={{ duration: 0.6, delay: 0.2 }}
         className="relative z-10 w-full max-w-6xl"
       >
-        {/* Your server's games + pack management (packs install games, you don't pick a pack to play) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-left mb-10">
-          <button
-            onClick={() => navigate('/games')}
-            className="group glass rounded-3xl p-6 text-left transition-all hover:-translate-y-1 hover:border-primary/50 border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <Grid3x3 className="w-10 h-10 text-primary" />
-            <div className="mt-4 flex items-center gap-2">
-              <h3 className="text-2xl font-display font-bold">{gameCount} games installed</h3>
-              <ArrowRight className="w-4 h-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">Browse everything you can play in a room.</p>
-          </button>
-          <button
-            onClick={() => navigate('/packs')}
-            className="group glass rounded-3xl p-6 text-left transition-all hover:-translate-y-1 hover:border-primary/50 border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <Package className="w-10 h-10 text-secondary" />
-            <div className="mt-4 flex items-center gap-2">
-              <h3 className="text-2xl font-display font-bold">Game packs</h3>
-              <ArrowRight className="w-4 h-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">Install more games from a GitHub repo.</p>
-          </button>
-        </div>
-
         <div className="mb-8 max-w-2xl mx-auto">
           <ContinueSessionCard />
+        </div>
+
+        <div className="mb-8 flex justify-center">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/games')} className="gap-2">
+            <Grid3x3 className="h-4 w-4" />
+            Browse all games
+            <ArrowRight className="h-4 w-4" />
+          </Button>
         </div>
 
         <div className="flex gap-8 justify-center text-sm text-muted-foreground flex-wrap">

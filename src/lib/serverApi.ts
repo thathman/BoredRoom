@@ -107,10 +107,39 @@ export interface InstalledPack {
 
 export async function listPacks(): Promise<InstalledPack[]> {
   const base = serverHttpBase();
-  if (!base) return [];
-  const res = await fetch(`${base}/packs`);
-  if (!res.ok) return [];
+  if (!base) throw new Error('no_server');
+  const res = await fetch(`${base}/packs`, { credentials: 'include' });
+  if (!res.ok) throw new Error(res.status === 403 ? 'pack_admin_required' : `packs_list_failed_${res.status}`);
   return ((await res.json()) as { packs?: InstalledPack[] }).packs ?? [];
+}
+
+export async function getPackAdminAuth(): Promise<boolean> {
+  const base = serverHttpBase();
+  if (!base) return false;
+  const res = await fetch(`${base}/packs/auth`, { credentials: 'include' });
+  if (!res.ok) return false;
+  return ((await res.json()) as { authenticated?: boolean }).authenticated === true;
+}
+
+export async function loginPackAdmin(passphrase: string): Promise<void> {
+  const base = serverHttpBase();
+  if (!base) throw new Error('no_server');
+  const res = await fetch(`${base}/packs/auth`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ passphrase }),
+  });
+  if (!res.ok) {
+    const error = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(error.error ?? `pack_admin_login_failed_${res.status}`);
+  }
+}
+
+export async function logoutPackAdmin(): Promise<void> {
+  const base = serverHttpBase();
+  if (!base) return;
+  await fetch(`${base}/packs/auth`, { method: 'DELETE', credentials: 'include' });
 }
 
 // Install a pack from a GitHub repo URL. Throws with a readable code on failure.
@@ -119,6 +148,7 @@ export async function installPack(repoUrl: string): Promise<InstalledPack> {
   if (!base) throw new Error('no_server');
   const res = await fetch(`${base}/packs/install`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repoUrl }),
   });
@@ -132,7 +162,11 @@ export async function installPack(repoUrl: string): Promise<InstalledPack> {
 export async function uninstallPack(packId: string): Promise<void> {
   const base = serverHttpBase();
   if (!base) return;
-  await fetch(`${base}/packs/${encodeURIComponent(packId)}`, { method: 'DELETE' });
+  const res = await fetch(`${base}/packs/${encodeURIComponent(packId)}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`uninstall_failed_${res.status}`);
 }
 
 export interface ActiveRun {

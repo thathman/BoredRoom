@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Loader2, Package, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, LockKeyhole, LogOut, Package, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
-import { listPacks, installPack, uninstallPack, type InstalledPack } from '@/lib/serverApi';
+import {
+  getPackAdminAuth,
+  installPack,
+  listPacks,
+  loginPackAdmin,
+  logoutPackAdmin,
+  uninstallPack,
+  type InstalledPack,
+} from '@/lib/serverApi';
 import { toast } from 'sonner';
 
 // Manage packs: install a content pack from a GitHub repo URL. Installed packs add their games to
@@ -22,13 +30,52 @@ const ERROR_COPY: Record<string, string> = {
 export default function Packs() {
   const navigate = useNavigate();
   const [packs, setPacks] = useState<InstalledPack[]>([]);
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const [passphrase, setPassphrase] = useState('');
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const refresh = () => listPacks().then(setPacks).catch(() => {});
+  const refresh = async () => {
+    try {
+      setPacks(await listPacks());
+    } catch (error) {
+      if (error instanceof Error && error.message === 'pack_admin_required') {
+        setAuthenticated(false);
+      }
+    }
+  };
   useEffect(() => {
-    refresh();
+    void getPackAdminAuth().then((isAuthenticated) => {
+      setAuthenticated(isAuthenticated);
+      if (isAuthenticated) void refresh();
+    });
   }, []);
+
+  async function login() {
+    if (!passphrase || busy) return;
+    setBusy(true);
+    try {
+      await loginPackAdmin(passphrase);
+      setPassphrase('');
+      setAuthenticated(true);
+      await refresh();
+    } catch (error) {
+      const code = error instanceof Error ? error.message : 'pack_admin_invalid';
+      toast.error(
+        code === 'pack_admin_rate_limited'
+          ? 'Too many attempts. Wait before trying again.'
+          : 'Incorrect owner passphrase.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function logout() {
+    await logoutPackAdmin();
+    setPacks([]);
+    setAuthenticated(false);
+  }
 
   async function install() {
     if (!url.trim() || busy) return;
@@ -40,6 +87,7 @@ export default function Packs() {
       await refresh();
     } catch (e) {
       const code = e instanceof Error ? e.message : 'install_failed';
+      if (code === 'pack_admin_required') setAuthenticated(false);
       toast.error(ERROR_COPY[code] ?? `Install failed (${code})`);
     } finally {
       setBusy(false);
@@ -47,9 +95,13 @@ export default function Packs() {
   }
 
   async function remove(packId: string) {
-    await uninstallPack(packId);
-    toast(`Uninstalled ${packId}`);
-    await refresh();
+    try {
+      await uninstallPack(packId);
+      toast(`Uninstalled ${packId}`);
+      await refresh();
+    } catch {
+      toast.error('Could not uninstall that pack.');
+    }
   }
 
   return (
@@ -68,6 +120,43 @@ export default function Packs() {
       </header>
 
       <div className="max-w-3xl w-full mx-auto">
+        {authenticated === null && (
+          <div className="grid min-h-56 place-items-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        )}
+
+        {authenticated === false && (
+          <div className="mx-auto max-w-md rounded-3xl border border-border bg-card p-6 text-center shadow-xl">
+            <LockKeyhole className="mx-auto h-10 w-10 text-primary" />
+            <h2 className="mt-4 text-xl font-display font-bold">Owner access</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Pack installation changes the game catalog for everyone on this server.
+            </p>
+            <Input
+              className="mt-5"
+              type="password"
+              autoComplete="current-password"
+              value={passphrase}
+              onChange={(event) => setPassphrase(event.target.value)}
+              onKeyDown={(event) => event.key === 'Enter' && void login()}
+              placeholder="Owner passphrase"
+              aria-label="Owner passphrase"
+            />
+            <Button className="mt-3 w-full" onClick={() => void login()} disabled={!passphrase || busy}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Unlock pack manager'}
+            </Button>
+          </div>
+        )}
+
+        {authenticated === true && (
+          <>
+        <div className="mb-4 flex justify-end">
+          <Button variant="ghost" size="sm" className="gap-2" onClick={() => void logout()}>
+            <LogOut className="h-4 w-4" />
+            Log out
+          </Button>
+        </div>
         <div className="flex gap-2">
           <Input
             value={url}
@@ -105,6 +194,8 @@ export default function Packs() {
             </div>
           ))}
         </div>
+          </>
+        )}
       </div>
       <BuiltByFooter />
     </div>

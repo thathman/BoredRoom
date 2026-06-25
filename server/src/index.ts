@@ -61,11 +61,23 @@ import {
   verifyOwnerCredential,
   verifyControlCredential,
 } from './sessionDirectory.js';
+import {
+  clearLoginAttempts,
+  clearPackAdminCookie,
+  consumeLoginAttempt,
+  isAllowedPackAdminOrigin,
+  issuePackAdminSession,
+  packAdminCookie,
+  PACK_ADMIN_COOKIE,
+  readCookie,
+  verifyPackAdminPassphrase,
+  verifyPackAdminSession,
+} from './packAdminAuth.js';
 
 const PORT = Number(process.env.PORT ?? 2567);
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 function ownerCredentialFrom(req: express.Request): string | undefined {
@@ -93,9 +105,21 @@ function requireSessionController(req: express.Request, res: express.Response): 
 
 function requirePackAdmin(req: express.Request, res: express.Response): boolean {
   const expected = process.env.PACK_ADMIN_TOKEN;
-  const actual = req.header('x-boredroom-admin');
-  if (!expected || !actual || actual !== expected) {
+  const headerCredential = req.header('x-boredroom-admin')?.trim();
+  const cookieCredential = readCookie(req.header('cookie'), PACK_ADMIN_COOKIE);
+  const authenticated =
+    verifyPackAdminPassphrase(headerCredential ?? '', expected) ||
+    verifyPackAdminSession(cookieCredential, expected);
+  if (!authenticated) {
     res.status(403).json({ error: 'pack_admin_required' });
+    return false;
+  }
+  return true;
+}
+
+function requirePackAdminOrigin(req: express.Request, res: express.Response): boolean {
+  if (!isAllowedPackAdminOrigin(req.header('origin'))) {
+    res.status(403).json({ error: 'pack_admin_origin_invalid' });
     return false;
   }
   return true;
@@ -376,8 +400,43 @@ app.post('/sessions/:code/pairing/redeem', async (req, res) => {
   res.json(result);
 });
 
+app.get('/packs/auth', (req, res) => {
+  const token = readCookie(req.header('cookie'), PACK_ADMIN_COOKIE);
+  res.json({ authenticated: verifyPackAdminSession(token, process.env.PACK_ADMIN_TOKEN) });
+});
+
+app.post('/packs/auth', (req, res) => {
+  if (!requirePackAdminOrigin(req, res)) return;
+  const key =
+    req.header('cf-connecting-ip')?.trim() ||
+    req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.ip ||
+    req.socket.remoteAddress ||
+    'unknown';
+  const attempt = consumeLoginAttempt(key);
+  if (!attempt.allowed) {
+    res.setHeader('Retry-After', String(attempt.retryAfterSeconds));
+    return res.status(429).json({ error: 'pack_admin_rate_limited' });
+  }
+  const passphrase = typeof req.body?.passphrase === 'string' ? req.body.passphrase : '';
+  const secret = process.env.PACK_ADMIN_TOKEN;
+  if (!verifyPackAdminPassphrase(passphrase, secret) || !secret) {
+    return res.status(403).json({ error: 'pack_admin_invalid' });
+  }
+  clearLoginAttempts(key);
+  res.setHeader('Set-Cookie', packAdminCookie(issuePackAdminSession(secret)));
+  res.json({ authenticated: true });
+});
+
+app.delete('/packs/auth', (req, res) => {
+  if (!requirePackAdminOrigin(req, res)) return;
+  res.setHeader('Set-Cookie', clearPackAdminCookie());
+  res.json({ authenticated: false });
+});
+
 // Pack installation (server-wide). Install a content pack from a GitHub repo URL.
-app.get('/packs', async (_req, res) => {
+app.get('/packs', async (req, res) => {
+  if (!requirePackAdmin(req, res)) return;
   try {
     res.json({ packs: await listInstalledPacks() });
   } catch (err) {
@@ -387,6 +446,7 @@ app.get('/packs', async (_req, res) => {
 });
 
 app.post('/packs/install', async (req, res) => {
+  if (!requirePackAdminOrigin(req, res)) return;
   if (!requirePackAdmin(req, res)) return;
   const repoUrl = typeof req.body?.repoUrl === 'string' ? req.body.repoUrl : '';
   if (!repoUrl) return res.status(400).json({ error: 'repoUrl required' });
@@ -400,6 +460,7 @@ app.post('/packs/install', async (req, res) => {
 });
 
 app.delete('/packs/:packId', async (req, res) => {
+  if (!requirePackAdminOrigin(req, res)) return;
   if (!requirePackAdmin(req, res)) return;
   try {
     await uninstallPack(String(req.params.packId));
