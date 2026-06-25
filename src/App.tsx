@@ -6,7 +6,6 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PwaUpdatePrompt } from "@/components/system/PwaUpdatePrompt";
-import { GameAtmosphereCanvas } from "@/components/game/GameAtmosphereCanvas";
 
 const queryClient = new QueryClient();
 const Index = lazy(() => import("./pages/Index"));
@@ -30,7 +29,6 @@ const App = () => (
         <Sonner />
         <PwaUpdatePrompt />
         <div className="relative min-h-screen">
-          <GameAtmosphereCanvas />
           <div className="relative z-10">
             <BrowserRouter>
               <Suspense fallback={<RouteFallback />}>

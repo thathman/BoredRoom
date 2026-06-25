@@ -1,55 +1,31 @@
 import { useEffect, useReducer, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Loader2, Smartphone, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Users } from 'lucide-react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { BrandLogo } from '@/components/brand/BrandLogo';
+import { LagosScene } from '@/components/brand/LagosScene';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
-import {
-  initialSetupState,
-  setupReducer,
-  toCreateSessionInput,
-  SETUP_STEPS,
-  type SetupSettings,
-} from '@/lib/setupFlow';
-import { getPlayerId } from '@/lib/roomUtils';
 import { createSession, fetchGamesCatalog } from '@/lib/serverApi';
 import { detectDeviceClass } from '@/lib/deviceExperience';
 import { rememberHouseSession } from '@/lib/houseSessionResume';
-import { toast } from 'sonner';
-
-const STEP_TITLE = ['Set the house rules', 'Review & start'];
-
-const SETTING_LABELS: { key: keyof SetupSettings; label: string; hint: string }[] = [
-  { key: 'allowBots', label: 'Allow bots', hint: 'Fill empty seats with AI players.' },
-  { key: 'hintsEnabled', label: 'Hints', hint: 'Let players earn limited hints.' },
-  { key: 'allowCrowdVotes', label: 'Crowd can vote', hint: 'Spectators help decide what to play.' },
-];
+import { getPlayerId } from '@/lib/roomUtils';
+import { initialSetupState, setupReducer, toCreateSessionInput } from '@/lib/setupFlow';
 
 export default function SessionSetup() {
   const navigate = useNavigate();
   const [state, dispatch] = useReducer(setupReducer, undefined, initialSetupState);
   const [creating, setCreating] = useState(false);
-  const stepIdx = SETUP_STEPS.indexOf(state.step);
   const [gameCount, setGameCount] = useState(0);
+
   useEffect(() => {
-    void fetchGamesCatalog().then(({ games }) => setGameCount(games.filter((game) => game.installed).length)).catch(() => {});
+    void fetchGamesCatalog()
+      .then(({ games }) => setGameCount(games.filter((game) => game.installed).length))
+      .catch(() => setGameCount(0));
   }, []);
 
   if (detectDeviceClass() !== 'desktop_host') {
-    return (
-      <div className="min-h-screen w-full bg-background text-foreground flex flex-col items-center justify-center p-6 text-center">
-        <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-primary/15 text-primary">
-          <Smartphone className="w-7 h-7" />
-        </span>
-        <h1 className="text-xl font-bold">Hosting belongs on the big screen</h1>
-        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-          Start the public display on a TV, desktop, or laptop. Tablets can join as a controller or
-          pair as a private host companion.
-        </p>
-        <Button className="mt-6 rounded-2xl" onClick={() => navigate('/join')}>Join as controller</Button>
-        <Button variant="ghost" className="mt-2" onClick={() => navigate('/')}>Back home</Button>
-      </div>
-    );
+    return <Navigate to="/" replace />;
   }
 
   async function start() {
@@ -57,94 +33,66 @@ export default function SessionSetup() {
     try {
       const { session } = await createSession(toCreateSessionInput(state, getPlayerId()));
       rememberHouseSession({ code: session.code });
-      toast.success(`Room ${session.code} ready`);
       navigate(`/session/${session.code}/display`);
     } catch {
-      toast.error('Could not start the room. Try again.');
+      toast.error('Could not open the room. Try again.');
       setCreating(false);
     }
   }
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground flex flex-col">
-      <header className="px-5 pt-6 pb-3 flex items-center gap-3">
-        <Sparkles className="w-5 h-5 text-primary" />
-        <div>
-          <h1 className="text-lg font-bold leading-none">Start a game night</h1>
-          <p className="text-xs text-muted-foreground mt-1">Create the room — pick games once everyone’s in.</p>
-        </div>
-      </header>
-
-      <div className="px-5 flex items-center gap-2">
-        {STEP_TITLE.map((t, i) => (
-          <div key={t} className="flex items-center gap-2">
-            <span className={`h-7 w-7 rounded-full grid place-items-center text-xs font-bold ${i <= stepIdx ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-              {i < stepIdx ? <Check className="w-4 h-4" /> : i + 1}
-            </span>
-            {i < STEP_TITLE.length - 1 && <span className="w-6 h-px bg-border" />}
-          </div>
-        ))}
-        <span className="ml-2 text-sm font-medium">{STEP_TITLE[stepIdx]}</span>
-      </div>
-
-      <main className="flex-1 px-5 py-5 overflow-y-auto">
-        {state.step === 'settings' && (
-          <div className="max-w-md space-y-2">
-            {SETTING_LABELS.map(({ key, label, hint }) => (
-              <div key={key} className="flex items-center justify-between rounded-xl border border-border bg-card/60 p-4">
-                <div>
-                  <p className="font-medium">{label}</p>
-                  <p className="text-xs text-muted-foreground">{hint}</p>
-                </div>
-                <Switch checked={state.settings[key] as boolean} onCheckedChange={(value) => dispatch({ type: 'set_setting', key, value })} />
-              </div>
-            ))}
-            <div className="flex items-center justify-between rounded-xl border border-border bg-card/60 p-4">
-              <div>
-                <p className="font-medium">Language</p>
-                <p className="text-xs text-muted-foreground">Host & prompts language.</p>
-              </div>
-              <div className="flex gap-1">
-                {(['en', 'pcm'] as const).map((lang) => (
-                  <Button key={lang} size="sm" variant={state.settings.language === lang ? 'default' : 'outline'} onClick={() => dispatch({ type: 'set_setting', key: 'language', value: lang })}>
-                    {lang === 'en' ? 'English' : 'Pidgin'}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {state.step === 'review' && (
-          <div className="max-w-md space-y-4">
-            <div className="rounded-2xl border border-border bg-card p-4">
-              <p className="text-sm">
-                A room will open with <span className="font-bold">{gameCount} installed games</span> ready to play.
-              </p>
-            </div>
-            {gameCount === 0 && (
-              <Button variant="outline" className="w-full" onClick={() => navigate('/games')}>
-                Install games first
-              </Button>
-            )}
-            <Button className="w-full" size="lg" onClick={start} disabled={creating || gameCount === 0}>
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Open the room'}
-            </Button>
-          </div>
-        )}
-      </main>
-
-      <footer className="px-5 py-4 flex items-center justify-between border-t border-border">
-        <Button variant="ghost" onClick={() => (stepIdx === 0 ? navigate('/') : dispatch({ type: 'back' }))} disabled={creating}>
-          <ArrowLeft className="w-4 h-4 mr-1" /> {stepIdx === 0 ? 'Home' : 'Back'}
-        </Button>
-        {state.step !== 'review' && (
-          <Button onClick={() => dispatch({ type: 'next' })}>
-            Next <ArrowRight className="w-4 h-4 ml-1" />
+    <LagosScene>
+      <div className="mx-auto min-h-screen max-w-6xl px-6 pb-24 pt-7">
+        <header className="flex items-center justify-between">
+          <BrandLogo />
+          <Button variant="outline" className="rounded-xl bg-black/25" onClick={() => navigate('/')}>
+            <ArrowLeft className="h-4 w-4" /> Back home
           </Button>
-        )}
-      </footer>
-      <BuiltByFooter />
-    </div>
+        </header>
+        <section className="mx-auto mt-6 max-w-xl text-center">
+          <h1 className="brush-display text-5xl text-white sm:text-6xl">Start a <span className="text-primary">game night</span></h1>
+          <p className="mt-2 text-sm text-muted-foreground">Set up your game session.</p>
+
+          <div className="neon-panel mt-7 overflow-hidden rounded-2xl text-left">
+            <div className="flex items-center gap-4 border-b border-white/10 px-5 py-4">
+              <span className="text-2xl">🎮</span>
+              <div className="flex-1"><strong className="text-sm">Games</strong><p className="text-xs text-muted-foreground">{gameCount} installed</p></div>
+              <ArrowRight className="h-4 w-4" />
+            </div>
+            <div className="flex items-center gap-4 border-b border-white/10 px-5 py-4">
+              <Users className="h-6 w-6" />
+              <div className="flex-1"><strong className="text-sm">Players</strong><p className="text-xs text-muted-foreground">Up to {state.settings.maxControllers}</p></div>
+              <ArrowRight className="h-4 w-4" />
+            </div>
+            <label className="flex items-center gap-4 border-b border-white/10 px-5 py-4">
+              <span className="text-xl">🤖</span>
+              <div className="flex-1"><strong className="text-sm">Allow bots</strong><p className="text-xs text-muted-foreground">Fill available seats when supported</p></div>
+              <Switch checked={state.settings.allowBots} onCheckedChange={(value) => dispatch({ type: 'set_setting', key: 'allowBots', value })} />
+            </label>
+            <label className="flex items-center gap-4 border-b border-white/10 px-5 py-4">
+              <span className="text-xl">💡</span>
+              <div className="flex-1"><strong className="text-sm">Player hints</strong><p className="text-xs text-muted-foreground">Private, limited assistance</p></div>
+              <Switch checked={state.settings.hintsEnabled} onCheckedChange={(value) => dispatch({ type: 'set_setting', key: 'hintsEnabled', value })} />
+            </label>
+            <label className="flex items-center gap-4 px-5 py-4">
+              <span className="text-xl">👥</span>
+              <div className="flex-1"><strong className="text-sm">Allow crowd votes</strong><p className="text-xs text-muted-foreground">Audience can vote where supported</p></div>
+              <Switch checked={state.settings.allowCrowdVotes} onCheckedChange={(value) => dispatch({ type: 'set_setting', key: 'allowCrowdVotes', value })} />
+            </label>
+          </div>
+
+          {gameCount === 0 ? (
+            <div className="neon-panel mt-5 rounded-2xl p-5">
+              <p className="text-sm">You need at least one installed game before opening a room.</p>
+              <Button variant="outline" className="mt-4 border-primary text-primary" onClick={() => navigate('/games')}>Go to Games Library</Button>
+            </div>
+          ) : (
+            <Button className="neon-primary mt-5 h-14 w-full rounded-xl text-base font-bold" disabled={creating} onClick={() => void start()}>
+              {creating ? <Loader2 className="animate-spin" /> : <>Open the room <ArrowRight className="ml-auto" /></>}
+            </Button>
+          )}
+        </section>
+      </div>
+    </LagosScene>
   );
 }

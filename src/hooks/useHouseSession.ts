@@ -46,6 +46,7 @@ export function useHouseSession({
     gameType: string;
     state: unknown;
   } | null>(null);
+  const [aiResult, setAiResult] = useState<{ kind: 'commentary' | 'hint' | 'pacing'; text: string | null } | null>(null);
   const roomRef = useRef<Room | null>(null);
   const reconnectRef = useRef(0);
 
@@ -96,6 +97,9 @@ export function useHouseSession({
         room.onMessage('game:private_state', (payload: { gameType: string; state: unknown }) => {
           setGamePrivateState(payload);
         });
+        room.onMessage('ai:result', (payload: { kind: 'commentary' | 'hint' | 'pacing'; text: string | null }) => {
+          setAiResult(payload);
+        });
         room.onError((codeNumber, message) => {
           console.warn('[house-session] room error', codeNumber, message);
           setStatus('error');
@@ -143,14 +147,45 @@ export function useHouseSession({
     roomRef.current?.send('game:intent', intent);
   }, []);
 
+  const requestHint = useCallback(() => {
+    roomRef.current?.send('ai:request_hint');
+  }, []);
+
+  const castVote = useCallback((option: string) => {
+    roomRef.current?.send('vote:cast', { option });
+  }, []);
+
+  const selectGame = useCallback((gameId: string, settings: Record<string, unknown> = {}) => {
+    roomRef.current?.send('session:select_game', { gameId, settings });
+  }, []);
+
+  const startGame = useCallback((gameId?: string, settings: Record<string, unknown> = {}) => {
+    roomRef.current?.send('session:start_game', { gameId, settings });
+  }, []);
+
+  const switchGame = useCallback((gameId: string, settings: Record<string, unknown> = {}) => {
+    roomRef.current?.send('session:switch_game', { gameId, settings });
+  }, []);
+
+  const endGame = useCallback(() => {
+    roomRef.current?.send('session:end_game');
+  }, []);
+
   return {
     snapshot,
     status,
     lastTransition,
     gamePublicState,
     gamePrivateState,
+    aiResult,
     setReady,
     sendGameIntent,
+    requestHint,
+    castVote,
+    selectGame,
+    startGame,
+    switchGame,
+    endGame,
     refresh,
   };
 }

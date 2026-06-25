@@ -1,7 +1,7 @@
 {
   "name": "boredroom",
   "private": true,
-  "version": "1.2.0.0",
+  "version": "1.3.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,18 +15,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke:server-start": "node scripts/smoke-server-start.mjs",
-    "smoke:e2e": "node scripts/smoke-e2e.mjs",
-    "smoke:whot": "node scripts/smoke-whot.mjs",
-    "smoke:policy": "node scripts/smoke-policy.mjs",
-    "smoke:reconnect": "node scripts/smoke-reconnect.mjs",
-    "smoke:colorwahala": "node scripts/smoke-colorwahala.mjs",
-    "smoke:rooms-matrix": "node scripts/smoke-rooms-matrix.mjs",
-    "smoke:assert-matrix": "node scripts/assert-smoke-matrix-rows.mjs",
+    "smoke:e2e": "node scripts/smoke-unified-session.mjs",
     "smoke:ui-entry": "node scripts/playwright-entry-flows.mjs",
-    "gates:sync": "node scripts/sync-game-gates-from-smoke.mjs",
-    "gates:verify": "npm run gates:sync && git diff --exit-code -- src/lib/generated/gameGates.ts",
-    "smoke:live": "node scripts/smoke-live-suite.mjs",
-    "smoke:all": "npm run smoke:server-start && npm run smoke:live"
+    "smoke:all": "npm run smoke:server-start && npm run smoke:e2e"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -59,7 +50,6 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.17.10",
-    "@supabase/supabase-js": "^2.103.2",
     "@tanstack/query-core": "^5.99.2",
     "@tanstack/react-query": "^5.83.0",
     "@zxing/browser": "^0.1.5",

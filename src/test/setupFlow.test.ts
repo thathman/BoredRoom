@@ -30,7 +30,6 @@ describe('room setup flow', () => {
     let s = initialSetupState();
     s = setupReducer(s, { type: 'set_setting', key: 'allowBots', value: false });
     const input = toCreateSessionInput(s, 'host-9');
-    expect(input.selectedPackIds).toEqual([]); // not pack-scoped
     const session = buildHouseSession(input);
     expect(session.hostDeviceId).toBe('host-9');
     expect(session.settings.allowBots).toBe(false);

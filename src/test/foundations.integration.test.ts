@@ -3,12 +3,10 @@ import {
   buildHouseSession,
   buildGameRun,
   buildSessionEvent,
-  buildOperatorDevice,
   persistHouseSession,
   persistGameRun,
   appendSessionEvent,
   rememberController,
-  pairOperator,
 } from '../../server/src/foundations';
 import type { ControllerDevice } from '../../shared/src/contracts/session';
 
@@ -28,17 +26,14 @@ async function getRows(path: string): Promise<unknown[]> {
 
 describe.runIf(RUN)('foundations against live Supabase', () => {
   it('AC-1.2: persists and reads back a house session + game run + event', async () => {
-    const s = buildHouseSession({ hostDeviceId: 'host-int', selectedPackIds: ['pack.naija'] });
+    const s = buildHouseSession({ hostDeviceId: 'host-int' });
     expect(await persistHouseSession(s)).toBe('ok');
 
-    const run = buildGameRun({ houseSessionId: s.id, gameType: 'whot', packId: 'pack.naija' });
+    const run = buildGameRun({ houseSessionId: s.id, gameType: 'whot', gameVersion: '1.1.0.0' });
     expect(await persistGameRun(run)).toBe('ok');
 
     const ev = buildSessionEvent({ sessionId: s.id, gameRunId: run.id, type: 'game.started' });
     expect(await appendSessionEvent(ev)).toBe('ok');
-
-    const op = buildOperatorDevice({ id: 'op-int', sessionId: s.id, role: 'scorekeeper' });
-    expect(await pairOperator(op)).toBe('ok');
 
     const sessions = (await getRows(`house_sessions?id=eq.${s.id}&select=*`)) as Array<Record<string, unknown>>;
     expect(sessions).toHaveLength(1);
@@ -50,14 +45,12 @@ describe.runIf(RUN)('foundations against live Supabase', () => {
     const events = await getRows(`session_events?session_id=eq.${s.id}`);
     expect(events).toHaveLength(1);
 
-    const ops = await getRows(`operator_devices?session_id=eq.${s.id}`);
-    expect(ops).toHaveLength(1);
   });
 
   it('AC-1.7: a controller device is remembered across two sessions', async () => {
     const deviceId = `ctrl-int-${Date.now()}`;
-    const sA = buildHouseSession({ hostDeviceId: 'h', selectedPackIds: ['p'] });
-    const sB = buildHouseSession({ hostDeviceId: 'h', selectedPackIds: ['p'] });
+    const sA = buildHouseSession({ hostDeviceId: 'h' });
+    const sB = buildHouseSession({ hostDeviceId: 'h' });
     await persistHouseSession(sA);
     await persistHouseSession(sB);
 

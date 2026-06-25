@@ -6,11 +6,10 @@ const KEY = 'boredroom_last_house_session';
 
 export interface LastHouseSession {
   code: string;
-  packId?: string;
   createdAt: string;
 }
 
-export function rememberHouseSession(s: { code: string; packId?: string }): void {
+export function rememberHouseSession(s: { code: string }): void {
   try {
     localStorage.setItem(KEY, JSON.stringify({ ...s, createdAt: new Date().toISOString() }));
   } catch {

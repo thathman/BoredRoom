@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react';
+import { ArrowRight, Loader2, QrCode } from 'lucide-react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Smartphone, ArrowRight, Loader2, Tablet } from 'lucide-react';
+import { toast } from 'sonner';
+import { BrandLogo } from '@/components/brand/BrandLogo';
+import { LagosScene } from '@/components/brand/LagosScene';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
 import { fetchSession } from '@/lib/serverApi';
-import { getPlayerName, setPlayerName } from '@/lib/roomUtils';
-import { toast } from 'sonner';
 import { detectDeviceClass } from '@/lib/deviceExperience';
+import { getPlayerName, setPlayerName } from '@/lib/roomUtils';
 
-// Flow 3: join a house session as a controller. Phones land here (they don't host). Enter the code
-// shown on the display -> become a controller. Supports /join and /join/:sessionCode.
 export default function SessionJoin() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -19,7 +18,6 @@ export default function SessionJoin() {
   const [code, setCode] = useState(sessionCode ?? '');
   const [name, setName] = useState(() => getPlayerName());
   const [joining, setJoining] = useState(false);
-
   const normalized = code.trim().toUpperCase();
   const canJoin = normalized.length === 4 && (companionMode || name.trim().length >= 2);
 
@@ -29,13 +27,13 @@ export default function SessionJoin() {
     try {
       const session = await fetchSession(normalized);
       if (!session) {
-        toast.error('That session does not exist.');
+        toast.error('That room code could not be found.');
         return;
       }
       if (!companionMode) setPlayerName(name.trim());
-      navigate(`/session/${encodeURIComponent(normalized)}/${companionMode ? 'companion' : 'controller'}`);
+      navigate(`/session/${normalized}/${companionMode ? 'companion' : 'controller'}`);
     } catch {
-      toast.error('Could not reach the session server.');
+      toast.error('Could not reach the game-night server.');
     } finally {
       setJoining(false);
     }
@@ -43,52 +41,59 @@ export default function SessionJoin() {
 
   useEffect(() => {
     if (sessionCode && name.trim().length >= 2) void join();
-    // Deep links attempt once; failures leave the form visible.
+    // One deep-link attempt; failure leaves the form usable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (detectDeviceClass() === 'desktop_host') return <Navigate to="/" replace />;
-  if (companionMode && detectDeviceClass() !== 'tablet') return <Navigate to="/join" replace />;
+  const device = detectDeviceClass();
+  if (device === 'desktop_host') return <Navigate to="/" replace />;
+  if (companionMode && device !== 'tablet') return <Navigate to="/join" replace />;
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-sm text-center">
-        <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-primary/15 text-primary">
-          {companionMode ? <Tablet className="w-7 h-7" /> : <Smartphone className="w-7 h-7" />}
-        </span>
-        <h1 className="text-2xl font-display font-bold">{companionMode ? 'Pair host companion' : 'Join the game night'}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {companionMode ? 'Enter the house code first. The owner will approve this tablet with a one-time pairing code.' : 'Enter the code on the big screen to become a controller.'}
-        </p>
-
-        {!companionMode && <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Your name"
-          maxLength={40}
-          aria-label="Display name"
-          className="mt-6 h-12 text-center"
-        />}
-
-        <Input
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === 'Enter' && join()}
-          placeholder="CODE"
-          maxLength={4}
-          aria-label="Session code"
-          className="mt-3 text-center text-2xl tracking-[0.4em] font-mono h-14"
-        />
-
-        <Button className="mt-4 w-full rounded-2xl" size="lg" onClick={() => void join()} disabled={!canJoin || joining}>
-          {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{companionMode ? 'Continue to pairing' : 'Join as controller'} <ArrowRight className="w-4 h-4 ml-2" /></>}
-        </Button>
-
-        <Button variant="ghost" className="mt-2 w-full" onClick={() => navigate('/')}>
-          Back home
-        </Button>
+    <LagosScene>
+      <div className="mx-auto flex min-h-screen max-w-sm flex-col px-6 pb-[max(22px,env(safe-area-inset-bottom))] pt-[max(28px,env(safe-area-inset-top))] text-center">
+        <BrandLogo className="mx-auto text-2xl" />
+        <div className="flex flex-1 flex-col justify-center">
+          <div className="mx-auto grid grid-cols-2 gap-2 text-2xl font-bold">
+            {[1, 2, 3, 4].map((number) => (
+              <span key={number} className="grid h-12 w-12 place-items-center rounded-xl border-2 border-primary bg-[#06150f]/90 shadow-[0_0_14px_rgba(69,243,107,.55)]">{number}</span>
+            ))}
+          </div>
+          <h1 className="mt-7 text-3xl font-bold">{companionMode ? 'Pair with your host' : 'Ready to play?'}</h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            {companionMode
+              ? 'Enter the room code, then use the one-time approval code from the host.'
+              : 'Join a game in your room with a code from the host.'}
+          </p>
+          {!companionMode && (
+            <Input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Your name"
+              maxLength={40}
+              aria-label="Display name"
+              className="mt-7 h-13 rounded-xl bg-black/40 text-center"
+            />
+          )}
+          <Input
+            value={code}
+            onChange={(event) => setCode(event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase())}
+            onKeyDown={(event) => event.key === 'Enter' && void join()}
+            placeholder="CODE"
+            maxLength={4}
+            aria-label="Session code"
+            className="mt-3 h-14 rounded-xl bg-black/40 text-center font-mono text-2xl tracking-[0.45em]"
+          />
+          <Button className="neon-primary mt-4 h-14 w-full rounded-xl text-base font-bold" onClick={() => void join()} disabled={!canJoin || joining}>
+            {joining ? <Loader2 className="animate-spin" /> : <><span className="flex-1">{companionMode ? 'Continue to pairing' : 'Join with a code'}</span><ArrowRight /></>}
+          </Button>
+          <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
+          <Button variant="outline" className="h-14 rounded-xl bg-black/30" onClick={() => toast.info('Point your camera at the host QR code.')}>
+            <QrCode /> Scan QR code
+          </Button>
+          <p className="mt-4 text-[10px] text-muted-foreground">{companionMode ? 'Pairing requires explicit host approval.' : 'You can only join games on this device.'}</p>
+        </div>
       </div>
-      <BuiltByFooter />
-    </div>
+    </LagosScene>
   );
 }

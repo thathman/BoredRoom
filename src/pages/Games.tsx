@@ -1,17 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Download, Gamepad2, Loader2, LockKeyhole, LogOut, RefreshCw, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Download, Loader2, LockKeyhole, LogOut, MoreVertical, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { BrandLogo } from '@/components/brand/BrandLogo';
+import { LagosScene } from '@/components/brand/LagosScene';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
 import {
   fetchGamesCatalog,
-  getPackAdminAuth,
+  getGameAdminAuth,
   installGame,
-  loginPackAdmin,
-  logoutPackAdmin,
+  loginGameAdmin,
+  logoutGameAdmin,
   uninstallGame,
   updateGame,
   updateGamesPolicy,
@@ -25,6 +26,7 @@ export default function Games() {
   const [policy, setPolicy] = useState<GameUpdatePolicy>({ automatic: false, overrides: {} });
   const [authenticated, setAuthenticated] = useState(false);
   const [passphrase, setPassphrase] = useState('');
+  const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -41,18 +43,25 @@ export default function Games() {
   }, []);
 
   useEffect(() => {
-    void Promise.all([refresh(), getPackAdminAuth().then(setAuthenticated)]);
+    void Promise.all([refresh(), getGameAdminAuth().then(setAuthenticated)]);
   }, [refresh]);
+
+  const visibleGames = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return normalized
+      ? games.filter((game) => `${game.name} ${game.description}`.toLowerCase().includes(normalized))
+      : games;
+  }, [games, query]);
 
   async function unlock() {
     if (!passphrase) return;
     setBusy('auth');
     try {
-      await loginPackAdmin(passphrase);
+      await loginGameAdmin(passphrase);
       setPassphrase('');
       setAuthenticated(true);
     } catch (error) {
-      toast.error(error instanceof Error && error.message === 'pack_admin_rate_limited'
+      toast.error(error instanceof Error && error.message === 'game_admin_rate_limited'
         ? 'Too many attempts. Try again later.'
         : 'Incorrect owner passphrase.');
     } finally {
@@ -71,7 +80,7 @@ export default function Games() {
     } catch (error) {
       const code = error instanceof Error ? error.message : 'failed';
       toast.error(code === 'game_active'
-        ? `${game.name} is running in a session. End it before changing the installation.`
+        ? `${game.name} is running. End the game before changing it.`
         : `Could not ${action} ${game.name} (${code}).`);
     } finally {
       setBusy(null);
@@ -79,124 +88,99 @@ export default function Games() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-5 py-6 text-foreground sm:px-8">
-      <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
-          <ArrowLeft className="h-4 w-4" /> Home
-        </Button>
-        <div className="text-right">
-          <h1 className="text-2xl font-display font-bold sm:text-4xl">Games Library</h1>
-          <p className="text-sm text-muted-foreground">Choose what is installed on this BoredRoom server.</p>
-        </div>
-      </header>
+    <LagosScene>
+      <div className="mx-auto min-h-screen max-w-6xl px-5 pb-36 pt-6 sm:px-8">
+        <header className="flex items-center justify-between">
+          <BrandLogo />
+          <Button variant="outline" className="rounded-xl bg-black/25" onClick={() => navigate('/')}>
+            <ArrowLeft className="h-4 w-4" /> Back home
+          </Button>
+        </header>
 
-      <section className="mx-auto mt-8 w-full max-w-6xl">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-y border-border/60 py-4">
-          <p className="text-sm text-muted-foreground">
-            {games.filter((game) => game.installed).length} installed · {games.length} available
-          </p>
-          {!authenticated ? (
-            <div className="flex w-full gap-2 sm:w-auto">
-              <Input
-                className="w-full sm:w-56"
-                type="password"
-                value={passphrase}
-                onChange={(event) => setPassphrase(event.target.value)}
-                onKeyDown={(event) => event.key === 'Enter' && void unlock()}
-                placeholder="Owner passphrase"
-                aria-label="Owner passphrase"
+        <section className="mx-auto mt-5 max-w-5xl">
+          <div className="text-center">
+            <h1 className="brush-display text-5xl text-white sm:text-6xl">Games <span className="text-primary">Library</span></h1>
+            <p className="mt-2 text-sm text-muted-foreground">Find and manage your games.</p>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <label className="neon-panel flex h-12 flex-1 items-center gap-3 rounded-xl px-4">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <input
+                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                placeholder="Search games…"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
               />
-              <Button onClick={() => void unlock()} disabled={!passphrase || busy === 'auth'}>
-                {busy === 'auth' ? <Loader2 className="animate-spin" /> : <LockKeyhole />}
-                Manage
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                <Switch
-                  checked={policy.automatic}
-                  onCheckedChange={(automatic) => {
-                    void updateGamesPolicy({ automatic }).then(setPolicy);
-                  }}
+            </label>
+            {!authenticated ? (
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  className="h-12 w-full bg-black/35 sm:w-52"
+                  value={passphrase}
+                  onChange={(event) => setPassphrase(event.target.value)}
+                  onKeyDown={(event) => event.key === 'Enter' && void unlock()}
+                  placeholder="Owner passphrase"
+                  aria-label="Owner passphrase"
                 />
-                Auto-update games
-              </label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void logoutPackAdmin().then(() => setAuthenticated(false))}
-              >
-                <LogOut /> Lock
-              </Button>
-            </div>
-          )}
-        </div>
+                <Button className="h-12 rounded-xl" onClick={() => void unlock()} disabled={!passphrase || busy === 'auth'}>
+                  {busy === 'auth' ? <Loader2 className="animate-spin" /> : <LockKeyhole />} Manage
+                </Button>
+              </div>
+            ) : (
+              <div className="neon-panel flex h-12 items-center gap-3 rounded-xl px-4">
+                <Switch checked={policy.automatic} onCheckedChange={(automatic) => void updateGamesPolicy({ automatic }).then(setPolicy)} />
+                <span className="text-xs">Auto-update</span>
+                <Button variant="ghost" size="icon" onClick={() => void logoutGameAdmin().then(() => setAuthenticated(false))} aria-label="Lock owner controls">
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
 
-        {loading ? (
-          <div className="grid min-h-72 place-items-center"><Loader2 className="h-9 w-9 animate-spin text-primary" /></div>
-        ) : (
-          <div className="divide-y divide-border/60">
-            {games.map((game) => (
-              <article key={game.id} className="group grid gap-4 py-6 sm:grid-cols-[72px_1fr_auto] sm:items-center">
-                <div className="grid h-16 w-16 place-items-center rounded-2xl border border-primary/20 bg-card text-4xl shadow-[0_0_30px_hsl(var(--primary)/0.08)]">
-                  {game.emoji}
+          <div className="neon-panel mt-4 overflow-hidden rounded-2xl">
+            {loading ? (
+              <div className="grid min-h-72 place-items-center"><Loader2 className="h-9 w-9 animate-spin text-primary" /></div>
+            ) : visibleGames.length === 0 ? (
+              <div className="p-12 text-center text-sm text-muted-foreground">No games match that search.</div>
+            ) : visibleGames.map((game) => (
+              <article key={game.id} className="grid gap-4 border-b border-white/10 px-4 py-3 last:border-0 sm:grid-cols-[52px_1fr_150px_auto] sm:items-center">
+                <div className="grid h-12 w-12 place-items-center rounded-xl bg-white/8 text-3xl">{game.emoji}</div>
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-bold">{game.name}</h2>
+                  <p className="truncate text-[11px] text-muted-foreground">{game.description}</p>
                 </div>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-xl font-display font-bold">{game.name}</h2>
-                    <span className={`text-xs font-semibold uppercase tracking-wider ${game.installed ? 'text-primary' : 'text-muted-foreground'}`}>
-                      {game.installed ? `Installed ${game.installedVersion}` : `Available ${game.version}`}
-                    </span>
-                    {game.updateAvailable && <span className="text-xs font-semibold text-accent">Update available</span>}
-                  </div>
-                  <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{game.description}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {game.minPlayers}–{game.maxPlayers} players
-                    {game.capabilities.bots ? ' · bots' : ''}
-                    {game.capabilities.audience ? ' · crowd mode' : ''}
-                    {game.capabilities.restore ? ' · reconnect recovery' : ''}
-                  </p>
+                <div className="text-xs text-muted-foreground">
+                  <strong className="block font-medium text-white">{game.minPlayers}–{game.maxPlayers} players</strong>
+                  <span>{game.capabilities.audience ? 'Crowd compatible' : 'Players only'} · v{game.version}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  {authenticated && game.installed && (
-                    <select
-                      className="h-9 rounded-md border border-input bg-background px-2 text-xs"
-                      aria-label={`${game.name} automatic update preference`}
-                      value={game.updateOverride}
-                      onChange={(event) => {
-                        const override = event.target.value as LibraryGame['updateOverride'];
-                        void updateGamesPolicy({ gameId: game.id, override }).then(() => refresh());
-                      }}
-                    >
-                      <option value="inherit">Use global</option>
-                      <option value="enabled">Auto-update</option>
-                      <option value="disabled">Manual update</option>
-                    </select>
-                  )}
+                <div className="flex min-w-40 items-center justify-end gap-2">
+                  <span className={`mr-1 text-xs ${game.installed ? 'text-primary' : 'text-muted-foreground'}`}>
+                    {game.installed ? '● Installed' : '○ Not installed'}
+                  </span>
                   {authenticated && !game.installed && (
-                    <Button onClick={() => void mutate(game, 'install')} disabled={busy === game.id}>
-                      {busy === game.id ? <Loader2 className="animate-spin" /> : <Download />} Install
+                    <Button size="sm" variant="outline" className="border-primary text-primary" onClick={() => void mutate(game, 'install')} disabled={busy === game.id}>
+                      <Download className="h-4 w-4" /> Install
                     </Button>
                   )}
                   {authenticated && game.updateAvailable && (
-                    <Button onClick={() => void mutate(game, 'update')} disabled={busy === game.id}>
-                      <RefreshCw /> Update
+                    <Button size="sm" variant="outline" className="border-primary text-primary" onClick={() => void mutate(game, 'update')} disabled={busy === game.id}>
+                      <RefreshCw className="h-4 w-4" /> Update
                     </Button>
                   )}
-                  {authenticated && game.installed && (
-                    <Button variant="ghost" size="icon" aria-label={`Uninstall ${game.name}`} onClick={() => void mutate(game, 'uninstall')} disabled={busy === game.id}>
-                      <Trash2 />
+                  {authenticated && game.installed && !game.updateAvailable && (
+                    <Button size="sm" variant="outline" onClick={() => void mutate(game, 'uninstall')} disabled={busy === game.id}>
+                      <Trash2 className="h-4 w-4" /> Uninstall
                     </Button>
                   )}
-                  {!authenticated && game.installed && <Gamepad2 className="h-5 w-5 text-primary" aria-label="Installed" />}
+                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
                 </div>
               </article>
             ))}
           </div>
-        )}
-      </section>
-      <BuiltByFooter />
-    </main>
+        </section>
+      </div>
+    </LagosScene>
   );
 }

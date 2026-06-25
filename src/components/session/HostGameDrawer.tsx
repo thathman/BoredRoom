@@ -1,9 +1,19 @@
-import { Gamepad2, Settings, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Bot, Gamepad2, Settings, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { CatalogGame } from '@/lib/catalog';
-import type { SessionMember } from '@/lib/serverApi';
+import { fetchAiHealth, type AiHealth, type SessionMember } from '@/lib/serverApi';
+
+interface DrawerGame {
+  slug: string;
+  name: string;
+  emoji: string;
+  tagline: string;
+  minPlayers: number;
+  maxPlayers: number;
+  available: boolean;
+}
 
 interface HostGameDrawerProps {
   open: boolean;
@@ -11,10 +21,11 @@ interface HostGameDrawerProps {
   activeGameType?: string;
   members: SessionMember[];
   busyGame?: string | null;
-  onSelectGame: (game: CatalogGame) => void;
+  onSelectGame: (game: DrawerGame) => void;
   pairingCode?: string | null;
   onCreatePairing: () => void;
-  games: CatalogGame[];
+  games: DrawerGame[];
+  sessionCode: string;
 }
 
 export function HostGameDrawer({
@@ -27,16 +38,24 @@ export function HostGameDrawer({
   pairingCode,
   onCreatePairing,
   games,
+  sessionCode,
 }: HostGameDrawerProps) {
+  const [aiHealth, setAiHealth] = useState<AiHealth | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    void fetchAiHealth(sessionCode).then(setAiHealth).catch(() => setAiHealth(null));
+  }, [open, sessionCode]);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-[min(92vw,430px)] overflow-y-auto border-l border-primary/30 bg-background/95 p-5 backdrop-blur-xl sm:max-w-[430px]"
+        className="w-[min(94vw,430px)] overflow-y-auto border-l border-primary/35 bg-[#080b13]/98 p-5 backdrop-blur-xl sm:max-w-[430px]"
         overlayClassName="bg-black/55"
       >
         <SheetHeader>
-          <SheetTitle className="text-2xl font-display">Choose a game</SheetTitle>
+          <SheetTitle className="brush-display text-3xl">Choose a game</SheetTitle>
           <SheetDescription>Everyone stays in this house session.</SheetDescription>
         </SheetHeader>
         <Tabs defaultValue="games" className="mt-5">
@@ -109,6 +128,19 @@ export function HostGameDrawer({
                     Create pairing code
                   </Button>
                 )}
+              </div>
+              <div className="border-t border-border pt-3">
+                <p className="flex items-center gap-2 font-medium text-foreground"><Bot className="h-4 w-4 text-primary" /> AI assistance</p>
+                {aiHealth ? (
+                  <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                    <dt>Status</dt><dd className={aiHealth.status === 'active' ? 'text-primary' : 'text-amber-300'}>{aiHealth.status}</dd>
+                    <dt>Model</dt><dd className="truncate text-foreground">{aiHealth.model}</dd>
+                    <dt>Latency</dt><dd>{aiHealth.lastLatencyMs == null ? 'Not measured' : `${aiHealth.lastLatencyMs} ms`}</dd>
+                    <dt>Rate limit</dt><dd>{aiHealth.rateLimitRemaining ?? 'Unknown'}</dd>
+                    <dt>Credits</dt><dd className="capitalize">{aiHealth.creditStatus}</dd>
+                    <dt>Fallback</dt><dd>{aiHealth.fallbackActive ? 'Deterministic fallback active' : 'Not active'}</dd>
+                  </dl>
+                ) : <p className="mt-2 text-xs">AI health is unavailable. Gameplay remains fully operational.</p>}
               </div>
             </div>
           </TabsContent>

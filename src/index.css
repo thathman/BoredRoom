@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700&family=Permanent+Marker&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,23 +6,23 @@
 
 @layer base {
   :root {
-    --background: 240 15% 6%;
+    --background: 222 82% 4%;
     --foreground: 0 0% 95%;
 
-    --card: 240 12% 10%;
+    --card: 222 40% 8%;
     --card-foreground: 0 0% 95%;
 
     --popover: 240 12% 10%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 160 100% 50%;
-    --primary-foreground: 240 15% 6%;
+    --primary: 132 86% 61%;
+    --primary-foreground: 222 82% 4%;
 
-    --secondary: 270 60% 60%;
+    --secondary: 282 78% 61%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 240 10% 16%;
-    --muted-foreground: 240 8% 75%;
+    --muted: 222 24% 14%;
+    --muted-foreground: 220 10% 69%;
 
     --accent: 30 100% 60%;
     --accent-foreground: 240 15% 6%;
@@ -30,9 +30,9 @@
     --destructive: 0 80% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 10% 18%;
-    --input: 240 10% 18%;
-    --ring: 160 100% 50%;
+    --border: 220 12% 25%;
+    --input: 220 12% 25%;
+    --ring: 132 86% 61%;
 
     --radius: 0.75rem;
 
@@ -68,6 +68,9 @@
 
   body {
     @apply bg-background text-foreground font-body antialiased;
+    background-image:
+      radial-gradient(circle at 18% 14%, hsl(var(--secondary) / 0.06), transparent 25%),
+      radial-gradient(circle at 82% 8%, hsl(var(--primary) / 0.05), transparent 24%);
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -80,6 +83,49 @@
     text-shadow: 0 0 10px hsl(var(--neon-glow) / 0.6),
                  0 0 30px hsl(var(--neon-glow) / 0.3),
                  0 0 60px hsl(var(--neon-glow) / 0.1);
+  }
+
+  .brand-script {
+    font-family: "Caveat", cursive;
+    font-weight: 700;
+    letter-spacing: -0.045em;
+  }
+
+  .brush-display {
+    font-family: "Permanent Marker", cursive;
+    letter-spacing: -0.035em;
+  }
+
+  .neon-panel {
+    border: 1px solid rgb(113 119 132 / 0.48);
+    background: linear-gradient(180deg, rgb(13 18 29 / 0.94), rgb(5 9 18 / 0.94));
+    box-shadow:
+      0 24px 80px rgb(0 0 0 / 0.45),
+      inset 0 1px 0 rgb(255 255 255 / 0.035);
+  }
+
+  .neon-primary {
+    color: #031008;
+    border: 1px solid #8bff9e;
+    background: linear-gradient(180deg, #62f779, #3ee75d);
+    box-shadow:
+      0 0 12px rgb(69 243 107 / 0.7),
+      0 0 36px rgb(69 243 107 / 0.28),
+      inset 0 1px 0 rgb(255 255 255 / 0.6);
+  }
+
+  .neon-primary:hover {
+    background: linear-gradient(180deg, #7aff8d, #4cf16a);
+  }
+
+  .star-field {
+    background-image:
+      radial-gradient(circle at 8% 15%, rgb(255 255 255 / .9) 0 1px, transparent 1.8px),
+      radial-gradient(circle at 22% 8%, rgb(95 181 255 / .8) 0 1px, transparent 1.8px),
+      radial-gradient(circle at 47% 14%, rgb(255 255 255 / .75) 0 1px, transparent 1.7px),
+      radial-gradient(circle at 73% 6%, rgb(88 255 157 / .75) 0 1px, transparent 1.8px),
+      radial-gradient(circle at 91% 18%, rgb(199 110 255 / .75) 0 1px, transparent 1.8px);
+    background-size: 230px 190px, 310px 260px, 390px 310px, 270px 220px, 350px 290px;
   }
 
   .neon-box {
@@ -140,6 +186,14 @@
     [style*="falling-star"],
     .animate-atmosphere-trail {
       animation: none !important;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .star-field > img[aria-hidden="true"] {
+      height: 46%;
+      top: auto;
+      opacity: 0.68;
     }
   }
 }

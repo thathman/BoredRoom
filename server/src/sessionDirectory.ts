@@ -15,8 +15,6 @@ export interface SessionMember {
 
 export interface SessionRuntime {
   run: GameRun;
-  runtimeId?: string;
-  hostToken?: string;
   selectedAt: string;
   snapshot?: unknown;
 }
@@ -32,6 +30,8 @@ export interface SessionRecord {
     status: 'finished' | 'abandoned';
     winnerPlayerIds: string[];
     endedAt: string;
+    headline?: string;
+    paragraph?: string;
   };
 }
 
@@ -45,7 +45,7 @@ interface PairingRequest {
 export interface PublicSessionSnapshot {
   session: HouseSession;
   members: SessionMember[];
-  activeRun: (GameRun & { runtimeId?: string }) | null;
+  activeRun: GameRun | null;
   lastRecap?: SessionRecord['lastRecap'];
 }
 
@@ -67,13 +67,10 @@ function publicSnapshot(record: SessionRecord): PublicSessionSnapshot {
   const activeRun = record.activeRuntime
     ? structuredClone(record.activeRuntime.run)
     : null;
-  if (activeRun) activeRun.roomCode = undefined;
   return {
     session: structuredClone(record.session),
     members: Array.from(record.members.values()).map((member) => ({ ...member })),
-    activeRun: activeRun
-      ? { ...activeRun, runtimeId: record.activeRuntime?.runtimeId }
-      : null,
+    activeRun,
     lastRecap: record.lastRecap ? { ...record.lastRecap } : undefined,
   };
 }
@@ -157,6 +154,30 @@ export function hydrateSession(
   return record;
 }
 
+export function hydrateSessionMember(code: string, member: SessionMember): void {
+  const record = getSessionRecord(code);
+  if (!record || record.members.has(member.deviceId)) return;
+  record.members.set(member.deviceId, { ...member, connected: false });
+}
+
+export function hydrateActiveRun(code: string, run: GameRun, snapshot?: unknown): void {
+  const record = getSessionRecord(code);
+  if (!record || record.activeRuntime?.run.id === run.id) return;
+  record.activeRuntime = {
+    run,
+    selectedAt: run.startedAt ?? new Date().toISOString(),
+    snapshot: snapshot === undefined ? undefined : structuredClone(snapshot),
+  };
+  if (run.status === 'finished' || run.status === 'abandoned') {
+    record.lastRecap = {
+      gameType: run.gameType,
+      status: run.status,
+      winnerPlayerIds: run.winnerPlayerIds ?? [],
+      endedAt: run.endedAt ?? new Date().toISOString(),
+    };
+  }
+}
+
 export function getSessionRecord(code: string): SessionRecord | null {
   return sessions.get(normalizeCode(code)) ?? null;
 }
@@ -235,11 +256,11 @@ export function setSessionMemberReady(code: string, deviceId: string, ready: boo
   emit(code, 'member.ready_changed');
 }
 
-export function selectSessionGame(code: string, run: GameRun, runtimeId?: string, hostToken?: string): void {
+export function selectSessionGame(code: string, run: GameRun): void {
   const record = getSessionRecord(code);
   if (!record) return;
   const now = new Date().toISOString();
-  record.activeRuntime = { run, runtimeId, hostToken, selectedAt: now };
+  record.activeRuntime = { run, selectedAt: now };
   record.session.currentGameRunId = run.id;
   record.session.status = 'waiting_for_players';
   record.session.currentStage = 'game_setup';
@@ -294,6 +315,13 @@ export function clearActiveGame(code: string): void {
   record.session.currentStage = 'game_picker';
   record.session.updatedAt = now;
   emit(code, 'game.cleared');
+}
+
+export function setRecapCopy(code: string, copy: { headline: string; paragraph: string }): void {
+  const record = getSessionRecord(code);
+  if (!record?.lastRecap) return;
+  record.lastRecap = { ...record.lastRecap, ...copy };
+  emit(code, 'recap.updated');
 }
 
 export function storeRuntimeSnapshot(code: string, snapshot: unknown): void {

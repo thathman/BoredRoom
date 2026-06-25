@@ -1,8 +1,8 @@
 // Phase 1 Foundations services: HouseSession spine + persistent devices.
 //
 // HouseSession is the true persistence unit; a GameRun is one play instance under it;
-// a Colyseus room is the disposable realtime container for an active run. Persistence uses
-// the same Supabase REST + graceful-skip pattern as matchPersistence.ts: when backend env is
+// HouseSessionRoom is the single realtime container for every active run. Persistence uses
+// the same Supabase REST + graceful-skip pattern: when backend env is
 // absent, writes return 'skipped' so local/dev play still works. Pure logic (status
 // transitions, resume selection, rematch identity, event ordering) is exported for testing.
 
@@ -15,8 +15,6 @@ import {
   type GameRun,
   type SessionEvent,
   type ControllerDevice,
-  type OperatorDevice,
-  type OperatorRole,
 } from '../../shared/src/contracts/session.js';
 
 // --- ids & codes ----------------------------------------------------------
@@ -27,7 +25,7 @@ function randId(prefix: string): string {
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no easily-confused chars (no I/L/O/0/1)
 
-export function makeSessionCode(len = 5): string {
+export function makeSessionCode(len = 4): string {
   let out = '';
   for (let i = 0; i < len; i += 1) {
     out += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
@@ -73,8 +71,6 @@ export const DEFAULT_SESSION_SETTINGS: HouseSessionSettings = HouseSessionSchema
 
 export function buildHouseSession(input: {
   hostDeviceId: string;
-  selectedPackIds: string[];
-  activePackId?: string;
   settings?: Partial<HouseSessionSettings>;
   now?: string;
 }): HouseSession {
@@ -84,10 +80,7 @@ export function buildHouseSession(input: {
     code: makeSessionCode(),
     status: 'setup',
     currentStage: 'landing',
-    selectedPackIds: input.selectedPackIds,
-    activePackId: input.activePackId,
     hostDeviceId: input.hostDeviceId,
-    activeOperatorIds: [],
     walkthroughCompleted: false,
     settings: { ...DEFAULT_SESSION_SETTINGS, ...(input.settings ?? {}) },
     createdAt: now,
@@ -99,7 +92,7 @@ export function buildHouseSession(input: {
 export function buildGameRun(input: {
   houseSessionId: string;
   gameType: string;
-  packId: string;
+  gameVersion: string;
   settings?: Record<string, unknown>;
   now?: string;
 }): GameRun {
@@ -107,7 +100,7 @@ export function buildGameRun(input: {
     id: randId('gr'),
     houseSessionId: input.houseSessionId,
     gameType: input.gameType,
-    packId: input.packId,
+    gameVersion: input.gameVersion,
     status: 'setup',
     settings: input.settings ?? {},
     startedAt: input.now ?? new Date().toISOString(),
@@ -141,7 +134,7 @@ interface BackendConfig {
 }
 
 function getBackendConfig(): BackendConfig | null {
-  const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+  const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   return { url: url.replace(/\/$/, ''), key };
@@ -174,11 +167,8 @@ function sessionRow(
     code: s.code,
     status: s.status,
     current_stage: s.currentStage,
-    selected_pack_ids: s.selectedPackIds,
-    active_pack_id: s.activePackId ?? null,
     host_device_id: s.hostDeviceId,
     active_display_id: s.activeDisplayId ?? null,
-    active_operator_ids: s.activeOperatorIds,
     current_game_run_id: s.currentGameRunId ?? null,
     walkthrough_completed: s.walkthroughCompleted,
     settings: s.settings,
@@ -213,11 +203,8 @@ function rowToSession(r: Record<string, unknown>): HouseSession {
     code: r.code,
     status: r.status,
     currentStage: r.current_stage,
-    selectedPackIds: r.selected_pack_ids ?? [],
-    activePackId: r.active_pack_id ?? undefined,
     hostDeviceId: r.host_device_id,
     activeDisplayId: r.active_display_id ?? undefined,
-    activeOperatorIds: r.active_operator_ids ?? [],
     currentGameRunId: r.current_game_run_id ?? undefined,
     walkthroughCompleted: r.walkthrough_completed ?? false,
     settings: r.settings ?? {},
@@ -243,8 +230,7 @@ export async function readActiveRun(houseSessionId: string): Promise<GameRun | n
       id: r.id,
       houseSessionId: r.house_session_id,
       gameType: r.game_type,
-      packId: r.pack_id,
-      roomCode: r.room_code ?? undefined,
+      gameVersion: r.game_version ?? '1.0.0.0',
       status: r.status,
       settings: r.settings ?? {},
       startedAt: r.started_at ?? undefined,
@@ -293,6 +279,44 @@ export async function readSessionCredentialHashes(code: string): Promise<{
   };
 }
 
+export async function readSessionMembers(sessionId: string): Promise<Array<{
+  deviceId: string;
+  displayName: string;
+  role: 'display' | 'controller' | 'crowd' | 'companion';
+  ready: boolean;
+  connected: boolean;
+  joinedAt: string;
+  lastSeenAt: string;
+}>> {
+  if (!getBackendConfig()) return [];
+  const response = await apiFetch(`session_members?session_id=eq.${encodeURIComponent(sessionId)}&order=joined_at.asc`);
+  if (!response.ok) return [];
+  const rows = await response.json() as Array<Record<string, unknown>>;
+  return rows.flatMap((row) => {
+    const role = row.role;
+    if (role !== 'display' && role !== 'controller' && role !== 'crowd' && role !== 'companion') return [];
+    return [{
+      deviceId: String(row.device_id),
+      displayName: String(row.display_name),
+      role,
+      ready: row.ready === true,
+      connected: false,
+      joinedAt: String(row.joined_at),
+      lastSeenAt: String(row.last_seen_at),
+    }];
+  });
+}
+
+export async function readLatestRuntimeSnapshot(gameRunId: string): Promise<unknown | undefined> {
+  if (!getBackendConfig()) return undefined;
+  const response = await apiFetch(
+    `game_snapshots?game_run_id=eq.${encodeURIComponent(gameRunId)}&order=created_at.desc&limit=1&select=state`,
+  );
+  if (!response.ok) return undefined;
+  const rows = await response.json() as Array<{ state?: unknown }>;
+  return rows[0]?.state;
+}
+
 export async function persistGameRun(run: GameRun): Promise<WriteResult> {
   if (!getBackendConfig()) return 'skipped';
   const response = await apiFetch('game_runs', {
@@ -302,8 +326,7 @@ export async function persistGameRun(run: GameRun): Promise<WriteResult> {
       id: run.id,
       house_session_id: run.houseSessionId,
       game_type: run.gameType,
-      pack_id: run.packId,
-      room_code: run.roomCode ?? null,
+      game_version: run.gameVersion,
       status: run.status,
       settings: run.settings,
       started_at: run.startedAt ?? null,
@@ -356,35 +379,50 @@ export async function rememberController(
   return 'ok';
 }
 
-export async function pairOperator(op: OperatorDevice): Promise<WriteResult> {
+export async function persistSessionMember(input: {
+  sessionId: string;
+  deviceId: string;
+  displayName: string;
+  role: string;
+  ready: boolean;
+  connected: boolean;
+  joinedAt: string;
+  lastSeenAt: string;
+}): Promise<WriteResult> {
   if (!getBackendConfig()) return 'skipped';
-  const response = await apiFetch('operator_devices', {
+  const response = await apiFetch('session_members', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify({
-      id: op.id,
-      session_id: op.sessionId,
-      role: op.role,
-      paired_at: op.pairedAt,
-      last_seen_at: op.lastSeenAt,
+      session_id: input.sessionId,
+      device_id: input.deviceId,
+      display_name: input.displayName,
+      role: input.role,
+      ready: input.ready,
+      connected: input.connected,
+      joined_at: input.joinedAt,
+      last_seen_at: input.lastSeenAt,
     }),
   });
-  if (!response.ok) throw new Error(`operator_write_${response.status}:${await response.text()}`);
+  if (!response.ok) throw new Error(`session_member_write_${response.status}:${await response.text()}`);
   return 'ok';
 }
 
-export function buildOperatorDevice(input: {
-  id: string;
-  sessionId: string;
-  role?: OperatorRole;
-  now?: string;
-}): OperatorDevice {
-  const now = input.now ?? new Date().toISOString();
-  return {
-    id: input.id,
-    sessionId: input.sessionId,
-    role: input.role ?? 'host',
-    pairedAt: now,
-    lastSeenAt: now,
-  };
+export async function persistRuntimeSnapshot(input: {
+  gameRunId: string;
+  reason: string;
+  state: unknown;
+}): Promise<WriteResult> {
+  if (!getBackendConfig()) return 'skipped';
+  const response = await apiFetch('game_snapshots', {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      game_run_id: input.gameRunId,
+      reason: input.reason,
+      state: input.state,
+    }),
+  });
+  if (!response.ok) throw new Error(`game_snapshot_write_${response.status}:${await response.text()}`);
+  return 'ok';
 }

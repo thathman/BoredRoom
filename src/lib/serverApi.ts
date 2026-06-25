@@ -4,7 +4,8 @@
 import type { SetupSettings } from '@/lib/setupFlow';
 
 export function serverHttpBase(): string | null {
-  const raw = import.meta.env.VITE_COLYSEUS_URL as string | undefined;
+  const raw = (import.meta.env.VITE_COLYSEUS_URL as string | undefined)
+    || (typeof window !== 'undefined' ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:2567` : undefined);
   if (!raw) return null;
   try {
     const url = new URL(raw);
@@ -22,6 +23,13 @@ export interface CreatedSession {
   id: string;
   code: string;
   status: string;
+  currentStage?: string;
+  settings: {
+    allowCrowdVotes: boolean;
+    allowBots: boolean;
+    hintsEnabled: boolean;
+    maxControllers: number;
+  };
 }
 
 export interface SessionMember {
@@ -39,6 +47,19 @@ export interface SessionRecap {
   status: 'finished' | 'abandoned';
   winnerPlayerIds: string[];
   endedAt: string;
+  headline?: string;
+  paragraph?: string;
+}
+
+export interface AiHealth {
+  enabled: boolean;
+  model: string;
+  status: 'active' | 'offline' | 'degraded';
+  lastLatencyMs: number | null;
+  lastError: string | null;
+  rateLimitRemaining: number | null;
+  creditStatus: 'available' | 'exhausted' | 'unknown';
+  fallbackActive: boolean;
 }
 
 const OWNER_KEY_PREFIX = 'boredroom_session_owner:';
@@ -66,7 +87,6 @@ export function getControlCredential(code: string): string {
 
 export async function createSession(input: {
   hostDeviceId: string;
-  selectedPackIds?: string[];
   settings?: SetupSettings;
 }): Promise<{ session: CreatedSession; ownerCredential: string }> {
   const base = serverHttpBase();
@@ -84,33 +104,7 @@ export async function createSession(input: {
   return data;
 }
 
-export interface InstalledPackGame {
-  slug: string;
-  engine: string;
-  name: string;
-  emoji: string;
-  tagline: string;
-  minPlayers: number;
-  maxPlayers: number;
-}
-export interface InstalledPack {
-  packId: string;
-  name: string;
-  version: string;
-  sourceUrl: string;
-  manifest: { id: string; name: string; theme?: { tokenSet: string }; games: InstalledPackGame[] };
-  installedAt: string;
-}
-
-export async function listPacks(): Promise<InstalledPack[]> {
-  const base = serverHttpBase();
-  if (!base) throw new Error('no_server');
-  const res = await fetch(`${base}/packs`, { credentials: 'include' });
-  if (!res.ok) throw new Error(res.status === 403 ? 'pack_admin_required' : `packs_list_failed_${res.status}`);
-  return ((await res.json()) as { packs?: InstalledPack[] }).packs ?? [];
-}
-
-export async function getPackAdminAuth(): Promise<boolean> {
+export async function getGameAdminAuth(): Promise<boolean> {
   const base = serverHttpBase();
   if (!base) return false;
   const res = await fetch(`${base}/games/auth`, { credentials: 'include' });
@@ -118,7 +112,7 @@ export async function getPackAdminAuth(): Promise<boolean> {
   return ((await res.json()) as { authenticated?: boolean }).authenticated === true;
 }
 
-export async function loginPackAdmin(passphrase: string): Promise<void> {
+export async function loginGameAdmin(passphrase: string): Promise<void> {
   const base = serverHttpBase();
   if (!base) throw new Error('no_server');
   const res = await fetch(`${base}/games/auth`, {
@@ -129,11 +123,11 @@ export async function loginPackAdmin(passphrase: string): Promise<void> {
   });
   if (!res.ok) {
     const error = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(error.error ?? `pack_admin_login_failed_${res.status}`);
+    throw new Error(error.error ?? `game_admin_login_failed_${res.status}`);
   }
 }
 
-export async function logoutPackAdmin(): Promise<void> {
+export async function logoutGameAdmin(): Promise<void> {
   const base = serverHttpBase();
   if (!base) return;
   await fetch(`${base}/games/auth`, { method: 'DELETE', credentials: 'include' });
@@ -221,37 +215,10 @@ export async function updateGamesPolicy(input: {
   return ((await res.json()) as { updatePolicy: GameUpdatePolicy }).updatePolicy;
 }
 
-// Install a pack from a GitHub repo URL. Throws with a readable code on failure.
-export async function installPack(repoUrl: string): Promise<InstalledPack> {
-  const base = serverHttpBase();
-  if (!base) throw new Error('no_server');
-  const res = await fetch(`${base}/packs/install`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repoUrl }),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? `install_failed_${res.status}`);
-  }
-  return ((await res.json()) as { pack: InstalledPack }).pack;
-}
-
-export async function uninstallPack(packId: string): Promise<void> {
-  const base = serverHttpBase();
-  if (!base) return;
-  const res = await fetch(`${base}/packs/${encodeURIComponent(packId)}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error(`uninstall_failed_${res.status}`);
-}
-
 export interface ActiveRun {
   id: string;
   gameType: string;
-  runtimeId?: string;
+  gameVersion: string;
   status: string;
 }
 
@@ -289,96 +256,6 @@ export async function fetchSessionWithRun(
   };
 }
 
-export interface StartedRun {
-  run: { id: string; gameType: string; runtimeId?: string; status: string };
-  hostToken: string | null;
-}
-
-// Select a GameRun under the current house session.
-export async function startGameRun(input: {
-  code: string;
-  houseSessionId: string;
-  hostDeviceId: string;
-  gameType: string;
-}): Promise<StartedRun> {
-  const base = serverHttpBase();
-  if (!base) throw new Error('session_server_required');
-  const res = await fetch(`${base}/sessions/${encodeURIComponent(input.code)}/runs`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-boredroom-owner': getControlCredential(input.code),
-    },
-    body: JSON.stringify(input),
-  });
-  if (!res.ok) throw new Error(`run_start_failed_${res.status}`);
-  return (await res.json()) as StartedRun;
-}
-
-export async function activateGameRun(code: string, runId: string): Promise<StartedRun> {
-  const base = serverHttpBase();
-  if (!base) throw new Error('session_server_required');
-  const res = await fetch(
-    `${base}/sessions/${encodeURIComponent(code)}/runs/${encodeURIComponent(runId)}/start`,
-    {
-      method: 'POST',
-      headers: { 'x-boredroom-owner': getControlCredential(code) },
-    },
-  );
-  if (!res.ok) throw new Error(`run_start_failed_${res.status}`);
-  return (await res.json()) as StartedRun;
-}
-
-export async function finishGameRun(
-  code: string,
-  runId: string,
-  status: 'finished' | 'abandoned',
-  winnerPlayerIds: string[] = [],
-): Promise<void> {
-  const base = serverHttpBase();
-  if (!base) return;
-  const res = await fetch(
-    `${base}/sessions/${encodeURIComponent(code)}/runs/${encodeURIComponent(runId)}/finish`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-boredroom-owner': getControlCredential(code),
-      },
-      body: JSON.stringify({ status, winnerPlayerIds }),
-    },
-  );
-  if (!res.ok) throw new Error(`run_finish_failed_${res.status}`);
-}
-
-export async function clearCurrentGame(code: string): Promise<void> {
-  const base = serverHttpBase();
-  if (!base) return;
-  const res = await fetch(`${base}/sessions/${encodeURIComponent(code)}/runs/current`, {
-    method: 'DELETE',
-    headers: { 'x-boredroom-owner': getControlCredential(code) },
-  });
-  if (!res.ok) throw new Error(`run_clear_failed_${res.status}`);
-}
-
-export async function fetchRuntimeAccess(code: string): Promise<{
-  runId: string;
-  runtimeId: string | null;
-  hostToken: string | null;
-} | null> {
-  const base = serverHttpBase();
-  if (!base) return null;
-  const res = await fetch(`${base}/sessions/${encodeURIComponent(code)}/runtime`, {
-    headers: { 'x-boredroom-owner': getControlCredential(code) },
-  });
-  if (!res.ok) return null;
-  return (await res.json()) as {
-    runId: string;
-    runtimeId: string | null;
-    hostToken: string | null;
-  };
-}
-
 export async function createCompanionPairing(code: string): Promise<{
   pairingCode: string;
   expiresAt: string;
@@ -391,6 +268,16 @@ export async function createCompanionPairing(code: string): Promise<{
   });
   if (!res.ok) throw new Error(`pairing_create_failed_${res.status}`);
   return (await res.json()) as { pairingCode: string; expiresAt: string };
+}
+
+export async function fetchAiHealth(code: string): Promise<AiHealth> {
+  const base = serverHttpBase();
+  if (!base) throw new Error('session_server_required');
+  const res = await fetch(`${base}/sessions/${encodeURIComponent(code)}/ai/health`, {
+    headers: { 'x-boredroom-owner': getControlCredential(code) },
+  });
+  if (!res.ok) throw new Error(`ai_health_failed_${res.status}`);
+  return (await res.json()) as AiHealth;
 }
 
 export async function redeemCompanionPairing(code: string, pairingCode: string): Promise<void> {

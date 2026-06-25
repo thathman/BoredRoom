@@ -1,4 +1,11 @@
-import type { GameCapabilities } from './adapter.js';
+export interface GameCapabilities {
+  playerCount: { min: number; max: number };
+  bots: boolean;
+  audience: boolean;
+  hints: boolean;
+  voice: boolean;
+  restore: boolean;
+}
 
 export interface GameRuntimeContext {
   sessionId: string;
@@ -14,6 +21,10 @@ export interface GameRuntimePlayer {
 export interface GameRuntimeMetadata {
   gameType: string;
   capabilities: GameCapabilities;
+  rules?: {
+    summary: string;
+    intents: string[];
+  };
 }
 
 export interface GameRuntime {
@@ -29,6 +40,9 @@ export interface GameRuntime {
   crowdState(): unknown;
   snapshot(): unknown;
   restore(snapshot: unknown): void;
+  legalIntents?(playerId: string): Array<Record<string, unknown>>;
+  explainIntent?(intent: Record<string, unknown>): string;
+  recapSignals?(): Record<string, unknown>;
   finish(): { winnerPlayerIds: string[] };
   dispose(): void;
 }

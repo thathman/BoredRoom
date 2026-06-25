@@ -15,14 +15,12 @@ describe('session schemas', () => {
       code: 'ABCD',
       status: 'setup',
       currentStage: 'landing',
-      selectedPackIds: ['pack.naija'],
       hostDeviceId: 'host-1',
       settings: {}, // defaults fill in
       createdAt: now,
       updatedAt: now,
     });
     expect(parsed.walkthroughCompleted).toBe(false);
-    expect(parsed.activeOperatorIds).toEqual([]);
     expect(parsed.settings.maxControllers).toBe(12);
     expect(parsed.settings.language).toBe('en');
   });
@@ -34,7 +32,6 @@ describe('session schemas', () => {
         code: 'ABCD',
         status: 'not_a_status',
         currentStage: 'landing',
-        selectedPackIds: [],
         hostDeviceId: 'host-1',
         settings: {},
         createdAt: now,
@@ -46,7 +43,7 @@ describe('session schemas', () => {
   it('rejects a too-short session code', () => {
     expect(() => HouseSession.parse({
       id: 's1', code: 'AB', status: 'setup', currentStage: 'x',
-      selectedPackIds: [], hostDeviceId: 'h', settings: {}, createdAt: now, updatedAt: now,
+      hostDeviceId: 'h', settings: {}, createdAt: now, updatedAt: now,
     })).toThrow();
   });
 
@@ -55,7 +52,7 @@ describe('session schemas', () => {
       id: 'r1',
       houseSessionId: 's1',
       gameType: 'whot',
-      packId: 'pack.naija',
+      gameVersion: '1.1.0.0',
       status: 'active',
     });
     expect(run.settings).toEqual({});
@@ -65,7 +62,7 @@ describe('session schemas', () => {
   it('accepts Postgres timestamptz offset timestamps (read path)', () => {
     const parsed = HouseSession.parse({
       id: 's1', code: 'ABCD', status: 'setup', currentStage: 'landing',
-      selectedPackIds: [], hostDeviceId: 'h', settings: {},
+      hostDeviceId: 'h', settings: {},
       createdAt: '2026-06-23T16:26:29.752+00:00',
       updatedAt: '2026-06-23T16:26:29.752+00:00',
     });

@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { ArrowRight, Download, Gamepad2, QrCode, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Gamepad2, Grid3x3, Monitor, Smartphone, Tablet, Users } from 'lucide-react';
+import { BrandLogo } from '@/components/brand/BrandLogo';
+import { LagosScene } from '@/components/brand/LagosScene';
 import { Button } from '@/components/ui/button';
-import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
-import { HeroSky } from '@/components/game/HeroSky';
 import { getLastHouseSession } from '@/lib/houseSessionResume';
 import {
   allowedCorrections,
@@ -15,16 +14,90 @@ import {
 import { fetchGamesCatalog, type LibraryGame } from '@/lib/serverApi';
 
 function DeviceCorrection({ device }: { device: DeviceClass }) {
-  const alternatives = allowedCorrections().filter((item) => item !== device);
-  if (alternatives.length === 0) return null;
+  const alternative = allowedCorrections().find((item) => item !== device);
+  if (!alternative) return null;
   return (
     <button
       type="button"
-      className="mt-5 text-xs text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground"
-      onClick={() => setDeviceClassCorrection(alternatives[0])}
+      className="mt-5 text-[11px] text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-white"
+      onClick={() => setDeviceClassCorrection(alternative)}
     >
-      Wrong device mode? Use {alternatives[0] === 'tablet' ? 'tablet controls' : 'desktop hosting'}
+      Wrong device mode?
     </button>
+  );
+}
+
+function TabletEntry() {
+  const navigate = useNavigate();
+  return (
+    <LagosScene className="bg-[linear-gradient(180deg,#020817,#06101e)]">
+      <div className="mx-auto flex min-h-screen max-w-xl flex-col px-6 pb-7 pt-8 text-center">
+        <BrandLogo className="mx-auto" />
+        <div className="flex flex-1 flex-col justify-center">
+          <h1 className="mx-auto max-w-sm text-4xl font-bold leading-[1.05]">How do you want<br />to play today?</h1>
+          <p className="mx-auto mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
+            This tablet can be your controller<br />or your host’s companion.
+          </p>
+          <div className="mt-8 grid grid-cols-2 gap-3">
+            <button
+              className="min-h-60 rounded-3xl border border-primary bg-[#06150f]/80 p-5 text-left shadow-[0_0_28px_rgba(69,243,107,.08)]"
+              onClick={() => navigate('/join')}
+            >
+              <Gamepad2 className="mx-auto h-12 w-12 text-primary" strokeWidth={1.8} />
+              <h2 className="mt-7 text-center text-xl font-bold">Use as<br />controller</h2>
+              <p className="mt-3 text-center text-xs text-muted-foreground">Join a game as<br />a player.</p>
+              <ArrowRight className="mx-auto mt-7 text-primary" />
+            </button>
+            <button
+              className="min-h-60 rounded-3xl border border-secondary bg-[#14091d]/75 p-5 text-left shadow-[0_0_28px_rgba(179,76,255,.08)]"
+              onClick={() => navigate('/join?mode=companion')}
+            >
+              <Users className="mx-auto h-12 w-12 text-secondary" strokeWidth={1.8} />
+              <h2 className="mt-7 text-center text-xl font-bold">Pair as host<br />companion</h2>
+              <p className="mt-3 text-center text-xs text-muted-foreground">Help the host run<br />the game.</p>
+              <ArrowRight className="mx-auto mt-7 text-secondary" />
+            </button>
+          </div>
+          <DeviceCorrection device="tablet" />
+        </div>
+      </div>
+    </LagosScene>
+  );
+}
+
+function MobileEntry() {
+  const navigate = useNavigate();
+  return (
+    <LagosScene className="bg-[linear-gradient(180deg,#020817,#06101e)]">
+      <div className="mx-auto flex min-h-screen max-w-sm flex-col px-6 pb-[max(22px,env(safe-area-inset-bottom))] pt-[max(26px,env(safe-area-inset-top))] text-center">
+        <BrandLogo className="mx-auto text-2xl" />
+        <div className="flex flex-1 flex-col justify-center">
+          <div className="mx-auto grid grid-cols-2 gap-2 text-2xl font-bold">
+            {[1, 2, 3, 4].map((number) => (
+              <span key={number} className="grid h-12 w-12 place-items-center rounded-xl border-2 border-primary bg-[#06150f]/90 shadow-[0_0_14px_rgba(69,243,107,.55)]">
+                {number}
+              </span>
+            ))}
+          </div>
+          <h1 className="mt-7 text-3xl font-bold">Ready to play?</h1>
+          <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
+            Join a game in your room<br />with a code from the host.
+          </p>
+          <Button className="neon-primary mt-7 h-14 w-full rounded-xl text-base font-bold" onClick={() => navigate('/join')}>
+            <span className="flex flex-1 items-center justify-center gap-3"><span className="font-mono text-lg">⌨</span> Join with a code</span>
+            <ArrowRight />
+          </Button>
+          <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" />
+          </div>
+          <Button variant="outline" className="h-14 w-full rounded-xl bg-black/25" onClick={() => navigate('/join?scan=1')}>
+            <QrCode /> Scan QR code
+          </Button>
+          <p className="mt-4 text-[10px] text-muted-foreground">You can only join games on this device.</p>
+          <DeviceCorrection device="mobile_controller" />
+        </div>
+      </div>
+    </LagosScene>
   );
 }
 
@@ -36,122 +109,86 @@ export default function Index() {
   const [games, setGames] = useState<LibraryGame[]>([]);
 
   useEffect(() => {
-    void fetchGamesCatalog().then((result) => setGames(result.games.filter((game) => game.installed).slice(0, 6))).catch(() => {});
+    void fetchGamesCatalog()
+      .then((result) => setGames(result.games.filter((game) => game.installed).slice(0, 6)))
+      .catch(() => setGames([]));
   }, []);
 
+  if (device === 'tablet') return <TabletEntry />;
+  if (device === 'mobile_controller') return <MobileEntry />;
+
   return (
-    <main className="min-h-screen overflow-hidden bg-background text-foreground">
-      <section className="relative min-h-[760px] px-5 pb-20 pt-8 sm:px-8 lg:min-h-[820px]">
-        <HeroSky />
-        <nav className="relative z-20 mx-auto flex max-w-7xl items-center justify-between">
-          <button className="flex items-center gap-2 text-left" onClick={() => navigate('/')}>
-            <span className="grid h-10 w-10 place-items-center rounded-xl border border-primary/35 bg-primary/10">
-              <Gamepad2 className="h-5 w-5 text-primary" />
-            </span>
-            <span className="font-display text-xl font-bold">Bored<span className="text-primary">Room</span></span>
-          </button>
-          <Button variant="ghost" onClick={() => navigate('/games')}>
-            <Grid3x3 /> Games Library
+    <LagosScene>
+      <div className="mx-auto flex min-h-screen max-w-[1536px] flex-col px-8 pb-6 pt-7 lg:px-14">
+        <header className="flex items-center justify-between">
+          <BrandLogo className="text-4xl" />
+          <Button variant="outline" className="rounded-xl bg-black/25 text-xs" onClick={() => window.dispatchEvent(new Event('beforeinstallprompt'))}>
+            <Download className="h-4 w-4" /> Add to Home screen
           </Button>
-        </nav>
+        </header>
 
-        <div className="relative z-10 mx-auto flex min-h-[610px] max-w-7xl items-center justify-center">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65 }}
-            className={`max-w-3xl pt-12 ${device === 'desktop_host' ? 'text-center' : ''}`}
-          >
-            {device === 'desktop_host' && (
-              <>
-                <h1 className="mx-auto max-w-3xl font-display text-5xl font-bold uppercase leading-[0.92] tracking-[-0.055em] sm:text-7xl lg:text-[92px]">
-                  One room.<br /><span className="text-primary">Every phone</span><br />is a controller.
-                </h1>
-                <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                  Put BoredRoom on the big screen, invite everyone with one code, and move between games without making anybody join again.
-                </p>
-                <div className="mt-8 flex flex-wrap justify-center gap-3">
-                  <Button size="lg" className="h-14 rounded-xl px-7 text-base font-bold" onClick={() => navigate('/start')}>
-                    <Monitor /> Host a game night <ArrowRight />
-                  </Button>
-                  <Button size="lg" variant="outline" className="h-14 rounded-xl px-7" onClick={() => navigate('/games')}>
-                    Browse games
-                  </Button>
-                </div>
-                {resumableHouse && (
-                  <button
-                    className="mx-auto mt-5 flex items-center gap-3 rounded-xl border border-border/70 bg-card/55 px-4 py-3 text-left backdrop-blur hover:border-primary/50"
-                    onClick={() => navigate(`/session/${resumableHouse.code}/display`)}
-                  >
-                    <span className="h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_14px_hsl(var(--primary))]" />
-                    <span><strong>Continue house {resumableHouse.code}</strong><br /><span className="text-xs text-muted-foreground">Resume on this host display</span></span>
-                  </button>
-                )}
-              </>
-            )}
-
-            {device === 'tablet' && (
-              <>
-                <Tablet className="h-12 w-12 text-primary" />
-                <h1 className="mt-5 max-w-2xl font-display text-5xl font-bold uppercase leading-[0.95] tracking-[-0.045em] sm:text-7xl">
-                  How is this tablet joining?
-                </h1>
-                <p className="mt-5 max-w-xl text-muted-foreground">Use it as a player controller or pair it privately with the host display.</p>
-                <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-2">
-                  <Button size="lg" className="h-20 justify-start rounded-2xl px-5" onClick={() => navigate('/join')}>
-                    <Smartphone className="h-6 w-6" />
-                    <span className="text-left"><strong className="block">Player controller</strong><span className="text-xs font-normal opacity-75">Join with the room code</span></span>
-                  </Button>
-                  <Button size="lg" variant="outline" className="h-20 justify-start rounded-2xl px-5" onClick={() => navigate('/join?mode=companion')}>
-                    <Users className="h-6 w-6" />
-                    <span className="text-left"><strong className="block">Host companion</strong><span className="text-xs font-normal opacity-75">Pair with owner approval</span></span>
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {device === 'mobile_controller' && (
-              <>
-                <Smartphone className="h-12 w-12 text-primary" />
-                <h1 className="mt-5 font-display text-6xl font-bold uppercase leading-[0.92] tracking-[-0.05em]">
-                  Your phone<br />is the controller.
-                </h1>
-                <p className="mt-5 max-w-md text-muted-foreground">Enter the four-character code on the host screen. Your controls change automatically with every game.</p>
-                <Button size="lg" className="mt-8 h-14 rounded-xl px-8 text-base font-bold" onClick={() => navigate('/join')}>
-                  Join game night <ArrowRight />
-                </Button>
-              </>
-            )}
-            <DeviceCorrection device={device} />
-          </motion.div>
-        </div>
-      </section>
-
-      <section className="relative z-20 -mt-14 border-t border-primary/15 bg-background/90 px-5 py-10 backdrop-blur-xl sm:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2 className="font-display text-2xl font-bold">Ready on this server</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {games.length ? 'Installed games appear inside every host session.' : 'The library is empty. Install the games you want.'}
-              </p>
-            </div>
-            <Button variant="ghost" onClick={() => navigate('/games')}>Games Library <ArrowRight /></Button>
-          </div>
-          {games.length > 0 && (
-            <div className="mt-6 flex gap-3 overflow-x-auto pb-2">
-              {games.map((game) => (
-                <div key={game.id} className="min-w-56 rounded-2xl border border-border/70 bg-card/70 p-4">
-                  <span className="text-3xl">{game.emoji}</span>
-                  <h3 className="mt-3 font-display text-lg font-bold">{game.name}</h3>
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{game.description}</p>
-                </div>
-              ))}
-            </div>
+        <section className="flex flex-1 flex-col items-center justify-center pb-48 pt-5 text-center">
+          <h1 className="brush-display text-5xl uppercase leading-[1.04] text-white sm:text-6xl lg:text-[68px]">
+            One room.<br />
+            <span className="text-primary">Every phone is<br />a controller.</span>
+          </h1>
+          <p className="mt-4 text-sm leading-relaxed text-white/70">
+            Multiplayer party games for Nigerians.<br />Same room. Big energy.
+          </p>
+          <Button className="neon-primary mt-5 h-14 min-w-80 rounded-xl px-8 text-base font-bold" onClick={() => navigate('/start')}>
+            <Gamepad2 className="h-5 w-5" /> Host a game night <ArrowRight className="ml-auto" />
+          </Button>
+          <button className="mt-4 text-sm font-semibold text-secondary hover:text-white" onClick={() => navigate('/games')}>
+            Browse games <ArrowRight className="ml-1 inline h-4 w-4" />
+          </button>
+          {resumableHouse && (
+            <button
+              className="neon-panel mt-5 flex w-full max-w-2xl items-center gap-4 rounded-2xl px-5 py-3 text-left"
+              onClick={() => navigate(`/session/${resumableHouse.code}/display`)}
+            >
+              <span className="text-3xl">🎨</span>
+              <span className="flex-1">
+                <span className="block text-xs text-muted-foreground">Resume your last session</span>
+                <strong className="block">House {resumableHouse.code}</strong>
+              </span>
+              <span className="rounded-xl border border-border px-8 py-3 text-sm">Resume <span className="ml-3 text-primary">▶</span></span>
+            </button>
           )}
-          <BuiltByFooter />
-        </div>
-      </section>
-    </main>
+        </section>
+
+        <section className="absolute inset-x-0 bottom-0 border-t border-white/10 bg-[#020713]/94 px-8 pb-5 pt-3 backdrop-blur-xl lg:px-14">
+          <div className="mx-auto max-w-[1424px]">
+            <div className="flex items-end justify-between">
+              <div>
+                <h2 className="text-xl font-bold">Your games</h2>
+                <p className="mt-1 text-xs text-muted-foreground">Jump back in or discover something new.</p>
+              </div>
+              {games.length === 0 && (
+                <button className="text-sm text-primary" onClick={() => navigate('/games')}>Install games <ArrowRight className="inline h-4 w-4" /></button>
+              )}
+            </div>
+            <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+              {games.map((game) => (
+                <button
+                  key={game.id}
+                  className="neon-panel min-w-52 rounded-xl px-4 py-4 text-left hover:border-primary/70"
+                  onClick={() => navigate('/games')}
+                >
+                  <span className="text-4xl">{game.emoji}</span>
+                  <strong className="mt-4 block text-sm">{game.name}</strong>
+                  <span className="mt-2 block text-xs text-primary">● Installed</span>
+                </button>
+              ))}
+              {games.length === 0 && (
+                <button className="neon-panel min-w-64 rounded-xl p-5 text-left" onClick={() => navigate('/games')}>
+                  <strong>No games installed</strong>
+                  <span className="mt-2 block text-xs text-muted-foreground">Open the Games Library to install your first game.</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </LagosScene>
   );
 }

@@ -2,6 +2,16 @@ import { z } from 'zod';
 
 export const FourPartVersion = z.string().regex(/^\d+\.\d+\.\d+\.\d+$/);
 
+const GameAiCapabilities = z.object({
+  commentary: z.boolean(),
+  hints: z.boolean(),
+  rules: z.boolean(),
+  recommendations: z.boolean(),
+  recaps: z.boolean(),
+  moderation: z.boolean(),
+  deterministicBots: z.boolean(),
+});
+
 export const GamePluginManifest = z.object({
   schemaVersion: z.literal(1),
   id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
@@ -17,6 +27,19 @@ export const GamePluginManifest = z.object({
     hints: z.boolean(),
     restore: z.boolean(),
   }),
+  ai: GameAiCapabilities.default({
+    commentary: true,
+    hints: false,
+    rules: true,
+    recommendations: true,
+    recaps: true,
+    moderation: false,
+    deterministicBots: false,
+  }),
+  rules: z.object({
+    summary: z.string().min(1).max(1200),
+    intents: z.array(z.string().min(1).max(80)).max(32),
+  }).optional(),
   entrypoints: z.object({
     server: z.string().min(1),
     display: z.string().min(1),

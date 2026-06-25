@@ -95,8 +95,8 @@ async function assertNoOverflow(page, label) {
 try {
   await ensurePreviewServer();
   await mobilePage.goto(`${BASE_URL}/`, { waitUntil: 'networkidle' });
-  await mobilePage.getByRole('heading', { name: /Your phone is the controller/i }).waitFor({ timeout: 8000 });
-  await mobilePage.getByRole('button', { name: 'Join game night' }).waitFor({ timeout: 8000 });
+  await mobilePage.getByRole('heading', { name: /Ready to play/i }).waitFor({ timeout: 8000 });
+  await mobilePage.getByRole('button', { name: /Join with a code/i }).waitFor({ timeout: 8000 });
   if (await mobilePage.getByRole('button', { name: 'Host a game night' }).count()) {
     fail('mobile landing must not expose hosting');
   }
@@ -111,13 +111,17 @@ try {
   await assertNoOverflow(desktopPage, 'desktop-host-home');
 
   await tabletPage.goto(`${BASE_URL}/`, { waitUntil: 'networkidle' });
-  await tabletPage.getByRole('heading', { name: /How is this tablet joining/i }).waitFor({ timeout: 8000 });
-  await tabletPage.getByRole('button', { name: /Player controller/i }).waitFor({ timeout: 8000 });
-  await tabletPage.getByRole('button', { name: /Host companion/i }).waitFor({ timeout: 8000 });
+  await tabletPage.getByRole('heading', { name: /How do you want to play today/i }).waitFor({ timeout: 8000 });
+  await tabletPage.getByRole('button', { name: /Use as controller/i }).waitFor({ timeout: 8000 });
+  await tabletPage.getByRole('button', { name: /Pair as host companion/i }).waitFor({ timeout: 8000 });
   if (await tabletPage.getByRole('button', { name: 'Host a game night' }).count()) {
     fail('tablet landing must not expose public display hosting');
   }
   await assertNoOverflow(tabletPage, 'tablet-role-choice');
+
+  await desktopPage.screenshot({ path: '/tmp/boredroom-desktop.png', fullPage: false });
+  await tabletPage.screenshot({ path: '/tmp/boredroom-tablet.png', fullPage: false });
+  await mobilePage.screenshot({ path: '/tmp/boredroom-mobile.png', fullPage: false });
 
   console.log('[pw-entry] PASS');
 } finally {

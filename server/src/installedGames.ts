@@ -13,6 +13,11 @@ import {
   OfficialGameCatalog,
   type OfficialCatalogGame,
 } from '../../shared/src/contracts/gamePlugin.js';
+import type {
+  GameRuntime,
+  GameRuntimeContext,
+  GameRuntimePlayer,
+} from '../../shared/src/contracts/gameRuntime.js';
 import { isGameActive } from './sessionDirectory.js';
 
 const CATALOG_URL =
@@ -24,7 +29,13 @@ MCowBQYDK2VwAyEAWhVxvBivOkR2oMzMkVLTh6VkKrbpSEg5LYqacF95sJg=
 -----END PUBLIC KEY-----`;
 const MAX_ARTIFACT_BYTES = 25_000_000;
 const installed = new Map<string, InstalledGame>();
-const loadedPlugins = new Map<string, { id: string; version: string }>();
+interface LoadedGamePlugin {
+  id: string;
+  version: string;
+  createRuntime: () => GameRuntime;
+}
+
+const loadedPlugins = new Map<string, LoadedGamePlugin>();
 let catalogCache: { at: number; games: OfficialCatalogGame[] } | null = null;
 
 export type UpdateOverride = 'inherit' | 'enabled' | 'disabled';
@@ -46,7 +57,7 @@ interface UpdatePolicyFile {
 }
 
 function backendConfig(): { url: string; key: string } | null {
-  const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+  const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   return url && key ? { url: url.replace(/\/$/, ''), key } : null;
 }
@@ -72,10 +83,17 @@ function policyPath(): string {
 
 async function loadPlugin(root: string, expected: { id: string; version: string }, entrypoint: string): Promise<void> {
   const moduleUrl = `${pathToFileURL(path.join(root, entrypoint)).href}?v=${encodeURIComponent(expected.version)}&t=${Date.now()}`;
-  const module = await import(moduleUrl) as { gamePlugin?: { id?: unknown; version?: unknown }; default?: { id?: unknown; version?: unknown } };
+  const module = await import(moduleUrl) as {
+    gamePlugin?: { id?: unknown; version?: unknown; createRuntime?: unknown };
+    default?: { id?: unknown; version?: unknown; createRuntime?: unknown };
+  };
   const plugin = module.gamePlugin ?? module.default;
-  if (plugin?.id !== expected.id || plugin.version !== expected.version) throw new Error('plugin_registration_invalid');
-  loadedPlugins.set(expected.id, expected);
+  if (
+    plugin?.id !== expected.id ||
+    plugin.version !== expected.version ||
+    typeof plugin.createRuntime !== 'function'
+  ) throw new Error('plugin_registration_invalid');
+  loadedPlugins.set(expected.id, plugin as LoadedGamePlugin);
 }
 
 async function readPolicy(): Promise<UpdatePolicyFile> {
@@ -151,6 +169,8 @@ async function persistInstalled(game: InstalledGame): Promise<void> {
 
 export async function reconcileInstalledGames(): Promise<void> {
   await mkdir(GAMES_ROOT, { recursive: true });
+  await rm(path.join(GAMES_ROOT, '.staging'), { recursive: true, force: true });
+  await mkdir(path.join(GAMES_ROOT, '.staging'), { recursive: true });
   installed.clear();
   loadedPlugins.clear();
   const response = await dbFetch('installed_games?order=installed_at.asc');
@@ -209,6 +229,38 @@ export async function listGamesCatalog(): Promise<{
 
 export function isGameInstalled(gameId: string): boolean {
   return installed.get(gameId)?.status === 'installed' && loadedPlugins.has(gameId);
+}
+
+export function getInstalledGameVersion(gameId: string): string | null {
+  return installed.get(gameId)?.version ?? null;
+}
+
+export function createInstalledGameRuntime(
+  gameId: string,
+  context: GameRuntimeContext,
+  players: GameRuntimePlayer[],
+): GameRuntime {
+  const plugin = loadedPlugins.get(gameId);
+  if (!plugin) throw new Error('game_runtime_unavailable');
+  const runtime = plugin.createRuntime();
+  if (
+    !runtime ||
+    runtime.gameType !== gameId ||
+    typeof runtime.configure !== 'function' ||
+    typeof runtime.seatPlayers !== 'function' ||
+    typeof runtime.start !== 'function' ||
+    typeof runtime.handleIntent !== 'function' ||
+    typeof runtime.publicState !== 'function' ||
+    typeof runtime.privateState !== 'function' ||
+    typeof runtime.snapshot !== 'function' ||
+    typeof runtime.restore !== 'function' ||
+    typeof runtime.finish !== 'function' ||
+    typeof runtime.dispose !== 'function'
+  ) throw new Error('game_runtime_contract_invalid');
+  runtime.configure(context);
+  runtime.seatPlayers(players);
+  runtime.start();
+  return runtime;
 }
 
 export async function installOfficialGame(gameId: string): Promise<InstalledGame> {

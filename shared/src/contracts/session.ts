@@ -3,7 +3,7 @@
 // Canonical definitions live in BoredRoom-Spec/06-data-models/05-zod-schemas.md.
 // These Zod schemas are the single source of truth; TS types are derived via z.infer.
 // HouseSession is the true persistence unit; a GameRun is one play instance under it;
-// a Colyseus room is the disposable realtime container for an active run.
+// HouseSessionRoom is the only realtime container; installed game runtimes execute inside it.
 
 import { z } from 'zod';
 
@@ -43,11 +43,8 @@ export const HouseSession = z.object({
   code: z.string().min(4),
   status: HouseSessionStatus,
   currentStage: z.string(),
-  selectedPackIds: z.array(Id),
-  activePackId: Id.optional(),
   hostDeviceId: Id,
   activeDisplayId: Id.optional(),
-  activeOperatorIds: z.array(Id).default([]),
   currentGameRunId: Id.optional(),
   walkthroughCompleted: z.boolean().default(false),
   settings: HouseSessionSettings,
@@ -70,8 +67,7 @@ export const GameRun = z.object({
   id: Id,
   houseSessionId: Id,
   gameType: z.string(),
-  packId: Id,
-  roomCode: z.string().optional(),
+  gameVersion: z.string().regex(/^\d+\.\d+\.\d+\.\d+$/),
   status: GameRunStatus,
   settings: z.record(z.unknown()).default({}),
   startedAt: Iso.optional(),
@@ -88,16 +84,6 @@ export const ControllerDevice = z.object({
   lastSeenAt: Iso,
   pairedSessionIds: z.array(Id).default([]),
   playerProfileId: Id.optional(),
-});
-
-export const OperatorRole = z.enum(['host', 'co_host', 'scorekeeper', 'moderator']);
-
-export const OperatorDevice = z.object({
-  id: Id,
-  sessionId: Id,
-  role: OperatorRole,
-  pairedAt: Iso,
-  lastSeenAt: Iso,
 });
 
 // --- Session events --------------------------------------------------------
@@ -166,8 +152,6 @@ export type HouseSession = z.infer<typeof HouseSession>;
 export type GameRunStatus = z.infer<typeof GameRunStatus>;
 export type GameRun = z.infer<typeof GameRun>;
 export type ControllerDevice = z.infer<typeof ControllerDevice>;
-export type OperatorRole = z.infer<typeof OperatorRole>;
-export type OperatorDevice = z.infer<typeof OperatorDevice>;
 export type SessionEvent = z.infer<typeof SessionEvent>;
 export type ControllerRequest = z.infer<typeof ControllerRequest>;
 export type HouseVoteStatus = z.infer<typeof HouseVoteStatus>;

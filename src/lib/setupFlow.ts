@@ -1,7 +1,6 @@
 // Room setup wizard — pure state machine.
 //
-// You create a room and tune house rules; all installed games are available at play time (packs are
-// an install mechanism, not a play-time choice — see /packs). Kept as a reducer so the flow is fully
+// You create a room and tune house rules; all installed games are available at play time. Kept as a reducer so the flow is fully
 // testable and the screen stays a thin renderer. Review emits the input for buildHouseSession.
 
 export type SetupStep = 'settings' | 'review';
@@ -14,6 +13,7 @@ export interface SetupSettings {
   hintsEnabled: boolean;
   allowCrowdVotes: boolean;
   language: 'en' | 'pcm';
+  maxControllers: number;
 }
 
 export const DEFAULT_SETUP_SETTINGS: SetupSettings = {
@@ -21,6 +21,7 @@ export const DEFAULT_SETUP_SETTINGS: SetupSettings = {
   hintsEnabled: true,
   allowCrowdVotes: false,
   language: 'en',
+  maxControllers: 12,
 };
 
 export interface SetupState {
@@ -60,11 +61,9 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
 
 export interface CreateSessionInput {
   hostDeviceId: string;
-  /** Deprecated transport compatibility; sessions are never scoped to packs. */
-  selectedPackIds: string[];
   settings: SetupSettings;
 }
 
 export function toCreateSessionInput(state: SetupState, hostDeviceId: string): CreateSessionInput {
-  return { hostDeviceId, selectedPackIds: [], settings: state.settings };
+  return { hostDeviceId, settings: state.settings };
 }

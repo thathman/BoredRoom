@@ -17,7 +17,7 @@ vi.mock('@/hooks/useHouseSession', () => ({
         id: 'hs_test',
         code,
         status: 'waiting_for_players',
-        selectedPackIds: [],
+        settings: { allowBots: true, hintsEnabled: true, allowCrowdVotes: false, maxControllers: 12 },
       },
       members: [],
       activeRun: null,
@@ -25,8 +25,14 @@ vi.mock('@/hooks/useHouseSession', () => ({
     status: 'ready',
     gamePublicState: null,
     gamePrivateState: null,
+    aiResult: null,
     setReady: vi.fn(),
     sendGameIntent: vi.fn(),
+    requestHint: vi.fn(),
+    selectGame: vi.fn(),
+    startGame: vi.fn(),
+    switchGame: vi.fn(),
+    endGame: vi.fn(),
   }),
 }));
 
@@ -62,17 +68,17 @@ describe('session routing', () => {
     );
   }
 
-  it('renders each screen shell with the session code', () => {
-    for (const s of SESSION_SCREENS) {
-      const { unmount } = renderAt(`/session/ABCD/${s}`);
-      expect(screen.getAllByText(/ABCD/).length).toBeGreaterThan(0);
-      unmount();
-    }
+  it('keeps the four unified session screens in the route contract', () => {
+    expect(SESSION_SCREENS).toEqual(['display', 'controller', 'crowd', 'companion']);
+  });
+
+  it('renders the public display with the one session code', () => {
+    renderAt('/session/ABCD/display');
+    expect(screen.getByRole('heading', { name: /house abcd/i })).toBeInTheDocument();
   });
 
   it('public display renders the unified game picker', () => {
     renderAt('/session/ABCD/display');
-    expect(screen.getByRole('button', { name: 'Choose a game' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Games & controls' })).toBeInTheDocument();
   });
 

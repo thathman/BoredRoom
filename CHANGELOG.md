@@ -2,6 +2,11 @@
 
 All notable changes to BoredRoom are documented here.
 
-## Current beta baseline
+## 1.3.0.0 — 2026-06-25
 
-BoredRoom is in pre-production beta. Production `v1.0.0` begins when the platform is ready for stable release.
+- Replaced all game-specific rooms with one authoritative house-session runtime.
+- Moved the 15 games into signed, independently installable plugins.
+- Rebuilt desktop, tablet, mobile, lobby, controller, library, and status surfaces around the approved Lagos neon design.
+- Added server-side OpenRouter commentary, hints, recommendations, explanations, recaps, moderation, health reporting, and deterministic fallbacks.
+- Removed obsolete packs, operators, adapters, secondary codes, direct room APIs, old transports, and compatibility routes.
+- Added durable session membership, runtime snapshots, plugin reconciliation, active-version pinning, and forward database cleanup migrations.

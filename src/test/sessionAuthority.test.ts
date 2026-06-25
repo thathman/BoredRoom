@@ -16,7 +16,6 @@ import {
 function createRecord() {
   const session = buildHouseSession({
     hostDeviceId: `host-${Math.random()}`,
-    selectedPackIds: [],
   });
   const ownerCredential = issueOwnerCredential();
   registerSession(session, ownerCredential);
@@ -51,14 +50,14 @@ describe('house session authority', () => {
     const run = buildGameRun({
       houseSessionId: session.id,
       gameType: 'half-half',
-      packId: 'core',
+      gameVersion: '1.1.0.0',
     });
-    selectSessionGame(session.code, run, 'PRIVATE', 'SECRET');
+    selectSessionGame(session.code, run);
 
     const snapshot = getPublicSession(session.code);
     expect(snapshot?.members[0]).toMatchObject({ deviceId: 'p1', connected: false });
-    expect(snapshot?.activeRun?.runtimeId).toBe('PRIVATE');
-    expect(snapshot?.activeRun).not.toHaveProperty('roomCode', 'PRIVATE');
-    expect(JSON.stringify(snapshot)).not.toContain('SECRET');
+    expect(snapshot?.activeRun?.gameVersion).toBe('1.1.0.0');
+    expect(snapshot?.activeRun).not.toHaveProperty('runtimeId');
+    expect(snapshot?.activeRun).not.toHaveProperty('roomCode');
   });
 });
