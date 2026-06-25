@@ -32,6 +32,7 @@ services:
       # no host-gateway hairpin). The browser uses the public VITE_SUPABASE_URL instead.
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      PACK_ADMIN_TOKEN: ${PACK_ADMIN_TOKEN:-}
     networks:
       - default
       - supabase
