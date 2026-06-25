@@ -1,6 +1,6 @@
 import type { GameRuntime } from '../../shared/src/contracts/gameRuntime.js';
 
-const MODEL = process.env.AI_MODEL?.trim() || 'google/gemini-2.0-flash-001';
+const MODEL = process.env.AI_MODEL?.trim() || 'google/gemini-2.5-flash-lite';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 export interface AiHealth {

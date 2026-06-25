@@ -2,6 +2,10 @@
 
 All notable changes to BoredRoom are documented here.
 
+## 1.3.0.1 — 2026-06-25
+
+- Replaced the retired OpenRouter Gemini 2.0 endpoint with the verified `google/gemini-2.5-flash-lite` endpoint.
+
 ## 1.3.0.0 — 2026-06-25
 
 - Replaced all game-specific rooms with one authoritative house-session runtime.
