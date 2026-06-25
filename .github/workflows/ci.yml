@@ -10,6 +10,8 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      PACK_ADMIN_TOKEN: ci-owner
 
     steps:
       - name: Checkout
@@ -87,6 +89,14 @@ jobs:
           echo "Server did not become healthy in time"
           docker compose logs --tail=300
           exit 1
+
+      - name: Install official games for session smoke tests
+        run: |
+          for game in ludo whot trivia connect-4 ettt logo landlord half-half color-wahala hustle word-wahala market-price pidgin-translator faith-feud bible-timeline; do
+            curl -fsS -X POST \
+              -H "x-boredroom-admin: ${PACK_ADMIN_TOKEN}" \
+              "http://127.0.0.1:2567/games/${game}/install" >/dev/null
+          done
 
       - name: UI room-finish audit (Ludo + Whot)
         env:

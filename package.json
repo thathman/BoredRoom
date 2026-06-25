@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "gates:release": "npm run verify && npm audit --audit-level=high && npm --prefix server run build && npm --prefix server audit --audit-level=high",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
