@@ -19,6 +19,7 @@ try {
 const browser = await chromium.launch({ headless: true });
 const mobileContext = await browser.newContext({
   viewport: { width: 390, height: 844 },
+  screen: { width: 390, height: 844 },
   isMobile: true,
   hasTouch: true,
   deviceScaleFactor: 3,
@@ -27,9 +28,19 @@ const mobileContext = await browser.newContext({
 });
 const desktopContext = await browser.newContext({
   viewport: { width: 1366, height: 900 },
+  screen: { width: 1366, height: 900 },
+});
+const tabletContext = await browser.newContext({
+  viewport: { width: 820, height: 1180 },
+  screen: { width: 820, height: 1180 },
+  isMobile: true,
+  hasTouch: true,
+  userAgent:
+    'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
 });
 const mobilePage = await mobileContext.newPage();
 const desktopPage = await desktopContext.newPage();
+const tabletPage = await tabletContext.newPage();
 let previewProc = null;
 
 async function sleep(ms) {
@@ -83,56 +94,38 @@ async function assertNoOverflow(page, label) {
 
 try {
   await ensurePreviewServer();
-  await mobilePage.goto(`${BASE_URL}/ludo/join`, { waitUntil: 'networkidle' });
-  await mobilePage.getByText('Best experience: install the controller app').first().waitFor({ timeout: 8000 });
-  await mobilePage.getByRole('button', { name: 'Install app' }).waitFor({ timeout: 8000 });
-  await mobilePage.getByRole('button', { name: 'Continue in browser' }).waitFor({ timeout: 8000 });
-  await assertNoOverflow(mobilePage, 'mobile-join-install-gate');
+  await mobilePage.goto(`${BASE_URL}/`, { waitUntil: 'networkidle' });
+  await mobilePage.getByRole('heading', { name: /Your phone is the controller/i }).waitFor({ timeout: 8000 });
+  await mobilePage.getByRole('button', { name: 'Join game night' }).waitFor({ timeout: 8000 });
+  if (await mobilePage.getByRole('button', { name: 'Host a game night' }).count()) {
+    fail('mobile landing must not expose hosting');
+  }
+  await assertNoOverflow(mobilePage, 'mobile-controller-home');
 
   await desktopPage.goto(`${BASE_URL}/`, { waitUntil: 'networkidle' });
-  await desktopPage.evaluate(() => {
-    sessionStorage.setItem('boredroom_room_code', 'ABCD');
-    sessionStorage.setItem('boredroom_game_type', 'ludo');
-    sessionStorage.setItem('boredroom_is_host', 'true');
-  });
-  await desktopPage.reload({ waitUntil: 'networkidle' });
-  await desktopPage.getByText('Active game detected').first().waitFor({ timeout: 8000 });
-  await desktopPage.getByRole('button', { name: 'Continue game' }).waitFor({ timeout: 8000 });
-  await assertNoOverflow(desktopPage, 'desktop-home-continue-card');
-
-  await desktopPage.goto(`${BASE_URL}/ludo/host`, { waitUntil: 'networkidle' });
-  await desktopPage.getByText('Active game detected').first().waitFor({ timeout: 8000 });
-  await desktopPage.getByRole('button', { name: 'Host Ludo' }).waitFor({ timeout: 8000 });
-  const hostDisabled = await desktopPage.getByRole('button', { name: 'Host Ludo' }).isDisabled();
-  if (!hostDisabled) fail('host create button should be disabled while active session conflict exists');
-  await desktopPage.getByRole('button', { name: /Dismiss/i }).click();
-  const hostReEnabled = await desktopPage.getByRole('button', { name: 'Host Ludo' }).isEnabled();
-  if (!hostReEnabled) fail('host create button did not re-enable after dismissing session conflict');
-  await assertNoOverflow(desktopPage, 'host-continue-card');
-
-  await desktopPage.goto(`${BASE_URL}/ludo/join`, { waitUntil: 'networkidle' });
-  await desktopPage.evaluate(() => {
-    sessionStorage.setItem('boredroom_room_code', 'ABCD');
-    sessionStorage.setItem('boredroom_game_type', 'ludo');
-    sessionStorage.setItem('boredroom_is_host', 'false');
-  });
-  await desktopPage.reload({ waitUntil: 'networkidle' });
-  const joinVisible = await desktopPage.getByRole('button', { name: 'Join game' }).isVisible().catch(() => false);
-  if (!joinVisible) {
-    await desktopPage.getByRole('button', { name: 'Next' }).waitFor({ timeout: 8000 });
+  await desktopPage.getByRole('heading', { name: /One room. Every phone is a controller/i }).waitFor({ timeout: 8000 });
+  await desktopPage.getByRole('button', { name: 'Host a game night' }).waitFor({ timeout: 8000 });
+  if (await desktopPage.getByText('Joining from this device? Enter a code').count()) {
+    fail('desktop landing still exposes the removed join prompt');
   }
-  const joinDisabled = await desktopPage.getByRole('button', { name: /Join game|Next/ }).first().isDisabled();
-  if (!joinDisabled) fail('join CTA should be disabled while active session conflict exists');
-  await assertNoOverflow(desktopPage, 'join-no-install-gate-desktop');
+  await assertNoOverflow(desktopPage, 'desktop-host-home');
+
+  await tabletPage.goto(`${BASE_URL}/`, { waitUntil: 'networkidle' });
+  await tabletPage.getByRole('heading', { name: /How is this tablet joining/i }).waitFor({ timeout: 8000 });
+  await tabletPage.getByRole('button', { name: /Player controller/i }).waitFor({ timeout: 8000 });
+  await tabletPage.getByRole('button', { name: /Host companion/i }).waitFor({ timeout: 8000 });
+  if (await tabletPage.getByRole('button', { name: 'Host a game night' }).count()) {
+    fail('tablet landing must not expose public display hosting');
+  }
+  await assertNoOverflow(tabletPage, 'tablet-role-choice');
 
   console.log('[pw-entry] PASS');
 } finally {
   await mobileContext.close();
   await desktopContext.close();
+  await tabletContext.close();
   await browser.close();
   if (previewProc && !previewProc.killed) {
     previewProc.kill('SIGTERM');
   }
 }
-
-
