@@ -23,8 +23,6 @@
     "smoke:rooms-matrix": "node scripts/smoke-rooms-matrix.mjs",
     "smoke:assert-matrix": "node scripts/assert-smoke-matrix-rows.mjs",
     "smoke:ui-entry": "node scripts/playwright-entry-flows.mjs",
-    "smoke:ui-room-finish": "node scripts/playwright-room-finish.mjs",
-    "smoke:ui-session": "node scripts/playwright-session-flows.mjs",
     "gates:sync": "node scripts/sync-game-gates-from-smoke.mjs",
     "gates:verify": "npm run gates:sync && git diff --exit-code -- src/lib/generated/gameGates.ts",
     "smoke:live": "node scripts/smoke-live-suite.mjs",

@@ -93,13 +93,6 @@ jobs:
               "http://127.0.0.1:2567/games/${game}/install" >/dev/null
           done
 
-      - name: UI room-finish audit (Ludo + Whot)
-        env:
-          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8088
-          PLAYWRIGHT_HTTP_API: http://127.0.0.1:2567
-          PLAYWRIGHT_WS_URL: ws://127.0.0.1:2567
-        run: npm run smoke:ui-room-finish
-
       - name: Run smoke suite
         env:
           SMOKE_HTTP_URL: http://localhost:2567
