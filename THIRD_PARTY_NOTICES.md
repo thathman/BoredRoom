@@ -1,9 +1,5 @@
 # Third-Party Notices
 
-## Naija Arcade
+This file is reserved for third-party attribution and licensing notes for assets, adapted components, and bundled content.
 
-- Source: https://github.com/tochiti/naija-arcade
-- Author/owner: tochiti
-- License statement: the upstream README says "MIT License - feel free to use this for your own projects!"
-- Use in this repository: selected client-side React game components were adapted into `src/components/arcade/games/` and surfaced through the `/arcade` route.
-- Backend/auth/database code from Naija Arcade was not imported.
+When adding third-party material, include the source, author or owner, license, use in this repository, and modification notes.
