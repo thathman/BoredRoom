@@ -34,8 +34,8 @@ export default function InvalidGame({ reason = 'unknown_game', detail }: Invalid
           {detail && <p className="text-xs font-mono mt-2 text-muted-foreground">{detail}</p>}
         </div>
         <div className="flex flex-col gap-2">
-          <Button onClick={() => navigate('/')} className="gap-2 w-full">
-            <Home className="w-4 h-4" /> Back to catalog
+          <Button onClick={() => navigate('/start')} className="gap-2 w-full">
+            <Home className="w-4 h-4" /> Back to game night
           </Button>
           <div className="flex flex-wrap justify-center gap-2 pt-2">
             {GAME_REGISTRY.map((g) => (
@@ -43,7 +43,7 @@ export default function InvalidGame({ reason = 'unknown_game', detail }: Invalid
                 key={g.slug}
                 size="sm"
                 variant="outline"
-                onClick={() => navigate(`/${g.slug}/host`)}
+                onClick={() => navigate('/start')}
                 className="gap-2"
               >
                 <span className="w-4 h-4 text-primary" aria-hidden="true">

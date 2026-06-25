@@ -142,10 +142,7 @@ interface BackendConfig {
 
 function getBackendConfig(): BackendConfig | null {
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.SUPABASE_ANON_KEY ??
-    process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   return { url: url.replace(/\/$/, ''), key };
 }
@@ -190,11 +187,12 @@ function sessionRow(s: HouseSession): Record<string, unknown> {
 
 export async function persistHouseSession(s: HouseSession): Promise<WriteResult> {
   if (!getBackendConfig()) return 'skipped';
-  await apiFetch('house_sessions', {
+  const response = await apiFetch('house_sessions', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(sessionRow(s)),
   });
+  if (!response.ok) throw new Error(`house_session_write_${response.status}:${await response.text()}`);
   return 'ok';
 }
 
@@ -265,7 +263,7 @@ export async function readHouseSession(code: string): Promise<HouseSession | nul
 
 export async function persistGameRun(run: GameRun): Promise<WriteResult> {
   if (!getBackendConfig()) return 'skipped';
-  await apiFetch('game_runs', {
+  const response = await apiFetch('game_runs', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify({
@@ -283,12 +281,13 @@ export async function persistGameRun(run: GameRun): Promise<WriteResult> {
       latest_snapshot_id: run.latestSnapshotId ?? null,
     }),
   });
+  if (!response.ok) throw new Error(`game_run_write_${response.status}:${await response.text()}`);
   return 'ok';
 }
 
 export async function appendSessionEvent(ev: SessionEvent): Promise<WriteResult> {
   if (!getBackendConfig()) return 'skipped';
-  await apiFetch('session_events', {
+  const response = await apiFetch('session_events', {
     method: 'POST',
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({
@@ -301,6 +300,7 @@ export async function appendSessionEvent(ev: SessionEvent): Promise<WriteResult>
       at: ev.at,
     }),
   });
+  if (!response.ok) throw new Error(`session_event_write_${response.status}:${await response.text()}`);
   return 'ok';
 }
 
@@ -309,7 +309,7 @@ export async function rememberController(
   device: ControllerDevice,
 ): Promise<WriteResult> {
   if (!getBackendConfig()) return 'skipped';
-  await apiFetch('controller_devices', {
+  const response = await apiFetch('controller_devices', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify({
@@ -320,12 +320,13 @@ export async function rememberController(
       player_profile_id: device.playerProfileId ?? null,
     }),
   });
+  if (!response.ok) throw new Error(`controller_write_${response.status}:${await response.text()}`);
   return 'ok';
 }
 
 export async function pairOperator(op: OperatorDevice): Promise<WriteResult> {
   if (!getBackendConfig()) return 'skipped';
-  await apiFetch('operator_devices', {
+  const response = await apiFetch('operator_devices', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify({
@@ -336,6 +337,7 @@ export async function pairOperator(op: OperatorDevice): Promise<WriteResult> {
       last_seen_at: op.lastSeenAt,
     }),
   });
+  if (!response.ok) throw new Error(`operator_write_${response.status}:${await response.text()}`);
   return 'ok';
 }
 

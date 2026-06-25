@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useRoom } from '@/hooks/useRoom';
 import { ensureHostDisplayId, getPlayerId, getPlayerName } from '@/lib/roomUtils';
@@ -28,6 +28,8 @@ import { HustleDisplay } from '@/components/room/HustleDisplay';
 import { HustleController } from '@/components/room/HustleController';
 import { WordWahalaDisplay } from '@/components/room/WordWahalaDisplay';
 import { WordWahalaController } from '@/components/room/WordWahalaController';
+import { HalfHalfDisplay } from '@/components/room/HalfHalfDisplay';
+import { HalfHalfController } from '@/components/room/HalfHalfController';
 import { ReactionsOverlay } from '@/components/game/Reactions';
 import { motion } from 'framer-motion';
 import { AlertTriangle, BarChart3, Home, Loader2, RotateCcw, Wrench } from 'lucide-react';
@@ -38,14 +40,40 @@ import InvalidGame from '@/pages/InvalidGame';
 import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
 import { resolveRoomSessionRole } from '@/lib/roomSession';
 
-export default function RoomPage() {
-  const { game, code } = useParams<{ game: string; code: string }>();
+interface RoomPageProps {
+  embeddedGame?: string;
+  embeddedCode?: string;
+  embeddedRole?: 'display' | 'controller' | 'crowd';
+  embeddedHostToken?: string;
+  sessionJoinUrl?: string;
+  publicSessionCode?: string;
+  onGameFinished?: (winnerPlayerIds: string[]) => void;
+  onExitGame?: () => void;
+  autoReady?: boolean;
+}
+
+export default function RoomPage({
+  embeddedGame,
+  embeddedCode,
+  embeddedRole,
+  embeddedHostToken,
+  sessionJoinUrl,
+  publicSessionCode,
+  onGameFinished,
+  onExitGame,
+  autoReady = false,
+}: RoomPageProps = {}) {
+  const route = useParams<{ game: string; code: string }>();
+  const game = embeddedGame ?? route.game;
+  const code = embeddedCode ?? route.code;
   const navigate = useNavigate();
   // GameRouteGuard validates :game upstream; meta is always defined here.
   const meta = getGameMeta(game)!;
-  const requestedHostMode = sessionStorage.getItem('boredroom_is_host') === 'true';
-  const storedHostToken = sessionStorage.getItem('boredroom_host_token') ?? '';
-  const { isHost, shouldClearHostSession } = resolveRoomSessionRole({
+  const requestedHostMode =
+    embeddedRole === 'display' ||
+    (embeddedRole == null && sessionStorage.getItem('boredroom_is_host') === 'true');
+  const storedHostToken = embeddedHostToken ?? sessionStorage.getItem('boredroom_host_token') ?? '';
+  const legacyRole = resolveRoomSessionRole({
     requestedHostMode,
     storedHostToken,
     storedRoomCode: sessionStorage.getItem('boredroom_room_code'),
@@ -53,6 +81,8 @@ export default function RoomPage() {
     routeRoomCode: code,
     routeGameType: meta.slug,
   });
+  const isHost = embeddedRole ? embeddedRole === 'display' : legacyRole.isHost;
+  const shouldClearHostSession = embeddedRole ? false : legacyRole.shouldClearHostSession;
   if (shouldClearHostSession) {
     sessionStorage.setItem('boredroom_is_host', 'false');
     sessionStorage.removeItem('boredroom_host_token');
@@ -114,6 +144,8 @@ export default function RoomPage() {
     setLogoSettings,
     logoLockPick,
     logoLockText,
+    privateHalfHalfState,
+    halfHalfLockGuess,
     landlordRoll,
     landlordBuy,
     landlordDecline,
@@ -204,12 +236,16 @@ export default function RoomPage() {
   };
 
   const handleResetSession = () => {
+    if (onExitGame) {
+      onExitGame();
+      return;
+    }
     sessionStorage.removeItem('boredroom_is_host');
     sessionStorage.removeItem('boredroom_host_token');
     sessionStorage.removeItem('boredroom_host_display_id');
     sessionStorage.removeItem('boredroom_room_code');
     sessionStorage.removeItem('boredroom_transport_fallback');
-    navigate(meta ? `/${meta.slug}/join` : '/', { replace: true });
+    navigate('/', { replace: true });
   };
 
   const FATAL_ERROR_CODES = ['host_token_invalid', 'connect_timeout', 'forbidden', 'protocol_mismatch'];
@@ -251,6 +287,46 @@ export default function RoomPage() {
     (roomState as { hustleState?: import('@/lib/transport/types').HustlePublicState | null }).hustleState ?? null;
   const wordWahalaPublicState =
     (roomState as { wordWahalaState?: import('@/lib/transport/types').WordWahalaPublicState | null }).wordWahalaState ?? null;
+  const halfHalfPublicState =
+    (roomState as { halfHalfState?: import('@/lib/transport/types').HalfHalfPublicState | null }).halfHalfState ?? null;
+
+  const finishedCallbackRef = useRef(false);
+  useEffect(() => {
+    if (status !== 'finished') {
+      finishedCallbackRef.current = false;
+      return;
+    }
+    if (finishedCallbackRef.current || !onGameFinished) return;
+    finishedCallbackRef.current = true;
+    const winnerIds = [
+      roomState.gameState?.winner,
+      whotPublicState?.winnerId,
+      triviaPublicState?.winnerId,
+      connect4PublicState?.winnerId,
+      etttPublicState?.winnerId,
+      logoPublicState?.winnerId,
+      landlordPublicState?.winnerId,
+      halfHalfPublicState?.winnerId,
+      colorWahalaPublicState?.winnerId,
+      hustlePublicState?.winnerId,
+      wordWahalaPublicState?.winnerId,
+    ].filter((id): id is string => typeof id === 'string' && id.length > 0);
+    onGameFinished(winnerIds);
+  }, [
+    status,
+    onGameFinished,
+    roomState.gameState?.winner,
+    whotPublicState?.winnerId,
+    triviaPublicState?.winnerId,
+    connect4PublicState?.winnerId,
+    etttPublicState?.winnerId,
+    logoPublicState?.winnerId,
+    landlordPublicState?.winnerId,
+    halfHalfPublicState?.winnerId,
+    colorWahalaPublicState?.winnerId,
+    hustlePublicState?.winnerId,
+    wordWahalaPublicState?.winnerId,
+  ]);
 
   // Replay recording — host display only. Picks the active per-game public
   // state to snapshot (turnNumber + lastAction). Falls back to the room state
@@ -283,6 +359,18 @@ export default function RoomPage() {
     setLandlordLobbySettings((prev) => ({ ...prev, ...settings }));
     setLandlordSettings(settings);
   };
+  const me = roomState.members.find((m) => m.id === playerId);
+  const isCrowd = !isHost && me?.role === 'crowd';
+  const autoReadyRef = useRef(false);
+  useEffect(() => {
+    if (!autoReady || isHost || status !== 'lobby' || syncStatus !== 'ready') {
+      if (status !== 'lobby') autoReadyRef.current = false;
+      return;
+    }
+    if (!me || me.isReady || autoReadyRef.current) return;
+    autoReadyRef.current = true;
+    toggleReady();
+  }, [autoReady, isHost, status, syncStatus, me, toggleReady]);
 
   if (kicked) {
     return (
@@ -366,8 +454,6 @@ export default function RoomPage() {
   const syncPending = syncStatus !== 'ready';
   const showSeatRestoreOverlay = !isHost && syncStatus === 'syncing';
   const botsAllowed = roomGameType === 'ludo' || roomGameType === 'whot';
-  const me = roomState.members.find((m) => m.id === playerId);
-  const isCrowd = !isHost && me?.role === 'crowd';
 
   // Game-mismatch guard
   if (syncStatus === 'ready' && roomGameType !== game) {
@@ -472,6 +558,8 @@ export default function RoomPage() {
       {status === 'lobby' && isHost && (
         <DisplayLobby
           roomState={roomState}
+          publicCode={publicSessionCode}
+          joinUrlOverride={sessionJoinUrl}
           onStartGame={startGame}
           onKick={kickPlayer}
           presenceMap={presenceMap}
@@ -509,6 +597,7 @@ export default function RoomPage() {
       {status === 'lobby' && !isHost && !isCrowd && (
         <PlayerLobby
           roomState={roomState}
+          publicCode={publicSessionCode}
           playerId={playerId}
           onToggleReady={toggleReady}
           onReact={sendEmoji}
@@ -523,8 +612,8 @@ export default function RoomPage() {
       {status === 'playing' && roomGameType === 'whot' && whotPublicState && isHost && (
         <WhotDisplay
           state={whotPublicState}
-          roomCode={roomState.code}
-          joinUrl={`${window.location.origin}/${meta.slug}/join/${roomState.code}`}
+          roomCode={publicSessionCode ?? roomState.code}
+          joinUrl={sessionJoinUrl ?? `${window.location.origin}/join`}
           commentaryLine={commentaryLine}
           aiStatus={aiStatus}
         />
@@ -557,8 +646,8 @@ export default function RoomPage() {
       {status === 'playing' && roomGameType === 'trivia' && triviaPublicState && isHost && (
         <TriviaDisplay
           state={triviaPublicState}
-          roomCode={roomState.code}
-          joinUrl={`${window.location.origin}/${meta.slug}/join/${roomState.code}`}
+          roomCode={publicSessionCode ?? roomState.code}
+          joinUrl={sessionJoinUrl ?? `${window.location.origin}/join`}
           commentaryLine={commentaryLine}
           aiStatus={aiStatus}
         />
@@ -581,8 +670,8 @@ export default function RoomPage() {
       {status === 'playing' && roomGameType === 'connect-4' && connect4PublicState && isHost && (
         <Connect4Display
           state={connect4PublicState}
-          roomCode={roomState.code}
-          joinUrl={`${window.location.origin}/${meta.slug}/join/${roomState.code}`}
+          roomCode={publicSessionCode ?? roomState.code}
+          joinUrl={sessionJoinUrl ?? `${window.location.origin}/join`}
           commentaryLine={commentaryLine}
           aiStatus={aiStatus}
         />
@@ -599,8 +688,8 @@ export default function RoomPage() {
       {status === 'playing' && roomGameType === 'ettt' && etttPublicState && isHost && (
         <EtttDisplay
           state={etttPublicState}
-          roomCode={roomState.code}
-          joinUrl={`${window.location.origin}/${meta.slug}/join/${roomState.code}`}
+          roomCode={publicSessionCode ?? roomState.code}
+          joinUrl={sessionJoinUrl ?? `${window.location.origin}/join`}
           commentaryLine={commentaryLine}
           aiStatus={aiStatus}
         />
@@ -617,8 +706,8 @@ export default function RoomPage() {
       {status === 'playing' && roomGameType === 'logo' && logoPublicState && isHost && (
         <LogoDisplay
           state={logoPublicState}
-          roomCode={roomState.code}
-          joinUrl={`${window.location.origin}/${meta.slug}/join/${roomState.code}`}
+          roomCode={publicSessionCode ?? roomState.code}
+          joinUrl={sessionJoinUrl ?? `${window.location.origin}/join`}
           commentaryLine={commentaryLine}
           aiStatus={aiStatus}
         />
@@ -652,8 +741,8 @@ export default function RoomPage() {
       {status === 'playing' && roomGameType === 'landlord' && landlordPublicState && isHost && (
         <LandlordDisplay
           state={landlordPublicState}
-          roomCode={roomState.code}
-          joinUrl={`${window.location.origin}/${meta.slug}/join/${roomState.code}`}
+          roomCode={publicSessionCode ?? roomState.code}
+          joinUrl={sessionJoinUrl ?? `${window.location.origin}/join`}
           commentaryLine={commentaryLine}
           aiStatus={aiStatus}
         />
@@ -697,15 +786,35 @@ export default function RoomPage() {
         </div>
       )}
 
-      {status === 'playing' && roomGameType === 'half-half' && (
-        <InvalidGame reason="game_disabled" detail="Half & Half has been retired from this release." />
+      {status === 'playing' && roomGameType === 'half-half' && halfHalfPublicState && isHost && (
+        <HalfHalfDisplay
+          state={halfHalfPublicState}
+          roomCode={publicSessionCode ?? roomState.code}
+          joinUrl={sessionJoinUrl ?? `${window.location.origin}/join`}
+          commentaryLine={commentaryLine}
+          aiStatus={aiStatus}
+        />
+      )}
+      {status === 'playing' && roomGameType === 'half-half' && halfHalfPublicState && !isHost && !isCrowd && (
+        <HalfHalfController
+          publicState={halfHalfPublicState}
+          privateState={privateHalfHalfState ?? null}
+          playerId={playerId}
+          onLockGuess={halfHalfLockGuess}
+          onReact={sendEmoji}
+          reactionPolicy={roomState.reactionPolicy}
+          tauntPolicy={roomState.tauntPolicy}
+          onReactionAck={onReactionAck}
+          onRequestLeave={requestLeave}
+          syncPending={syncPending}
+        />
       )}
 
       {status === 'playing' && roomGameType === 'color-wahala' && colorWahalaPublicState && isHost && (
         <ColorWahalaDisplay
           state={colorWahalaPublicState}
-          roomCode={roomState.code}
-          joinUrl={`${window.location.origin}/${meta.slug}/join/${roomState.code}`}
+          roomCode={publicSessionCode ?? roomState.code}
+          joinUrl={sessionJoinUrl ?? `${window.location.origin}/join`}
           commentaryLine={commentaryLine}
           aiStatus={aiStatus}
         />
@@ -728,8 +837,8 @@ export default function RoomPage() {
       {status === 'playing' && roomGameType === 'hustle' && hustlePublicState && isHost && (
         <HustleDisplay
           state={hustlePublicState}
-          roomCode={roomState.code}
-          joinUrl={`${window.location.origin}/${meta.slug}/join/${roomState.code}`}
+          roomCode={publicSessionCode ?? roomState.code}
+          joinUrl={sessionJoinUrl ?? `${window.location.origin}/join`}
           commentaryLine={commentaryLine}
           aiStatus={aiStatus}
         />
@@ -749,8 +858,8 @@ export default function RoomPage() {
       {status === 'playing' && roomGameType === 'word-wahala' && wordWahalaPublicState && isHost && (
         <WordWahalaDisplay
           state={wordWahalaPublicState}
-          roomCode={roomState.code}
-          joinUrl={`${window.location.origin}/${meta.slug}/join/${roomState.code}`}
+          roomCode={publicSessionCode ?? roomState.code}
+          joinUrl={sessionJoinUrl ?? `${window.location.origin}/join`}
           commentaryLine={commentaryLine}
           aiStatus={aiStatus}
         />
@@ -824,7 +933,15 @@ export default function RoomPage() {
         />
       )}
       {status === 'finished' && roomGameType !== 'trivia' && (
-        <GameOver roomState={roomState} playerId={playerId} isHost={isHost} onPlayAgain={playAgain} recap={recap} />
+        <GameOver
+          roomState={roomState}
+          playerId={playerId}
+          isHost={isHost}
+          onPlayAgain={onExitGame ?? playAgain}
+          onHome={onExitGame}
+          primaryActionLabel={onExitGame ? 'Next game' : undefined}
+          recap={recap}
+        />
       )}
       {isHost && status !== 'playing' && (
         <div className="fixed top-3 left-3 z-40">

@@ -110,7 +110,7 @@ export function LandlordController({
   const isMyBid = !!auction && auction.currentBidderId === playerId;
   useEffect(() => {
     if (auction) setBidAmount(auction.minBid);
-  }, [auction?.minBid, auction?.propertyId]);
+  }, [auction]);
   const canPlaceBid = isMyBid && !syncPending && !!me && bidAmount >= (auction?.minBid ?? 0) && me.money >= bidAmount;
 
   // ── Trade context ──────────────────────────────────────────────────────

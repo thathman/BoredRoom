@@ -62,7 +62,7 @@ describe('pack system', () => {
     expect(faith).toContain('bible-timeline');
     const market = getGamesForPack('pack.market');
     const mp = market.find((g) => g.slug === 'market-price');
-    expect(mp?.kind).toBe('adapter');
+    expect(mp?.available).toBe(true);
     expect(mp?.name).toBe('Market Price');
   });
 

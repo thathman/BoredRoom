@@ -27,6 +27,8 @@ const TRIVIA_CATEGORIES: { value: TriviaCategory; label: string }[] = [
 
 interface DisplayLobbyProps {
   roomState: RoomState;
+  publicCode?: string;
+  joinUrlOverride?: string;
   onStartGame: () => void;
   onKick?: (playerId: string) => void;
   presenceMap?: Record<string, number>;
@@ -63,6 +65,8 @@ interface DisplayLobbyProps {
 
 export function DisplayLobby({
   roomState,
+  publicCode,
+  joinUrlOverride,
   onStartGame,
   onKick,
   presenceMap = {},
@@ -99,7 +103,8 @@ export function DisplayLobby({
   const gameSlug = (roomState as { gameType?: string }).gameType ?? 'ludo';
   const roomSettings = (roomState as { roomSettings?: RoomSettings }).roomSettings;
   const maxPlayers = (roomState as { maxPlayers?: number }).maxPlayers ?? roomSettings?.maxPlayers ?? (gameSlug === 'whot' ? 8 : 4);
-  const joinUrl = `${window.location.origin}/${gameSlug}/join/${roomState.code}`;
+  const joinUrl = joinUrlOverride ?? `${window.location.origin}/join`;
+  const visibleCode = publicCode ?? roomState.code;
   const activeMembers = roomState.members.filter((m) => !m.isSpectator);
   const allReady = activeMembers.length >= 2 && activeMembers.every((m) => m.isReady || m.isBot);
   const [copied, setCopied] = useState(false);
@@ -147,7 +152,7 @@ export function DisplayLobby({
             <div>
               <p className="text-sm text-muted-foreground mb-2 uppercase tracking-wider">Room Code</p>
               <div className="text-7xl md:text-9xl font-display font-bold tracking-[0.2em] neon-text">
-                {roomState.code}
+                {visibleCode}
               </div>
             </div>
 

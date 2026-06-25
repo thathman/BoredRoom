@@ -150,7 +150,7 @@ export const GAME_REGISTRY: GameMeta[] = [
     tagline: 'Find the perfect midpoint. Closest cut wins the round.',
     emoji: '✂️',
     category: 'arcade',
-    enabled: false,
+    enabled: true,
     minPlayers: 2,
     maxPlayers: 8,
     rules: [

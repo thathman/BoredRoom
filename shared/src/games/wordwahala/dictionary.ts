@@ -256,7 +256,6 @@ async function loadExtendedDictionary(): Promise<void> {
         } catch { /* try next */ }
       }
       if (!buf) {
-        // eslint-disable-next-line no-console
         console.warn('[wordwahala] extended dictionary not found, using compact list only');
         extendedLoaded = true;
         return;
@@ -270,11 +269,9 @@ async function loadExtendedDictionary(): Promise<void> {
           added++;
         }
       }
-      // eslint-disable-next-line no-console
       console.log(`[wordwahala] extended standard dictionary loaded: +${added} words (total ${TIER_SETS.standard.size})`);
       extendedLoaded = true;
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.warn('[wordwahala] failed to load extended dictionary:', err);
       extendedLoaded = true;
     }
@@ -322,4 +319,3 @@ export function tierConfig(tier: DictionaryTier): TierConfig {
 export function dictionarySize(tier: DictionaryTier): number {
   return TIER_SETS[tier].size;
 }
-

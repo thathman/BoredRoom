@@ -10,6 +10,7 @@ import { getGameMeta } from '@/lib/games';
 
 interface PlayerLobbyProps {
   roomState: RoomState;
+  publicCode?: string;
   playerId: string;
   onToggleReady: () => void;
   onReact: (emoji: string, clientNonce?: string) => void;
@@ -21,6 +22,7 @@ interface PlayerLobbyProps {
 
 export function PlayerLobby({
   roomState,
+  publicCode,
   playerId,
   onToggleReady,
   onReact,
@@ -49,7 +51,7 @@ export function PlayerLobby({
         className="w-full max-w-sm space-y-8 text-center"
       >
         <div>
-          <h2 className="text-2xl font-display font-bold mb-1">{t('lobby.room', { code: roomState.code })}</h2>
+          <h2 className="text-2xl font-display font-bold mb-1">{t('lobby.room', { code: publicCode ?? roomState.code })}</h2>
           <p className="text-muted-foreground">
             {t('lobby.playersJoined', { current: roomState.members.length, max: maxPlayers })}
           </p>

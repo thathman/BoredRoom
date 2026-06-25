@@ -23,6 +23,7 @@ export async function connectColyseus(opts: TransportConnectOptions): Promise<Tr
     : opts.gameType === 'ettt' ? 'ettt'
     : opts.gameType === 'logo' ? 'logo'
     : opts.gameType === 'landlord' ? 'landlord'
+    : opts.gameType === 'half-half' ? 'half-half'
     : opts.gameType === 'color-wahala' ? 'color-wahala'
     : opts.gameType === 'hustle' ? 'hustle'
     : opts.gameType === 'word-wahala' ? 'word-wahala'

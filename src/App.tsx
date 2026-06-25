@@ -1,29 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PwaUpdatePrompt } from "@/components/system/PwaUpdatePrompt";
-import { GameIndexRedirect, GameRouteGuard } from "@/components/routing/GameRouteGuard";
 import { GameAtmosphereCanvas } from "@/components/game/GameAtmosphereCanvas";
 
 const queryClient = new QueryClient();
 const Index = lazy(() => import("./pages/Index"));
-const HostPage = lazy(() => import("./pages/Host"));
-const JoinPage = lazy(() => import("./pages/Join"));
-const RoomPage = lazy(() => import("./pages/Room"));
-const ProfilePage = lazy(() => import("./pages/Profile"));
-const DisplayStatsPage = lazy(() => import("./pages/DisplayStats"));
-const DevGameOverPage = lazy(() => import("./pages/DevGameOver"));
-const RecapPage = lazy(() => import("./pages/Recap"));
-const ReplayViewerPage = lazy(() => import("./pages/ReplayViewer"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const SessionScreenPage = lazy(() => import("./pages/SessionScreen"));
 const SessionSetupPage = lazy(() => import("./pages/SessionSetup"));
-const GamesPage = lazy(() => import("./pages/Games"));
-const PacksPage = lazy(() => import("./pages/Packs"));
 const SessionJoinPage = lazy(() => import("./pages/SessionJoin"));
 
 const RouteFallback = () => (
@@ -46,55 +35,11 @@ const App = () => (
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   <Route path="/" element={<Index />} />
-                  {/* Session-first routing (Phase 4); existing /:game/* routes remain. */}
+                  {/* Unified house-session routing. Games never leave these session routes. */}
                   <Route path="/start" element={<SessionSetupPage />} />
-                  <Route path="/games" element={<GamesPage />} />
-                  <Route path="/packs" element={<PacksPage />} />
                   <Route path="/join" element={<SessionJoinPage />} />
                   <Route path="/join/:sessionCode" element={<SessionJoinPage />} />
                   <Route path="/session/:code/:screen" element={<SessionScreenPage />} />
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/display/stats" element={<DisplayStatsPage />} />
-                  <Route path="/dev/gameover/:gameId" element={<DevGameOverPage />} />
-                  <Route path="/r/:token" element={<RecapPage />} />
-                  <Route path="/replay/:id" element={<ReplayViewerPage />} />
-                  <Route path="/arcade" element={<Navigate to="/" replace />} />
-                  <Route path="/arcade/:gameId" element={<Navigate to="/" replace />} />
-
-                  {/* Game-scoped routes */}
-                  <Route path="/:game" element={<GameIndexRedirect />} />
-                  <Route
-                    path="/:game/host"
-                    element={
-                      <GameRouteGuard>
-                        <HostPage />
-                      </GameRouteGuard>
-                    }
-                  />
-                  <Route
-                    path="/:game/join"
-                    element={
-                      <GameRouteGuard>
-                        <JoinPage />
-                      </GameRouteGuard>
-                    }
-                  />
-                  <Route
-                    path="/:game/join/:code"
-                    element={
-                      <GameRouteGuard>
-                        <JoinPage />
-                      </GameRouteGuard>
-                    }
-                  />
-                  <Route
-                    path="/:game/room/:code"
-                    element={
-                      <GameRouteGuard>
-                        <RoomPage />
-                      </GameRouteGuard>
-                    }
-                  />
 
                   <Route path="*" element={<NotFound />} />
                 </Routes>

@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { getActiveSession, clearActiveSession } from '@/lib/sessionResume';
+import { clearLastHouseSession, getLastHouseSession } from '@/lib/houseSessionResume';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RotateCcw, X } from 'lucide-react';
@@ -12,7 +12,7 @@ interface ContinueSessionCardProps {
 export function ContinueSessionCard({ reloadOnDismiss = true, onDismiss }: ContinueSessionCardProps) {
   const navigate = useNavigate();
   const [dismissed, setDismissed] = useState(false);
-  const session = useMemo(() => getActiveSession(), []);
+  const session = useMemo(() => getLastHouseSession(), []);
   if (dismissed) return null;
   if (!session) return null;
 
@@ -20,12 +20,12 @@ export function ContinueSessionCard({ reloadOnDismiss = true, onDismiss }: Conti
     <div className="glass rounded-2xl p-4 border border-primary/30">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">Active game detected</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">House session</p>
           <p className="font-display font-bold text-lg">
-            {session.gameType.toUpperCase()} · Room {session.roomCode}
+            House {session.code}
           </p>
           <p className="text-xs text-muted-foreground">
-            {session.isHost ? 'Host session' : 'Controller session'} is still open on this device.
+            Resume the same lobby, players, and current game.
           </p>
         </div>
       </div>
@@ -33,7 +33,7 @@ export function ContinueSessionCard({ reloadOnDismiss = true, onDismiss }: Conti
         <Button
           size="sm"
           className="gap-2"
-          onClick={() => navigate(`/${session.gameType}/room/${session.roomCode}`)}
+          onClick={() => navigate(`/session/${session.code}/display`)}
         >
           <RotateCcw className="w-4 h-4" /> Continue game
         </Button>
@@ -42,7 +42,7 @@ export function ContinueSessionCard({ reloadOnDismiss = true, onDismiss }: Conti
           variant="outline"
           className="gap-2"
           onClick={() => {
-            clearActiveSession();
+            clearLastHouseSession();
             setDismissed(true);
             onDismiss?.();
             if (reloadOnDismiss) window.location.reload();

@@ -18,9 +18,19 @@ interface GameOverProps {
   isHost: boolean;
   onPlayAgain?: () => void;
   recap?: RecapPayload | null;
+  onHome?: () => void;
+  primaryActionLabel?: string;
 }
 
-export function GameOver({ roomState, playerId, isHost, onPlayAgain, recap }: GameOverProps) {
+export function GameOver({
+  roomState,
+  playerId,
+  isHost,
+  onPlayAgain,
+  recap,
+  onHome,
+  primaryActionLabel,
+}: GameOverProps) {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [savingReplay, setSavingReplay] = useState(false);
@@ -195,11 +205,11 @@ export function GameOver({ roomState, playerId, isHost, onPlayAgain, recap }: Ga
               className="controller-button bg-primary text-primary-foreground gap-2 px-8"
             >
               <RotateCcw className="w-5 h-5" />
-              {t('gameOver.playAgain')}
+              {primaryActionLabel ?? t('gameOver.playAgain')}
             </Button>
           )}
           <Button
-            onClick={() => navigate('/')}
+            onClick={() => (onHome ? onHome() : navigate('/'))}
             size="lg"
             variant="outline"
             className="controller-button gap-2 px-8"

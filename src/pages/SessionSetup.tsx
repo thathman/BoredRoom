@@ -54,7 +54,7 @@ export default function SessionSetup() {
   async function start() {
     setCreating(true);
     try {
-      const session = await createSession(toCreateSessionInput(state, getPlayerId()));
+      const { session } = await createSession(toCreateSessionInput(state, getPlayerId()));
       rememberHouseSession({ code: session.code });
       toast.success(`Room ${session.code} ready`);
       navigate(`/session/${session.code}/display`);
@@ -118,8 +118,7 @@ export default function SessionSetup() {
           <div className="max-w-md space-y-4">
             <div className="rounded-2xl border border-border bg-card p-4">
               <p className="text-sm">
-                A room will open with <span className="font-bold">{gameCount} games</span> ready to play. Add more anytime from{' '}
-                <button className="underline" onClick={() => navigate('/packs')}>Game packs</button>.
+                A room will open with <span className="font-bold">{gameCount} games</span> ready to play.
               </p>
             </div>
             <Button className="w-full" size="lg" onClick={start} disabled={creating}>

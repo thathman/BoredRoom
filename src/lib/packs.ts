@@ -16,8 +16,7 @@ export interface PackGame {
   tagline: string;
   minPlayers: number;
   maxPlayers: number;
-  /** 'legacy' = has a Colyseus room; 'adapter' = runs via the GameAdapter registry. */
-  kind: 'legacy' | 'adapter';
+  available: boolean;
 }
 
 function resolvePackGame(slug: string): PackGame | null {
@@ -30,11 +29,11 @@ function resolvePackGame(slug: string): PackGame | null {
       tagline: legacy.tagline,
       minPlayers: legacy.minPlayers,
       maxPlayers: legacy.maxPlayers,
-      kind: 'legacy',
+      available: true,
     };
   }
   const fresh = getNewGameMeta(slug);
-  if (fresh) return { ...fresh, kind: 'adapter' };
+  if (fresh) return { ...fresh, available: true };
   return null;
 }
 

@@ -27,6 +27,7 @@ import { ColorWahalaRoom } from './rooms/ColorWahalaRoom.js';
 import { HustleRoom } from './rooms/HustleRoom.js';
 import { WordWahalaRoom } from './rooms/WordWahalaRoom.js';
 import { HalfHalfRoom } from './rooms/HalfHalfRoom.js';
+import { HouseSessionRoom } from './rooms/HouseSessionRoom.js';
 import { hostTokenStore } from './auth/hostTokens.js';
 import { PROTOCOL_VERSION } from '../../shared/src/contracts/index.js';
 import { isValidRoomCode } from '../../shared/src/roomCodes.js';
@@ -43,12 +44,60 @@ import {
   buildSessionEvent,
   appendSessionEvent,
 } from './foundations.js';
+import {
+  clearActiveGame,
+  createCompanionPairing,
+  finishActiveGame,
+  getPublicSession,
+  getSessionRecord,
+  hydrateSession,
+  issueOwnerCredential,
+  redeemCompanionPairing,
+  registerSession,
+  selectSessionGame,
+  startSelectedGame,
+  verifyOwnerCredential,
+  verifyControlCredential,
+} from './sessionDirectory.js';
 
 const PORT = Number(process.env.PORT ?? 2567);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+function ownerCredentialFrom(req: express.Request): string | undefined {
+  const header = req.header('x-boredroom-owner');
+  return header?.trim() || undefined;
+}
+
+function requireSessionOwner(req: express.Request, res: express.Response): boolean {
+  const code = String(req.params.code ?? '').toUpperCase();
+  if (!verifyOwnerCredential(code, ownerCredentialFrom(req))) {
+    res.status(403).json({ error: 'owner_credential_invalid' });
+    return false;
+  }
+  return true;
+}
+
+function requireSessionController(req: express.Request, res: express.Response): boolean {
+  const code = String(req.params.code ?? '').toUpperCase();
+  if (!verifyControlCredential(code, ownerCredentialFrom(req))) {
+    res.status(403).json({ error: 'control_credential_invalid' });
+    return false;
+  }
+  return true;
+}
+
+function requirePackAdmin(req: express.Request, res: express.Response): boolean {
+  const expected = process.env.PACK_ADMIN_TOKEN;
+  const actual = req.header('x-boredroom-admin');
+  if (!expected || !actual || actual !== expected) {
+    res.status(403).json({ error: 'pack_admin_required' });
+    return false;
+  }
+  return true;
+}
 
 // Room creation endpoint. Issues a one-time host token bound to a deviceId.
 // Players don't need this — they connect to the room directly with deviceId.
@@ -127,25 +176,52 @@ app.post('/sessions', async (req, res) => {
     log('warn', 'session_build_failed', { error: String(err) });
     return res.status(400).json({ error: 'invalid_session_input' });
   }
-  // Respond immediately; persistence is best-effort and must not block room creation.
-  void persistHouseSession(session)
-    .then(() => appendSessionEvent(buildSessionEvent({ sessionId: session.id, type: 'session.created', actorId: hostDeviceId })))
-    .catch((err) => log('warn', 'session_persist_failed', { error: String(err) }));
-  res.json({ session });
+  while (getSessionRecord(session.code)) session.code = makeUniqueSessionCode();
+  const ownerCredential = issueOwnerCredential();
+  registerSession(session, ownerCredential);
+  try {
+    await persistHouseSession(session);
+    await appendSessionEvent(buildSessionEvent({ sessionId: session.id, type: 'session.created', actorId: hostDeviceId }));
+  } catch (err) {
+    log('warn', 'session_persist_failed', { error: String(err) });
+    return res.status(503).json({ error: 'session_persist_failed' });
+  }
+  res.json({ session, ownerCredential });
 });
 
 // Read a house session by code (for screens to hydrate). 404 when unknown / no backend.
 app.get('/sessions/:code', async (req, res) => {
-  const code = String(req.params.code ?? '');
+  const code = String(req.params.code ?? '').toUpperCase();
   try {
+    const live = getPublicSession(code);
+    if (live) return res.json(live);
     const session = await readHouseSession(code);
     if (!session) return res.status(404).json({ exists: false, code });
+    hydrateSession(session);
     const activeRun = await readActiveRun(session.id);
-    return res.json({ session, activeRun });
+    return res.json({
+      session,
+      members: [],
+      activeRun: activeRun
+        ? { ...activeRun, roomCode: undefined, runtimeId: activeRun.roomCode }
+        : null,
+    });
   } catch (err) {
     log('warn', 'session_read_failed', { error: String(err) });
     return res.status(503).json({ error: 'session_read_failed' });
   }
+});
+
+app.get('/sessions/:code/runtime', (req, res) => {
+  const code = String(req.params.code ?? '').toUpperCase();
+  if (!requireSessionController(req, res)) return;
+  const record = getSessionRecord(code);
+  if (!record?.activeRuntime) return res.status(404).json({ error: 'run_not_found' });
+  res.json({
+    runId: record.activeRuntime.run.id,
+    runtimeId: record.activeRuntime.runtimeId ?? null,
+    hostToken: record.activeRuntime.hostToken ?? null,
+  });
 });
 
 const LEGACY_GAME_TYPES = [
@@ -159,12 +235,16 @@ function maxPlayersFor(gameType: LegacyGameType): number {
   return 4;
 }
 
-// Start a GameRun under a house session. For legacy (Colyseus-room) games it also provisions the
-// realtime room + host token so players can connect; adapter-only games (Phase 8) run without a
-// legacy room. Rematch = call again -> a fresh run id (constitution Art. III.3).
+// Select a GameRun under a house session. Existing room-based engines remain private runtime
+// implementation details; clients only receive them through credentialed runtime access.
 app.post('/sessions/:code/runs', async (req, res) => {
-  const code = String(req.params.code ?? '');
+  const code = String(req.params.code ?? '').toUpperCase();
+  if (!requireSessionController(req, res)) return;
   const { houseSessionId, hostDeviceId, gameType, packId } = req.body ?? {};
+  const record = getSessionRecord(code);
+  if (!record || record.session.id !== houseSessionId) {
+    return res.status(404).json({ error: 'session_not_found' });
+  }
   if (!houseSessionId || typeof houseSessionId !== 'string') {
     return res.status(400).json({ error: 'houseSessionId required' });
   }
@@ -198,12 +278,95 @@ app.post('/sessions/:code/runs', async (req, res) => {
     room = { code: roomCode, hostToken };
   }
 
-  // Respond immediately; the room is live in-memory. Persistence is best-effort in the background.
-  void persistGameRun(run)
-    .then(() => appendSessionEvent(buildSessionEvent({ sessionId: houseSessionId, gameRunId: run.id, type: 'game_run.created', payload: { gameType } })))
-    .catch((err) => log('warn', 'game_run_persist_failed', { error: String(err) }));
+  selectSessionGame(code, run, room?.code, room?.hostToken);
+  try {
+    await persistGameRun(run);
+    await appendSessionEvent(buildSessionEvent({ sessionId: houseSessionId, gameRunId: run.id, type: 'game_run.created', payload: { gameType } }));
+    await persistHouseSession(record.session);
+  } catch (err) {
+    log('warn', 'game_run_persist_failed', { error: String(err) });
+    return res.status(503).json({ error: 'game_run_persist_failed' });
+  }
   log('info', 'game_run_created', { session: code, gameType, run: run.id, room: run.roomCode ?? null });
-  res.json({ run, room });
+  res.json({ run: { ...run, runtimeId: room?.code }, hostToken: room?.hostToken ?? null });
+});
+
+app.post('/sessions/:code/runs/:runId/start', async (req, res) => {
+  const code = String(req.params.code ?? '').toUpperCase();
+  if (!requireSessionController(req, res)) return;
+  const runtime = startSelectedGame(code);
+  if (!runtime || runtime.run.id !== req.params.runId) {
+    return res.status(404).json({ error: 'run_not_found' });
+  }
+  try {
+    await persistGameRun(runtime.run);
+    const record = getSessionRecord(code);
+    if (record) await persistHouseSession(record.session);
+    await appendSessionEvent(buildSessionEvent({
+      sessionId: runtime.run.houseSessionId,
+      gameRunId: runtime.run.id,
+      type: 'game_run.started',
+    }));
+  } catch (err) {
+    log('warn', 'game_run_start_persist_failed', { error: String(err) });
+  }
+  res.json({ run: { ...runtime.run, runtimeId: runtime.runtimeId }, hostToken: runtime.hostToken ?? null });
+});
+
+app.post('/sessions/:code/runs/:runId/finish', async (req, res) => {
+  const code = String(req.params.code ?? '').toUpperCase();
+  if (!requireSessionController(req, res)) return;
+  const status = req.body?.status === 'abandoned' ? 'abandoned' : 'finished';
+  const winnerPlayerIds = Array.isArray(req.body?.winnerPlayerIds)
+    ? req.body.winnerPlayerIds.filter((id: unknown): id is string => typeof id === 'string')
+    : [];
+  const runtime = finishActiveGame(code, status, winnerPlayerIds);
+  if (!runtime || runtime.run.id !== req.params.runId) {
+    return res.status(404).json({ error: 'run_not_found' });
+  }
+  try {
+    await persistGameRun(runtime.run);
+    const record = getSessionRecord(code);
+    if (record) await persistHouseSession(record.session);
+    await appendSessionEvent(buildSessionEvent({
+      sessionId: runtime.run.houseSessionId,
+      gameRunId: runtime.run.id,
+      type: status === 'finished' ? 'game_run.finished' : 'game_run.abandoned',
+      payload: { winnerPlayerIds },
+    }));
+  } catch (err) {
+    log('warn', 'game_run_finish_persist_failed', { error: String(err) });
+  }
+  res.json({ run: runtime.run });
+});
+
+app.delete('/sessions/:code/runs/current', async (req, res) => {
+  const code = String(req.params.code ?? '').toUpperCase();
+  if (!requireSessionController(req, res)) return;
+  clearActiveGame(code);
+  const record = getSessionRecord(code);
+  if (record) {
+    try {
+      await persistHouseSession(record.session);
+    } catch (err) {
+      log('warn', 'session_clear_persist_failed', { error: String(err) });
+    }
+  }
+  res.json({ ok: true });
+});
+
+app.post('/sessions/:code/pairing', (req, res) => {
+  const code = String(req.params.code ?? '').toUpperCase();
+  if (!requireSessionOwner(req, res)) return;
+  res.json(createCompanionPairing(code));
+});
+
+app.post('/sessions/:code/pairing/redeem', (req, res) => {
+  const code = String(req.params.code ?? '').toUpperCase();
+  const pairingCode = typeof req.body?.pairingCode === 'string' ? req.body.pairingCode : '';
+  const result = redeemCompanionPairing(code, pairingCode);
+  if (!result) return res.status(410).json({ error: 'pairing_invalid_or_expired' });
+  res.json(result);
 });
 
 // Pack installation (server-wide). Install a content pack from a GitHub repo URL.
@@ -217,6 +380,7 @@ app.get('/packs', async (_req, res) => {
 });
 
 app.post('/packs/install', async (req, res) => {
+  if (!requirePackAdmin(req, res)) return;
   const repoUrl = typeof req.body?.repoUrl === 'string' ? req.body.repoUrl : '';
   if (!repoUrl) return res.status(400).json({ error: 'repoUrl required' });
   const result = await installPack(repoUrl);
@@ -229,6 +393,7 @@ app.post('/packs/install', async (req, res) => {
 });
 
 app.delete('/packs/:packId', async (req, res) => {
+  if (!requirePackAdmin(req, res)) return;
   try {
     await uninstallPack(String(req.params.packId));
     res.json({ ok: true });
@@ -261,6 +426,7 @@ gameServer.define('color-wahala', ColorWahalaRoom).filterBy(['code']);
 gameServer.define('hustle', HustleRoom).filterBy(['code']);
 gameServer.define('word-wahala', WordWahalaRoom).filterBy(['code']);
 gameServer.define('half-half', HalfHalfRoom).filterBy(['code']);
+gameServer.define('house-session', HouseSessionRoom).filterBy(['code']);
 
 httpServer.listen(PORT, () => {
   log('info', 'server_listening', { port: PORT, protocolVersion: PROTOCOL_VERSION });
@@ -271,6 +437,16 @@ function generateRoomCode(): string {
   let s = '';
   for (let i = 0; i < 4; i++) s += alphabet[Math.floor(Math.random() * alphabet.length)];
   return s;
+}
+
+function makeUniqueSessionCode(): string {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let code = '';
+  do {
+    code = '';
+    for (let i = 0; i < 5; i += 1) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  } while (getSessionRecord(code));
+  return code;
 }
 
 // Re-export for tooling that wants the uuid impl

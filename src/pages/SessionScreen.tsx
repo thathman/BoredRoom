@@ -1,182 +1,416 @@
-import { useEffect, useState } from 'react';
-import { useParams, Navigate, useSearchParams, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Monitor, Sliders, Smartphone, Users } from 'lucide-react';
+import { Gamepad2, Loader2, Menu, RotateCcw, Smartphone, Users } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { ThemeProvider } from '@/components/system/ThemeProvider';
+import { HostGameDrawer } from '@/components/session/HostGameDrawer';
+import { NativeGameSurface } from '@/components/session/NativeGameSurface';
+import RoomPage from '@/pages/Room';
+import { useHouseSession, type HouseSessionRole } from '@/hooks/useHouseSession';
+import { ensureHostDisplayId, getPlayerId, getPlayerName } from '@/lib/roomUtils';
 import {
-  isSessionScreen,
-  screenIsPublic,
-  type SessionScreen as Screen,
-} from '@/lib/sessionRoutes';
-import { getGameMeta } from '@/lib/games';
-import { getNewGameMeta } from '@/lib/newGames';
-import { getAllGames } from '@/lib/catalog';
-import { OperatorConsole } from '@/components/session/OperatorConsole';
-import { fetchSessionWithRun, type ActiveRun } from '@/lib/serverApi';
+  activateGameRun,
+  clearCurrentGame,
+  createCompanionPairing,
+  fetchRuntimeAccess,
+  finishGameRun,
+  getCompanionCredential,
+  getControlCredential,
+  redeemCompanionPairing,
+  startGameRun,
+  type StartedRun,
+} from '@/lib/serverApi';
+import { getAllGames, type CatalogGame } from '@/lib/catalog';
+import { toast } from 'sonner';
 
-function getGameDisplayName(slug: string): string {
-  return getGameMeta(slug)?.name ?? getNewGameMeta(slug)?.name ?? slug;
+const SESSION_ROLES = new Set<HouseSessionRole>(['display', 'controller', 'crowd', 'companion']);
+const NATIVE_GAMES = new Set(['market-price', 'pidgin-translator', 'faith-feud', 'bible-timeline']);
+
+function SessionMissing({ code }: { code: string }) {
+  const navigate = useNavigate();
+  return (
+    <main className="min-h-screen grid place-items-center bg-background p-6 text-foreground">
+      <div className="max-w-sm text-center">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-destructive/15 text-destructive">
+          <RotateCcw className="h-6 w-6" />
+        </div>
+        <h1 className="mt-4 text-2xl font-display font-bold">Session not found</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          “{code}” is invalid, expired, or belongs to another server.
+        </p>
+        <Button className="mt-6 w-full" onClick={() => navigate('/join', { replace: true })}>
+          Enter another code
+        </Button>
+      </div>
+    </main>
+  );
 }
 
-// Phase 4 multi-screen shells, themed by the active pack (Phase 7). One route, four roles. These are
-// designed structural shells; live game rendering arrives via the GameAdapter Display/Controller/
-// Setup/Recap components. Public surfaces (display/crowd) never render private state (Art. II).
-
-const SCREEN_META: Record<Screen, { label: string; icon: typeof Monitor; blurb: string }> = {
-  display: { label: 'Public Display', icon: Monitor, blurb: 'Everyone watches here. Scan to join.' },
-  operator: { label: 'Operator Console', icon: Sliders, blurb: 'Run the night. Settings stay off the big screen.' },
-  controller: { label: 'Controller', icon: Smartphone, blurb: 'Your private hand and controls.' },
-  crowd: { label: 'Crowd', icon: Users, blurb: 'Cheer, react, and vote with the room.' },
-};
-
 export default function SessionScreen() {
-  const { code, screen } = useParams<{ code: string; screen: string }>();
+  const { code = '', screen = '' } = useParams<{ code: string; screen: string }>();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const packId = params.get('pack') ?? undefined;
-  const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
+  const normalizedCode = code.toUpperCase();
+  const role = SESSION_ROLES.has(screen as HouseSessionRole)
+    ? (screen as HouseSessionRole)
+    : null;
+  const isHost = role === 'display' || role === 'companion';
+  const deviceId = isHost ? ensureHostDisplayId() : getPlayerId();
+  const displayName = isHost ? (role === 'companion' ? 'Host companion' : 'Host display') : getPlayerName() || 'Player';
+  const [companionCredential, setCompanionCredential] = useState(
+    role === 'companion' ? getCompanionCredential(normalizedCode) : '',
+  );
+  const {
+    snapshot,
+    status,
+    gamePublicState,
+    gamePrivateState,
+    setReady,
+    sendGameIntent,
+  } = useHouseSession({
+    code: normalizedCode,
+    deviceId,
+    displayName,
+    role: role ?? 'controller',
+    enabled: role !== 'companion' || Boolean(companionCredential),
+  });
 
-  // Display/crowd/controller all follow the live game by polling the session. A session-scoped
-  // realtime channel can replace this poll later without changing the UI.
-  const follows = screen === 'display' || screen === 'crowd' || screen === 'controller';
-  useEffect(() => {
-    if (!follows || !code) return;
-    let live = true;
-    const tick = () => {
-      fetchSessionWithRun(code)
-        .then((r) => {
-          if (live) setActiveRun(r?.activeRun ?? null);
-        })
-        .catch(() => {});
-    };
-    tick();
-    const id = setInterval(tick, 4000);
-    return () => {
-      live = false;
-      clearInterval(id);
-    };
-  }, [follows, code]);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [busyGame, setBusyGame] = useState<string | null>(null);
+  const [runtimeAccess, setRuntimeAccess] = useState<{
+    runId: string;
+    runtimeId: string | null;
+    hostToken: string | null;
+  } | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingInput, setPairingInput] = useState('');
+  const [pairingBusy, setPairingBusy] = useState(false);
 
-  // When a game starts, send controllers straight into that game's join flow (room code prefilled).
+  const activeRun = snapshot?.activeRun ?? null;
+  const members = snapshot?.members ?? [];
+  const activeGame = useMemo(
+    () => getAllGames().find((game) => game.slug === activeRun?.gameType) ?? null,
+    [activeRun?.gameType],
+  );
+
   useEffect(() => {
-    if (screen !== 'controller') return;
-    if (activeRun && activeRun.roomCode && activeRun.status !== 'finished') {
-      navigate(`/${activeRun.gameType}/join/${activeRun.roomCode}`);
+    if (!isHost || !activeRun || NATIVE_GAMES.has(activeRun.gameType)) {
+      setRuntimeAccess(null);
+      return;
     }
-  }, [screen, activeRun, navigate]);
+    let live = true;
+    fetchRuntimeAccess(normalizedCode).then((access) => {
+      if (live) setRuntimeAccess(access);
+    });
+    return () => { live = false; };
+  }, [isHost, activeRun, normalizedCode]);
 
-  if (!isSessionScreen(screen)) {
-    return <Navigate to={`/session/${code ?? ''}/display`} replace />;
+  const finishCurrent = useCallback(async (
+    runStatus: 'finished' | 'abandoned',
+    winnerPlayerIds: string[] = [],
+  ) => {
+    if (!activeRun || !isHost) return;
+    await finishGameRun(normalizedCode, activeRun.id, runStatus, winnerPlayerIds);
+  }, [activeRun, isHost, normalizedCode]);
+
+  const chooseGame = useCallback(async (game: CatalogGame) => {
+    if (!snapshot || !isHost || busyGame) return;
+    setBusyGame(game.slug);
+    try {
+      if (activeRun && activeRun.status !== 'finished' && activeRun.status !== 'abandoned') {
+        const confirmed = window.confirm(
+          `End ${activeGame?.name ?? 'the current game'} and switch to ${game.name}? The current run will be saved as abandoned.`,
+        );
+        if (!confirmed) return;
+        await finishGameRun(normalizedCode, activeRun.id, 'abandoned');
+        await clearCurrentGame(normalizedCode);
+      } else if (activeRun) {
+        await clearCurrentGame(normalizedCode);
+      }
+
+      const selected = await startGameRun({
+        code: normalizedCode,
+        houseSessionId: snapshot.session.id,
+        hostDeviceId: ensureHostDisplayId(),
+        gameType: game.slug,
+      });
+      const started: StartedRun = await activateGameRun(normalizedCode, selected.run.id);
+      setRuntimeAccess({
+        runId: started.run.id,
+        runtimeId: started.run.runtimeId ?? null,
+        hostToken: started.hostToken,
+      });
+      setDrawerOpen(false);
+      toast.success(`${game.name} is ready`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'start_failed';
+      toast.error(`Could not start ${game.name} (${message})`);
+    } finally {
+      setBusyGame(null);
+    }
+  }, [
+    snapshot,
+    isHost,
+    busyGame,
+    activeRun,
+    activeGame?.name,
+    normalizedCode,
+  ]);
+
+  const nextGame = useCallback(async () => {
+    if (isHost && activeRun) await clearCurrentGame(normalizedCode);
+    setDrawerOpen(isHost);
+  }, [isHost, activeRun, normalizedCode]);
+
+  if (!role) return <Navigate to={`/session/${normalizedCode}/display`} replace />;
+
+  if (role === 'companion' && !companionCredential) {
+    const pair = async () => {
+      setPairingBusy(true);
+      try {
+        await redeemCompanionPairing(normalizedCode, pairingInput.trim());
+        setCompanionCredential(getCompanionCredential(normalizedCode));
+      } catch {
+        toast.error('That pairing code is invalid or expired.');
+      } finally {
+        setPairingBusy(false);
+      }
+    };
+    return (
+      <ThemeProvider>
+        <main className="min-h-screen grid place-items-center bg-background p-6 text-foreground">
+          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 text-center shadow-xl">
+            <Smartphone className="mx-auto h-11 w-11 text-primary" />
+            <Badge variant="outline" className="mt-4 font-mono tracking-[0.25em]">{normalizedCode}</Badge>
+            <h1 className="mt-4 text-2xl font-display font-bold">Pair host companion</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Create a one-time code from Games & controls → Settings on the main display.
+            </p>
+            <Input
+              className="mt-6 text-center font-mono text-xl tracking-[0.25em]"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="000000"
+              value={pairingInput}
+              onChange={(event) => setPairingInput(event.target.value.replace(/\D/g, ''))}
+            />
+            <Button
+              className="mt-3 w-full"
+              disabled={pairingInput.length !== 6 || pairingBusy}
+              onClick={() => void pair()}
+            >
+              {pairingBusy ? 'Pairing…' : 'Pair companion'}
+            </Button>
+          </div>
+        </main>
+      </ThemeProvider>
+    );
   }
 
-  const meta = SCREEN_META[screen];
-  const Icon = meta.icon;
-  const games = getAllGames();
-  const isPublic = screenIsPublic(screen);
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const joinHost = typeof window !== 'undefined' ? window.location.host : '';
-  const joinUrl = `${origin}/join/${code ?? ''}`;
-  const operatorUrl = `/session/${code ?? ''}/operator`;
+  if (status === 'missing') return <SessionMissing code={normalizedCode} />;
 
-  return (
-    <ThemeProvider packId={packId}>
-      <main
-        data-screen={screen}
-        data-public={isPublic ? 'true' : 'false'}
-        className={
-          isPublic
-            ? 'h-screen w-screen overflow-hidden bg-background text-foreground flex flex-col'
-            : 'min-h-screen w-full bg-background text-foreground flex flex-col'
-        }
+  if (status === 'loading' && !snapshot) {
+    return (
+      <main className="min-h-screen grid place-items-center bg-background text-foreground">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
+          <p className="mt-3 text-sm text-muted-foreground">Joining house {normalizedCode}…</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (status === 'error' && isHost && !getControlCredential(normalizedCode)) {
+    return <SessionMissing code={normalizedCode} />;
+  }
+
+  const joinUrl = `${window.location.origin}/join/${normalizedCode}`;
+  const controllerCount = members.filter((member) => member.role === 'controller').length;
+  const readyCount = members.filter((member) => member.role === 'controller' && member.ready).length;
+  const showRecap = snapshot?.session.status === 'recap' && snapshot.lastRecap;
+
+  const hostControls = isHost && (
+    <>
+      <Button
+        className="fixed right-4 top-4 z-[60] gap-2 rounded-full shadow-xl"
+        onClick={() => setDrawerOpen(true)}
       >
-        <header className="px-6 py-4 flex items-center justify-between border-b border-border">
-          <div className="flex items-center gap-3">
-            <span className="h-9 w-9 rounded-xl bg-primary/15 text-primary grid place-items-center">
-              <Icon className="w-5 h-5" />
-            </span>
-            <div>
-              <p className="text-xs uppercase tracking-widest text-muted-foreground leading-none">
-                House Session
-              </p>
-              <h1 className="text-lg font-bold leading-tight">{meta.label}</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {screen === 'display' && (
-              <Button variant="outline" size="sm" onClick={() => navigate(operatorUrl)}>
-                <Sliders className="w-4 h-4 mr-1" /> Operator
+        <Menu className="h-4 w-4" />
+        Games & controls
+      </Button>
+      <HostGameDrawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        activeGameType={activeRun?.gameType}
+        members={members}
+        busyGame={busyGame}
+        onSelectGame={chooseGame}
+        pairingCode={pairingCode}
+        onCreatePairing={() => {
+          void createCompanionPairing(normalizedCode)
+            .then((pairing) => setPairingCode(pairing.pairingCode))
+            .catch(() => toast.error('Could not create a pairing code.'));
+        }}
+      />
+    </>
+  );
+
+  if (showRecap) {
+    const game = getAllGames().find((item) => item.slug === snapshot.lastRecap?.gameType);
+    return (
+      <ThemeProvider>
+        <main className="min-h-screen grid place-items-center bg-background p-6 text-foreground">
+          {hostControls}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="max-w-lg text-center">
+            <div className="text-6xl">{game?.emoji ?? '🏆'}</div>
+            <p className="mt-4 text-sm uppercase tracking-widest text-primary">Game recap</p>
+            <h1 className="mt-2 text-4xl font-display font-bold">{game?.name ?? snapshot.lastRecap.gameType}</h1>
+            <p className="mt-3 text-muted-foreground">
+              {snapshot.lastRecap.status === 'abandoned'
+                ? 'The house switched games. This run was saved.'
+                : 'Match complete. Everyone stays connected for the next game.'}
+            </p>
+            {isHost ? (
+              <Button size="lg" className="mt-7" onClick={() => void nextGame()}>
+                Choose next game
               </Button>
-            )}
-            <Badge variant="secondary" className="font-mono text-base tracking-[0.3em] px-3 py-1">
-              {code}
-            </Badge>
-          </div>
-        </header>
-
-        <div className="flex-1 grid place-items-center p-6 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="max-w-md"
-          >
-            <p className="text-muted-foreground">{meta.blurb}</p>
-
-            {/* Join QR + code so phones can actually join the night. */}
-            {screen === 'display' && !activeRun && (
-              <div className="mt-6 flex flex-col items-center gap-3">
-                <div className="rounded-2xl bg-white p-3">
-                  <QRCodeSVG value={joinUrl} size={150} level="M" />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Scan, or go to <span className="font-medium text-foreground">{joinHost}/join</span> and enter
-                </p>
-                <p className="font-mono text-3xl tracking-[0.4em] font-bold">{code}</p>
-              </div>
-            )}
-
-            {screen === 'display' && activeRun && activeRun.status !== 'finished' && (
-              <div className="mt-6 rounded-2xl border border-primary/40 bg-primary/10 px-6 py-4">
-                <p className="text-xs uppercase tracking-widest text-primary mb-1">Now playing</p>
-                <p className="text-xl font-bold">{getGameDisplayName(activeRun.gameType)}</p>
-                {activeRun.roomCode && (
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Join room <span className="font-mono tracking-widest">{activeRun.roomCode}</span>
-                  </p>
-                )}
-              </div>
-            )}
-
-            {screen === 'display' && !activeRun && games.length > 0 && (
-              <div className="mt-6">
-                <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">
-                  {games.length} games ready — pick one from the operator
-                </p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {games.slice(0, 8).map((g) => (
-                    <Badge key={g.slug} variant="outline" className="text-sm py-1">
-                      {g.emoji} {g.name}
-                    </Badge>
-                  ))}
-                  {games.length > 8 && <Badge variant="secondary">+{games.length - 8}</Badge>}
-                </div>
-              </div>
-            )}
-
-            {screen === 'operator' && (
-              <div className="mt-6 flex justify-center">
-                <OperatorConsole code={code ?? ''} packId={packId} />
-              </div>
-            )}
-
-            {screen === 'controller' && (
-              <p className="mt-6 text-sm text-muted-foreground">
-                Waiting for the host to start a game. Your private view appears here.
-              </p>
+            ) : (
+              <p className="mt-7 text-sm text-muted-foreground">Waiting for the host to choose what’s next…</p>
             )}
           </motion.div>
+        </main>
+      </ThemeProvider>
+    );
+  }
+
+  if (activeRun) {
+    const isNative = NATIVE_GAMES.has(activeRun.gameType);
+    if (isNative && gamePublicState?.gameType === activeRun.gameType) {
+      return (
+        <ThemeProvider>
+          <div className="relative min-h-screen">
+            {hostControls}
+            <NativeGameSurface
+              gameType={activeRun.gameType}
+              publicState={gamePublicState.state}
+              privateState={gamePrivateState?.gameType === activeRun.gameType ? gamePrivateState.state : null}
+              role={role}
+              sendIntent={sendGameIntent}
+            />
+          </div>
+        </ThemeProvider>
+      );
+    }
+
+    const runtimeId = activeRun.runtimeId ?? runtimeAccess?.runtimeId;
+    if (runtimeId && (!isHost || runtimeAccess?.hostToken)) {
+      return (
+        <ThemeProvider>
+          <div className="relative min-h-screen">
+            {hostControls}
+            <RoomPage
+              embeddedGame={activeRun.gameType}
+              embeddedCode={runtimeId}
+              embeddedRole={role === 'companion' ? 'display' : role}
+              embeddedHostToken={runtimeAccess?.hostToken ?? undefined}
+              publicSessionCode={normalizedCode}
+              sessionJoinUrl={joinUrl}
+              autoReady={!isHost}
+              onGameFinished={(winnerIds) => void finishCurrent('finished', winnerIds)}
+              onExitGame={() => void nextGame()}
+            />
+          </div>
+        </ThemeProvider>
+      );
+    }
+
+    return (
+      <main className="min-h-screen grid place-items-center bg-background text-foreground">
+        {hostControls}
+        <div className="text-center">
+          <Loader2 className="mx-auto h-9 w-9 animate-spin text-primary" />
+          <p className="mt-3 text-sm text-muted-foreground">Preparing {activeGame?.name ?? 'the game'}…</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (role === 'controller' || role === 'crowd') {
+    const me = members.find((member) => member.deviceId === deviceId);
+    return (
+      <ThemeProvider>
+        <main className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center text-foreground">
+          <Smartphone className="h-12 w-12 text-primary" />
+          <Badge variant="outline" className="mt-5 font-mono tracking-[0.25em]">{normalizedCode}</Badge>
+          <h1 className="mt-5 text-3xl font-display font-bold">
+            {role === 'crowd' ? 'You’re in the crowd' : `Welcome, ${displayName}`}
+          </h1>
+          <p className="mt-2 max-w-sm text-muted-foreground">
+            Stay on this screen. Your controls will switch automatically when the host starts a game.
+          </p>
+          {role === 'controller' && (
+            <Button
+              size="lg"
+              className="mt-7 min-w-48"
+              variant={me?.ready ? 'default' : 'outline'}
+              onClick={() => setReady(!me?.ready)}
+            >
+              {me?.ready ? 'Ready' : 'Tap when ready'}
+            </Button>
+          )}
+          <p className="mt-6 text-sm text-muted-foreground">
+            {readyCount} ready · {controllerCount} joined
+          </p>
+        </main>
+      </ThemeProvider>
+    );
+  }
+
+  return (
+    <ThemeProvider>
+      <main className="relative h-screen overflow-hidden bg-background text-foreground">
+        {hostControls}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,hsl(var(--primary)/0.12),transparent_42%),radial-gradient(circle_at_85%_75%,hsl(var(--secondary)/0.12),transparent_38%)]" />
+        <div className="relative mx-auto flex h-full max-w-6xl flex-col items-center justify-center px-6 pb-28 text-center">
+          <Gamepad2 className="h-12 w-12 text-primary" />
+          <p className="mt-5 text-sm uppercase tracking-[0.35em] text-muted-foreground">BoredRoom</p>
+          <h1 className="mt-3 text-5xl font-display font-bold md:text-7xl">
+            House <span className="text-primary">{normalizedCode}</span>
+          </h1>
+          <p className="mt-3 text-xl text-muted-foreground">Join once. Play all night.</p>
+          <div className="mt-8 rounded-3xl border border-primary/35 bg-card/75 p-5 shadow-[0_0_40px_hsl(var(--primary)/0.12)] backdrop-blur">
+            <div className="rounded-2xl bg-white p-3">
+              <QRCodeSVG value={joinUrl} size={190} level="M" />
+            </div>
+          </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Scan or visit {window.location.host}/join
+          </p>
+          <Button size="lg" className="mt-6" onClick={() => setDrawerOpen(true)}>
+            Choose a game
+          </Button>
+        </div>
+        <div className="absolute inset-x-6 bottom-5 mx-auto max-w-6xl rounded-2xl border border-border bg-card/85 px-5 py-4 backdrop-blur">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Joined players</span>
+              <span className="font-mono text-sm text-primary">{controllerCount}</span>
+            </div>
+            <span className="text-sm text-muted-foreground">{readyCount} ready</span>
+          </div>
+          <div className="mt-3 flex gap-2 overflow-x-auto">
+            {members.filter((member) => member.role === 'controller').map((member) => (
+              <div key={member.deviceId} className="shrink-0 rounded-full border border-border bg-background/70 px-3 py-1.5 text-sm">
+                <span className={`mr-2 inline-block h-2 w-2 rounded-full ${member.connected ? 'bg-primary' : 'bg-muted'}`} />
+                {member.displayName}
+              </div>
+            ))}
+            {controllerCount === 0 && <span className="text-sm text-muted-foreground">Waiting for players…</span>}
+          </div>
         </div>
       </main>
     </ThemeProvider>

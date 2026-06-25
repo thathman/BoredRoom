@@ -15,10 +15,7 @@ interface BackendConfig {
 }
 function getBackendConfig(): BackendConfig | null {
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.SUPABASE_ANON_KEY ??
-    process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   return { url: url.replace(/\/$/, ''), key };
 }
@@ -56,7 +53,10 @@ export async function fetchPackManifest(repoUrl: string): Promise<{ manifestUrl:
   if (!manifestUrl) return { error: 'not_a_github_repo_url' };
   let res: Response;
   try {
-    res = await fetch(manifestUrl, { headers: { accept: 'application/json' } });
+    res = await fetch(manifestUrl, {
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
   } catch {
     return { error: 'fetch_failed' };
   }
@@ -75,8 +75,23 @@ export async function fetchPackManifest(repoUrl: string): Promise<{ manifestUrl:
     parsed.data.games.map(async (g) => {
       if (g.content !== undefined || !g.contentUrl) return g;
       try {
-        const cRes = await fetch(resolveContentUrl(manifestUrl, g.contentUrl), { headers: { accept: 'application/json' } });
-        if (cRes.ok) return { ...g, content: await cRes.json() };
+        const contentUrl = resolveContentUrl(manifestUrl, g.contentUrl);
+        const url = new URL(contentUrl);
+        if (url.protocol !== 'https:' || url.hostname !== 'raw.githubusercontent.com') return g;
+        const cRes = await fetch(contentUrl, {
+          headers: { accept: 'application/json' },
+          signal: AbortSignal.timeout(8000),
+        });
+        const contentType = cRes.headers.get('content-type') ?? '';
+        const contentLength = Number(cRes.headers.get('content-length') ?? 0);
+        if (
+          cRes.ok &&
+          contentType.includes('application/json') &&
+          (contentLength === 0 || contentLength <= 1_000_000)
+        ) {
+          const text = await cRes.text();
+          if (text.length <= 1_000_000) return { ...g, content: JSON.parse(text) };
+        }
       } catch {
         /* leave content undefined */
       }
@@ -99,7 +114,7 @@ export async function installPack(repoUrl: string): Promise<InstallResult> {
     installedAt: new Date().toISOString(),
   };
   if (getBackendConfig()) {
-    await apiFetch('pack_installations', {
+    const response = await apiFetch('pack_installations', {
       method: 'POST',
       headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({
@@ -111,6 +126,7 @@ export async function installPack(repoUrl: string): Promise<InstallResult> {
         installed_at: pack.installedAt,
       }),
     });
+    if (!response.ok) return { ok: false, error: `pack_write_${response.status}` };
   }
   return { ok: true, pack };
 }
@@ -132,5 +148,6 @@ export async function listInstalledPacks(): Promise<InstalledPack[]> {
 
 export async function uninstallPack(packId: string): Promise<void> {
   if (!getBackendConfig()) return;
-  await apiFetch(`pack_installations?pack_id=eq.${encodeURIComponent(packId)}`, { method: 'DELETE' });
+  const response = await apiFetch(`pack_installations?pack_id=eq.${encodeURIComponent(packId)}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error(`pack_delete_${response.status}`);
 }

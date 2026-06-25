@@ -1,10 +1,8 @@
-// Unified game catalog: every game available on this server, regardless of whether it's a built-in
-// (legacy Colyseus) game or an adapter game contributed by an installed pack. The room-creation flow
-// and /games list read from here — you create a room and pick ANY installed game (packs are an
-// install mechanism, not a play-time choice).
+// Unified game catalog. Runtime implementation details never appear in this public shape.
 
 import { GAME_REGISTRY } from '@/lib/games';
 import { NEW_GAME_CATALOG } from '@/lib/newGames';
+import { getAdapter } from '@/lib/adapters';
 
 export interface CatalogGame {
   slug: string;
@@ -13,27 +11,45 @@ export interface CatalogGame {
   tagline: string;
   minPlayers: number;
   maxPlayers: number;
-  kind: 'legacy' | 'adapter';
+  available: boolean;
+  capabilities: {
+    bots: boolean;
+    audience: boolean;
+    hints: boolean;
+    restore: boolean;
+  };
 }
 
 export function getAllGames(): CatalogGame[] {
-  const legacy: CatalogGame[] = GAME_REGISTRY.filter((g) => g.enabled !== false).map((g) => ({
+  const builtIn: CatalogGame[] = GAME_REGISTRY.filter((g) => g.enabled !== false).map((g) => ({
     slug: g.slug,
     name: g.name,
     emoji: g.emoji,
     tagline: g.tagline,
     minPlayers: g.minPlayers,
     maxPlayers: g.maxPlayers,
-    kind: 'legacy',
+    available: true,
+    capabilities: {
+      bots: getAdapter(g.slug)?.capabilities.bots ?? false,
+      audience: getAdapter(g.slug)?.capabilities.audience ?? true,
+      hints: getAdapter(g.slug)?.capabilities.hints ?? false,
+      restore: getAdapter(g.slug)?.capabilities.restore ?? false,
+    },
   }));
-  const adapter: CatalogGame[] = Object.values(NEW_GAME_CATALOG).map((g) => ({
+  const additional: CatalogGame[] = Object.values(NEW_GAME_CATALOG).map((g) => ({
     slug: g.slug,
     name: g.name,
     emoji: g.emoji,
     tagline: g.tagline,
     minPlayers: g.minPlayers,
     maxPlayers: g.maxPlayers,
-    kind: 'adapter',
+    available: true,
+    capabilities: {
+      bots: getAdapter(g.slug)?.capabilities.bots ?? false,
+      audience: getAdapter(g.slug)?.capabilities.audience ?? true,
+      hints: getAdapter(g.slug)?.capabilities.hints ?? false,
+      restore: getAdapter(g.slug)?.capabilities.restore ?? false,
+    },
   }));
-  return [...legacy, ...adapter];
+  return [...builtIn, ...additional];
 }

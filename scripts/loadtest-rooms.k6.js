@@ -1,4 +1,3 @@
-/* eslint-disable */
 // k6 load test — concurrent BoredRoom rooms via the Colyseus transport.
 //
 // NOT WIRED INTO CI. Run manually:

@@ -70,6 +70,7 @@ export function WordWahalaController({
     publicState.players[publicState.currentPlayerIndex]?.displayName ?? '…';
 
   const rack = privateState?.rack ?? [];
+  const rackKey = rack.join(',');
 
   const [selectedRackIdx, setSelectedRackIdx] = useState<number | null>(null);
   const [pending, setPending] = useState<PendingPlacement[]>([]);
@@ -104,7 +105,7 @@ export function WordWahalaController({
     setSelectedRackIdx(null);
     setSwapPicks(new Set());
     setSwapOpen(false);
-  }, [publicState.turnNumber, privateState?.rack.join(',')]);
+  }, [publicState.turnNumber, rackKey]);
 
   const occupiedByPending = useMemo(() => {
     const map = new Map<string, PendingPlacement>();

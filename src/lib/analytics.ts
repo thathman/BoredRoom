@@ -19,7 +19,6 @@ const CHANNEL = 'boredroom:analytics';
 export function trackEvent(name: string, payload?: Record<string, unknown>): void {
   const evt: AnalyticsEvent = { name, payload, ts: Date.now() };
   try {
-    // eslint-disable-next-line no-console -- intentional analytics surface
     console.info('[analytics]', name, payload ?? {});
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(CHANNEL, { detail: evt }));

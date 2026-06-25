@@ -10,6 +10,26 @@ import {
 } from '@/lib/sessionRoutes';
 import SessionScreen from '@/pages/SessionScreen';
 
+vi.mock('@/hooks/useHouseSession', () => ({
+  useHouseSession: ({ code }: { code: string }) => ({
+    snapshot: {
+      session: {
+        id: 'hs_test',
+        code,
+        status: 'waiting_for_players',
+        selectedPackIds: [],
+      },
+      members: [],
+      activeRun: null,
+    },
+    status: 'ready',
+    gamePublicState: null,
+    gamePrivateState: null,
+    setReady: vi.fn(),
+    sendGameIntent: vi.fn(),
+  }),
+}));
+
 // AC-4.1: each session screen renders its shell. AC-4.2: public display is no-scroll.
 // AC-P.1/P.2: state-boundary helpers classify public vs private surfaces.
 describe('session routing', () => {
@@ -21,7 +41,7 @@ describe('session routing', () => {
   });
 
   it('builds session paths', () => {
-    expect(sessionPath('ABCD', 'operator')).toBe('/session/ABCD/operator');
+    expect(sessionPath('ABCD', 'companion')).toBe('/session/ABCD/companion');
   });
 
   it('classifies public vs private surfaces', () => {
@@ -45,23 +65,19 @@ describe('session routing', () => {
   it('renders each screen shell with the session code', () => {
     for (const s of SESSION_SCREENS) {
       const { unmount } = renderAt(`/session/ABCD/${s}`);
-      expect(screen.getAllByText('ABCD').length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/ABCD/).length).toBeGreaterThan(0);
       unmount();
     }
   });
 
-  it('public display shell is marked no-scroll', () => {
+  it('public display renders the unified game picker', () => {
     renderAt('/session/ABCD/display');
-    const main = document.querySelector('main[data-screen="display"]') as HTMLElement;
-    expect(main).toBeTruthy();
-    expect(main.getAttribute('data-public')).toBe('true');
-    expect(main.className).toContain('overflow-hidden');
+    expect(screen.getByRole('button', { name: 'Choose a game' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Games & controls' })).toBeInTheDocument();
   });
 
-  it('controller shell is not public and scrollable', () => {
+  it('controller waits in the same session for automatic game switching', () => {
     renderAt('/session/ABCD/controller');
-    const main = document.querySelector('main[data-screen="controller"]') as HTMLElement;
-    expect(main.getAttribute('data-public')).toBe('false');
-    expect(main.className).not.toContain('overflow-hidden');
+    expect(screen.getByText(/controls will switch automatically/i)).toBeInTheDocument();
   });
 });

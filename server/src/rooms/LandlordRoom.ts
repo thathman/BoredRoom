@@ -405,6 +405,7 @@ export class LandlordRoom extends Room {
         clearPauseRequests(this.public);
         this.matchStartedAt = Date.now();
         this.decks = landlordCreateDecks();
+        setCanonicalPhase(this.public, 'game_intro');
         this.landlord = startLandlord(this.landlord);
         return;
       }

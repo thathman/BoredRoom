@@ -6,9 +6,9 @@
 
 import { classifyDeviceForGame } from '@/lib/games';
 
-export type SessionScreen = 'display' | 'operator' | 'controller' | 'crowd';
+export type SessionScreen = 'display' | 'controller' | 'crowd' | 'companion';
 
-export const SESSION_SCREENS: SessionScreen[] = ['display', 'operator', 'controller', 'crowd'];
+export const SESSION_SCREENS: SessionScreen[] = ['display', 'controller', 'crowd', 'companion'];
 
 export function isSessionScreen(value: string | undefined | null): value is SessionScreen {
   return !!value && (SESSION_SCREENS as string[]).includes(value);
