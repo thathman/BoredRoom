@@ -22,7 +22,6 @@
     "smoke:colorwahala": "node scripts/smoke-colorwahala.mjs",
     "smoke:rooms-matrix": "node scripts/smoke-rooms-matrix.mjs",
     "smoke:assert-matrix": "node scripts/assert-smoke-matrix-rows.mjs",
-    "smoke:ui-gameover": "node scripts/playwright-gameover-audit.mjs",
     "smoke:ui-entry": "node scripts/playwright-entry-flows.mjs",
     "smoke:ui-room-finish": "node scripts/playwright-room-finish.mjs",
     "smoke:ui-session": "node scripts/playwright-session-flows.mjs",

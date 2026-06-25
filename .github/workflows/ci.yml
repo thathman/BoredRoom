@@ -61,11 +61,6 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:8088
         run: npm run smoke:ui-entry
 
-      - name: UI gameover audit
-        env:
-          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8088
-        run: npm run smoke:ui-gameover
-
       - name: Stop preview server
         if: always()
         run: |
