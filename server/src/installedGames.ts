@@ -18,7 +18,7 @@ import { isGameActive } from './sessionDirectory.js';
 const CATALOG_URL =
   process.env.BOREDROOM_GAMES_CATALOG_URL ??
   'https://raw.githubusercontent.com/thathman/BoredRoom-Games/main/catalog.json';
-const GAMES_ROOT = process.env.BOREDROOM_GAMES_DIR ?? '/var/lib/boredroom/games';
+const GAMES_ROOT = process.env.BOREDROOM_GAMES_DIR ?? path.join(process.cwd(), '.boredroom-games');
 const PUBLIC_KEY = process.env.BOREDROOM_GAMES_PUBLIC_KEY?.trim() || `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAWhVxvBivOkR2oMzMkVLTh6VkKrbpSEg5LYqacF95sJg=
 -----END PUBLIC KEY-----`;

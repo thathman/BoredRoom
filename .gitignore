@@ -35,6 +35,8 @@ Thumbs.db
 
 # Local artifacts
 *.local
+.boredroom-games/
+server/.boredroom-games/
 
 # AI assistant artifacts (kept local, never committed)
 .claude/
