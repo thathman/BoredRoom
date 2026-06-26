@@ -1,6 +1,6 @@
 # Codex Handoff — BoredRoom
 
-Last updated: 2026-06-26 15:25 WAT
+Last updated: 2026-06-26 22:05 WAT
 
 > **DeepSeek V4 Pro continuation (2026-06-26 16:53 WAT):** I'm the current LLM handling this build. Codex started the vote lifecycle, Claude continued through rounds 2–3, party-status migration, admin dashboard, profiles/avatars, PWA/QR, and End/Delete Party. Profiles/avatars and PWA/QR are not yet deployed to Dell. The active goal is now GOAL2.md — the full game-layer rebuild across all 15 games.
 
@@ -8,13 +8,15 @@ Last updated: 2026-06-26 15:25 WAT
 
 > **Codex continuation (2026-06-26 21:00 WAT):** User supplied stronger external sources. Use `itaylayzer/Monopoly` as the primary Oga Landlord source, `mykeels/whot` + `mykeels/whot-server` for Whot, `joshzcold/Friendly-Feud` for Faith Feud, and `joshtom/connect-four-game` as the user-preferred Connect 4 reference. Licenses found: MIT for Monopoly/Whot/Friendly-Feud; Connect 4 declares ISC in `package.json` but no standalone LICENSE file was detected, so preserve explicit attribution before vendoring code.
 
+> **Codex continuation (2026-06-26 22:05 WAT):** User clarified they prefer the feature set in `christelbuchanan/Monopoly-Game` for Oga Landlord and has permission from the author. Use that as the preferred feature target; use `itaylayzer/Monopoly` secondarily for bots/audio/music/React polish. `docs/IMPLEMENTATION_PROGRESS.md` now has a top-level GOAL1/GOAL2 verification snapshot plus a Claude continuation TODO list.
+
 ## Mission
 
 BoredRoom must become a production-ready Nigerian party-game platform:
 
 `Create once → join once → play all night → choose installed game → devices switch in place → recap → next game`
 
-The current product/source of truth is in `/Users/hendrix/Playground/BoredRoom-Spec/15-current-product/` and the goal objective file at `/Users/hendrix/Playground/GOAL2.md`.
+The current product/source of truth is in `/Users/hendrix/Playground/BoredRoom-Spec/15-current-product/`, `/Users/hendrix/Playground/GOAL1.md`, and `/Users/hendrix/Playground/GOAL2.md`.
 
 Do not mark the long-running goal complete until every requirement in those files is proven by current evidence.
 
@@ -226,7 +228,7 @@ Before claiming completion:
 
 ## Current next recommended prompt
 
-“Continue from the BoredRoom handoff docs. The Lagos hero, Colyseus 0.17 client/server alignment, hardened Dell deploy script, and first server-side vote lifecycle slice are live. Continue companion vote management, player-requested votes, auto-apply actions, admin visibility, and browser E2E. Keep docs updated and run full local/live gates.”
+“Continue from `/Users/hendrix/Playground/boredroom/docs/IMPLEMENTATION_PROGRESS.md`, especially the top GOAL1/GOAL2 verification snapshot and Claude TODO list. Prioritize Oga Landlord using `christelbuchanan/Monopoly-Game` as the preferred feature source with stated author permission, then source-guided Whot/Faith Feud/Connect 4. Keep all gameplay server-authoritative through `GameRuntime`; run gates and update docs.”
 
 Latest live evidence after `d3d196b` deploy:
 

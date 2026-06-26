@@ -1,6 +1,151 @@
 # BoredRoom Implementation Progress
 
-Last updated: 2026-06-26 21:00 WAT (Codex continuation)
+Last updated: 2026-06-26 22:05 WAT (Codex GOAL1/GOAL2 verification)
+
+## Current GOAL1 / GOAL2 verification snapshot (2026-06-26 22:05 WAT)
+
+This section supersedes older “current status” notes below where they conflict. The long-running goal is not complete.
+
+### Current repo heads
+
+- BoredRoom: `81ffa8e Advance unified party lifecycle and device flow`
+- BoredRoom-Games: `3ba00da Modularize game runtimes and source strategy`
+- BoredRoom-Spec: `8456748 Document active production AI model`
+
+### Verification run this checkpoint
+
+- Read `/Users/hendrix/Playground/GOAL1.md` and `/Users/hendrix/Playground/GOAL2.md`.
+- Confirmed BoredRoom and BoredRoom-Games worktrees were clean before this docs update.
+- Inspected current evidence in source/docs/tests for session lifecycle, votes, PWA/QR/profile, admin, game runtime, source catalog and acceptance matrix.
+- Confirmed BoredRoom-Games has 15 game manifests and catalog entries: `bible-timeline`, `color-wahala`, `connect-4`, `ettt`, `faith-feud`, `half-half`, `hustle`, `landlord`, `logo`, `ludo`, `market-price`, `pidgin-translator`, `trivia`, `whot`, `word-wahala`.
+- Recent verified gates from the previous pass remain: BoredRoom `npm run lint && npm run typecheck && npm run build`; BoredRoom-Games `npm test` passed 126/126.
+
+### Product status against GOAL1
+
+| Area | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| One house session / join once | Partial | `HouseSessionRoom` is the only registered realtime room; unified session scripts exist; live matrix previously passed all 15 games. | Need consecutive-game browser E2E with refresh/reconnect/server restart and no route/code change. |
+| Party lifecycle | Partial | Status vocabulary migration and explicit end/delete party landed in `81ffa8e`; docs/tests mention `open_lobby`, `in_game`, `game_recap`, `intermission`, `ended`, `deleted`. | Need full state-machine audit in current code, stronger browser E2E, and confirmation that game end never ends party in all flows. |
+| Companion as producer booth | Partial | Companion route/pairing exists; companion vote and party controls exist. | Heavy host controls are still not fully moved from public display into companion; companion needs full Party/Players/Games/Current Game/Votes/Settings/Recap sections. |
+| Public display as stage | Partial | Cinematic lobby/game surfaces exist; active game QR strip exists. | Public display still has too much host/control logic; needs emergency-only drawer and visual regression proof. |
+| Controller as player hand | Partial | `InstalledGameSurface` sends legal intents and Whot modal/pending-pick UI exists. | Controller flyout/menu, rules, profile, reactions, pause request and private-state isolation need complete per-game E2E. |
+| Voting / house democracy | Partial | Server-backed active vote/vote history, player request, override, auto-apply and vote E2E script exist. | Vote-driven admit/kick/remote_mode/team changes, admin visibility, UI browser smoke, all vote contexts and persistence/restart tests still missing. |
+| Profiles/avatars | Partial | `PlayerAvatar`, `ProfileSheet`, `playerProfile` exist and join flow carries avatar/accent. | Photo avatar flow, all surfaces/recap/team/vote coverage, offline behavior and size limits not fully proven. |
+| PWA / QR / reconnect | Partial | Real `beforeinstallprompt` capture, manifest updates, QR parser, wake lock/persistence helpers exist. | Real iOS/Android camera evidence, offline shell/update prompt tests, phone-lock recovery and server-restart recovery E2E missing. |
+| Admin dashboard | Partial | `/admin` route and overview endpoint exist. | Needs installed-game management, logs/events, AI health detail, moderation/content management, active-party controls and vote/session history depth. |
+| AI | Partial | Server AI service and no-key/schema fallback tests exist; model pin documented. | Rule explanations, recommendations, recaps, content moderation, credit/rate-limit/timeout tests, owner-visible health and plugin rule tools incomplete. |
+| Security/persistence | Partial | Owner/admin auth exists for game admin/admin overview; service-role absence is handled. | Supabase RLS/service-role audit, credential replay tests, artifact rejection tests and restart persistence proof missing. |
+| Visual/design contract | Partial | Lagos hero/motion and game chrome improved; screenshots were manually referenced. | No automated visual regression ledger against approved screenshots; every screen has not been proven as an exact design match. |
+| Release/deploy | Partial | Previous Dell deploy/live checks passed for older commits. | Current `81ffa8e`/`3ba00da` are pushed but not documented as deployed/verified live after push. |
+
+### Game-layer status against GOAL2
+
+| Game / system | Status | Current evidence | Remaining gap |
+| --- | --- | --- | --- |
+| Shared runtime contract | Partial | Modular runtime files under `runtime/games/*`; `scripts/runtime-contract.test.mjs`; BoredRoom-Games `npm test` passed 126/126. | Contract tests still do not prove full original bespoke mechanics, companion/crowd projections, rematch, update blocking or browser display/controller UI for every game. |
+| Shared timer | Partial | `runtime/timer.js`; timer tests for phases, pause/resume, late submissions, fastest and restore. | Timer is not wired into every game/controller/companion flow; no browser proof of timer UI. |
+| Whot | Partial / best current game | Full deck, seeded shuffle, special cards, call-shape modal, pending pick and many runtime tests exist. | Compare against `mykeels/whot` + `mykeels/whot-server`; add companion controls, timer, full display/controller component split and browser E2E. |
+| Ludo | Partial | Runtime exists with roll/move/capture basics and source UI files exist. | Needs proper reference-based board/path/home-stretch/safe-zone/exact-finish/three-sixes/bot strategy tests and browser UI polish. |
+| Connect 4 | Partial | Runtime has 6x7 board/drop/win tests. | User prefers `joshtom/connect-four-game` reference; need ISC attribution, team mode, best-of rounds, final board review and visual match. |
+| Bible Timeline Rush | Partial | Runtime/tests cover shuffled order, scoring, reveal, restore. | Needs larger licensed content bank, drag/drop controller, configurable countdown/rounds, AI/manual bank and no-repeat across full session. |
+| Color Wahala | Partial | Runtime/tests cover Stroop prompt, misleading ink, flag content, reveal/restore. | Needs richer bank, AI generation/validation, repetition cooldown, speed scoring and browser controller proof. |
+| Endless Tic Tac Toe | Partial | Rolling marks runtime/tests exist. | Needs team mode, host final board review, controller oldest-mark warning UI and browser proof. |
+| Half & Half | Partial | Runtime exists. | Needs complete split/midpoint/debate mechanic verification, distribution visualization, prompts/settings/tests beyond generic acceptance. |
+| Faith Feud | Incomplete | Runtime exists but is not yet adapted from `joshzcold/Friendly-Feud`. | Port/adapt Friendly-Feud host/display/buzzer/reveal/data/timer flow into HouseSession runtime; add team/strikes/steal/reveal tests and UI. |
+| Hustle | Partial | Snakes-and-ladders style runtime/tests exist. | Needs richer Nigerian board/content, event density settings, animations/sounds and browser UI. |
+| Oga Landlord | Partial, preferred feature source clarified | Existing source comments reference `christelbuchanan/Monopoly-Game`; Hendrix states author permission. Runtime exists and contract passes. | Hendrix prefers `christelbuchanan/Monopoly-Game` features. Preserve permission/attribution evidence, use it as feature target, use `itaylayzer/Monopoly` secondarily for bots/audio/polish, then complete Monopoly mechanics/UI/tests. |
+| Logo Guesser | Partial | Runtime exists. | Needs obscured logo bank/reveal stages, safe asset/source policy, categories, no-repeat, hints and browser proof. |
+| Word Wahala | Partial | Scrabble-like runtime exists. | Needs stronger rack/board/crossword/dictionary/pass/swap/scoring tests, Nigerian/Pidgin dictionary mode and UI proof. |
+| Market Price | Partial | Runtime has cached product snapshot concept and Supermart credit text. | Needs real importer/admin cache flow, DB tables, no-live-network gameplay proof, image fallback, source-credit rendering tests and README credit. |
+| Pidgin Translator | Incomplete | Runtime accepts text/voice transcript intents; defaults to text-only. | Needs privacy-safe push-to-talk UI, mic permission/fallback, transcript pipeline, fastest-correct server timestamp, no raw-audio proof and tests. |
+| Who Sabi Pass / Trivia | Partial | Runtime exists. | Needs large categories/difficulty/no-repeat/reveal/explanation/AI fallback/team-option tests and UI. |
+| Installable artifacts | Partial | Catalog has 15 entries; build script copies full runtime. | Source manifest versions still differ from catalog/artifact version; build requires signing key; official artifact rebuild/release not verified after latest runtime modularization. |
+
+## Claude continuation TODO list
+
+Use this list as the next work queue when Codex hits rate limits. Do not mark GOAL1 or GOAL2 complete until these are all verified.
+
+### P0 — immediate safety and source decisions
+
+- [ ] Record durable attribution/permission evidence for `christelbuchanan/Monopoly-Game` in BoredRoom-Games release docs without exposing private correspondence.
+- [ ] Update `BoredRoom-Games/docs/external-game-reference-plan.md` if Hendrix changes any source preferences.
+- [ ] Audit whether any source files copied from unlicensed repos remain without permission notes.
+- [ ] Confirm `.signing/private.pem` or any signing material is not tracked and is not printed in logs.
+- [ ] Re-run `git status` in all three repos before editing.
+
+### P1 — Oga Landlord preferred-source pass
+
+- [ ] Treat `christelbuchanan/Monopoly-Game` as the preferred feature target because Hendrix prefers its features and has author permission.
+- [ ] Use `itaylayzer/Monopoly` secondarily for bots, music/sound, React/TypeScript patterns and UI polish.
+- [ ] Map Landlord features explicitly: board, roll/move, buy/pass, rent, property sets, building/upgrades, mortgage, chance/wahala cards, taxes/fees, jail/hold-up, auctions, trades, bankruptcy, quick/normal mode.
+- [ ] Convert/adapt those mechanics into server-authoritative `GameRuntime` only; do not import standalone rooms, PeerJS rooms, client-authoritative state or external route flow.
+- [ ] Add/expand Landlord runtime tests for movement, buying, rent, sets, upgrades, mortgage, chance/wahala, jail, auctions/trades where implemented, bankruptcy, restore and bot behavior.
+- [ ] Update Landlord display/controller/companion UI to expose the richer feature set.
+
+### P1 — source-guided game rebuilds
+
+- [ ] Whot: compare current runtime against `mykeels/whot` and `mykeels/whot-server`; close rule gaps; add companion timer/settings controls and browser E2E.
+- [ ] Faith Feud: adapt `joshzcold/Friendly-Feud` board/reveal/buzzer/data/timer flow into BoredRoom’s runtime; add team/strikes/steals/reveal tests.
+- [ ] Connect 4: audit `joshtom/connect-four-game` with ISC attribution; add team mode, best-of rounds, contribution tracking and visual board review.
+- [ ] Ludo: compare against listed Ludo references; implement real paths, safe zones, exact finish, home stretch, captures, extra-turn/three-sixes rules and animation-ready public state.
+- [ ] Word Wahala: use `rcdexta/react-scrabble` patterns; complete board/rack/crossword/dictionary/pass/swap.
+- [ ] Logo/Market/Color/Trivia/Bible/Half-Half/Pidgin: expand content/mechanics until each is a real party game, not a generic challenge skin.
+
+### P1 — companion/control flow
+
+- [ ] Move primary game selection/configuration/player/vote controls into the companion control center.
+- [ ] Keep public display as cinematic stage with only emergency drawer controls.
+- [ ] Build companion sections: Party, Players, Games, Current Game, Votes, Settings, Recap, Admin/Diagnostics.
+- [ ] Add game configuration screens for every game before start with universal and game-specific settings.
+- [ ] Ensure active gameplay never shows the game list unless game is finished/abandoned.
+
+### P1 — vote lifecycle completion
+
+- [ ] Implement vote side effects for admit pending player, kick/remove player, remote mode, team change and choose-next-game from recap.
+- [ ] Add admin dashboard vote visibility and vote/session history.
+- [ ] Add browser-page vote UI smoke tests for display/controller/companion, not only websocket/script checks.
+- [ ] Add persistence/reconnect/server-restart tests for active vote state.
+- [ ] Verify one vote per eligible player/device and crowd eligibility server-side.
+
+### P1 — reconnect/PWA/QR
+
+- [ ] Add refresh/reconnect/server restart E2E proving profile, role, active game private state, vote state and ready state are restored.
+- [ ] Add Android/iOS manual or automated QR camera evidence: permission denied, no camera, insecure origin, manual fallback, track teardown.
+- [ ] Test phone lock/background/visibilitychange/pagehide/freeze path and host pause/resume behavior.
+- [ ] Finish PWA icon/favicon/maskable/apple-touch assets to attached direction.
+- [ ] Add offline shell/update prompt tests.
+
+### P1 — AI completion
+
+- [ ] Expose owner-visible AI health/model/latency/rate-limit/credit/fallback status in admin/owner surfaces.
+- [ ] Add server-side AI rule explanations, invalid-move explanations, game recommendations, structured recaps and moderation.
+- [ ] Ensure plugin rule-tool metadata exists and is used.
+- [ ] Add tests for no-key, timeout, 402/credit exhaustion, 429/rate limit, schema failure and projected-state isolation.
+- [ ] For bots, ensure LLM never invents moves; bots only rank legal intents.
+
+### P1 — installable games/security/persistence
+
+- [ ] Align source manifest versions, catalog versions and artifact versions.
+- [ ] Rebuild official signed artifacts with the official signing key through the release flow.
+- [ ] Add artifact rejection tests: bad signature, digest mismatch, bad MIME, oversized archive and path traversal.
+- [ ] Add active-run install/update/uninstall blocking tests.
+- [ ] Add history-survives-uninstall and server-restart persistence integration tests.
+- [ ] Audit Supabase RLS/server-only writes and pack/game-admin auth cookies/origin validation.
+
+### P2 — visual/design proof
+
+- [ ] Create visual regression fixtures at approved screenshot aspect ratios for landing, tablet, mobile, lobby, display, controller, Games Library, setup, companion, crowd/waiting, errors, reconnect and recap.
+- [ ] Build a mismatch ledger and block release on material visual drift.
+- [ ] Verify every non-gameplay screen has the footer credit.
+- [ ] Verify skyline/stars/shooting stars/mouse trails remain visible after deployments.
+
+### P2 — release/live verification
+
+- [ ] Run full local gates: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm --prefix server run build`, BoredRoom-Games `npm test`, BoredRoom-Games signed build.
+- [ ] Run smoke scripts: `smoke:ui-entry`, `smoke:votes`, `smoke:gameplay`, `smoke:e2e`, server start smoke.
+- [ ] Deploy current heads to Dell only after gates pass.
+- [ ] Verify Cloudflare live: `/`, `/games`, `/admin`, `/join`, Colyseus `/healthz`, all 15 games, vote lifecycle, reconnect and QR/manual fallback.
+- [ ] Update `docs/IMPLEMENTATION_PROGRESS.md` and `docs/CODEX_HANDOFF.md` with exact command output and live evidence.
 
 ## Latest pass (2026-06-26 21:00 WAT, user-supplied stronger fork candidates)
 
