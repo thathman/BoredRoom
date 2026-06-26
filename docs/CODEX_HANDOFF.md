@@ -1,6 +1,6 @@
 # Codex Handoff — BoredRoom
 
-Last updated: 2026-06-26 13:45 WAT
+Last updated: 2026-06-26 13:55 WAT
 
 ## Mission
 
@@ -40,7 +40,7 @@ Do not mark the long-running goal complete until every requirement in those file
 - Game display/controller surface in current main app: `src/components/session/InstalledGameSurface.tsx`.
 - AI orchestration: `server/src/aiService.ts`.
 - Deterministic bot strategy: `server/src/botStrategy.ts`.
-- Latest main-app deployed commit: `c833fab Align root zod dependency with SDK peers`.
+- Latest main-app deployed commit: `ed6b90d Harden Dell deploy failure handling`.
 
 ### Runtime flow
 
@@ -109,7 +109,7 @@ Deployment note:
 
 - `scripts/deploy-dell.sh` now groups optional container removal separately from `docker compose build`, so a failed image build stops the deployment.
 - Health checks retry quietly for 60 seconds and print compose status/server logs before failing non-zero.
-- Validation run this pass: `bash -n scripts/deploy-dell.sh` and `DRY_RUN=1 bash scripts/deploy-dell.sh`.
+- Validation run this pass: `bash -n scripts/deploy-dell.sh`, `DRY_RUN=1 bash scripts/deploy-dell.sh`, and a real `bash scripts/deploy-dell.sh` Dell deploy with successful web/server build, restart, and `/healthz` check.
 
 Games repo:
 
@@ -171,8 +171,8 @@ npm run build
 
 ### Immediate next tasks
 
-1. Verify the hardened `scripts/deploy-dell.sh` on the next real Dell deploy.
-2. Implement the next production gap: full vote lifecycle or companion control booth.
+1. Implement the next production gap: full vote lifecycle or companion control booth.
+2. Add/expand tests and live verification for that production gap.
 3. Update both docs after each change.
 4. Commit/push/deploy and rerun live smoke/matrix.
 
@@ -214,7 +214,7 @@ Before claiming completion:
 
 ## Current next recommended prompt
 
-“Continue from the BoredRoom handoff docs. The Lagos hero and Colyseus 0.17 client/server alignment are live. The Dell deploy script has been hardened and dry-run checked; verify it on the next deploy. Implement the full vote lifecycle or companion control booth next. Keep docs updated and run full local/live gates.”
+“Continue from the BoredRoom handoff docs. The Lagos hero, Colyseus 0.17 client/server alignment, and hardened Dell deploy script are live. Implement the full vote lifecycle or companion control booth next. Keep docs updated and run full local/live gates.”
 
 Latest live evidence after `c833fab` deploy:
 

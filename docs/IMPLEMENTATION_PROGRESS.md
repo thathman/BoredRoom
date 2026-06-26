@@ -1,6 +1,6 @@
 # BoredRoom Implementation Progress
 
-Last updated: 2026-06-26 13:45 WAT
+Last updated: 2026-06-26 13:55 WAT
 
 ## Current objective
 
@@ -19,7 +19,7 @@ Source of truth read this pass:
 
 Main app: `/Users/hendrix/Playground/boredroom`
 
-- HEAD: `c833fab Align root zod dependency with SDK peers`
+- HEAD: `ed6b90d Harden Dell deploy failure handling`
 - Live Dell deployment verified after this commit.
 - `docs/` did not exist before this pass; this file and `docs/CODEX_HANDOFF.md` are now the baseline handoff docs.
 
@@ -89,7 +89,8 @@ Release-process hardening:
 
 - `scripts/deploy-dell.sh` no longer lets `docker compose up -d` run after a failed `docker compose build`; the optional container removal is grouped separately.
 - Health check now suppresses transient curl noise, retries for 60 seconds, and prints `docker compose ps` plus recent server logs before exiting non-zero on failure.
-- Verified locally with `bash -n scripts/deploy-dell.sh` and `DRY_RUN=1 bash scripts/deploy-dell.sh`. Next real Dell deploy should verify the hardened path end-to-end.
+- Verified locally with `bash -n scripts/deploy-dell.sh` and `DRY_RUN=1 bash scripts/deploy-dell.sh`.
+- Verified against Dell with `bash scripts/deploy-dell.sh`: both web/server Docker images built, containers restarted, `/healthz` passed, and the script exited zero only after the health check succeeded.
 
 ## Current acceptance status against `15-current-product/04-acceptance-matrix.md`
 
@@ -182,4 +183,4 @@ Release-process hardening:
 
 ## Next recommended agent prompt
 
-Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. The Lagos hero/motion fix and Colyseus 0.17 deployment are verified live. The deploy script has been hardened and dry-run checked; verify it on the next real Dell deploy. Next production gap: full vote lifecycle or companion control booth.
+Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. The Lagos hero/motion fix, Colyseus 0.17 deployment, and hardened Dell deploy script are verified live. Next production gap: full vote lifecycle or companion control booth.
