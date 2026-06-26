@@ -348,14 +348,12 @@ const gameServer = new Server({
 
 gameServer.define('house-session', HouseSessionRoom).filterBy(['code']);
 
-await gameServer.serverless();
 await reconcileInstalledGames();
 void applyAutomaticUpdates();
 setInterval(() => { void applyAutomaticUpdates(); }, 60 * 60 * 1000).unref();
 
-httpServer.listen(PORT, () => {
-  log('info', 'server_listening', { port: PORT, protocolVersion: PROTOCOL_VERSION });
-});
+await gameServer.listen(PORT);
+log('info', 'server_listening', { port: PORT, protocolVersion: PROTOCOL_VERSION });
 
 function makeUniqueSessionCode(): string {
   const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
