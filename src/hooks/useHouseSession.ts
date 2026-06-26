@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Client, type Room } from 'colyseus.js';
+import { Client, type Room } from '@colyseus/sdk';
 import {
   fetchSessionWithRun,
   getControlCredential,

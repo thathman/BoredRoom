@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Client } from 'colyseus.js';
+import { Client } from '@colyseus/sdk';
 
 const HTTP_URL = process.env.BOREDROOM_HTTP_URL ?? 'http://127.0.0.1:2567';
 const WS_URL = process.env.BOREDROOM_WS_URL ?? 'ws://127.0.0.1:2567';
