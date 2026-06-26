@@ -48,6 +48,7 @@ export function useHouseSession({
   const [lastTransition, setLastTransition] = useState<string | null>(null);
   const [activeVote, setActiveVote] = useState<HouseVote | null>(null);
   const [voteHistory, setVoteHistory] = useState<HouseVoteResult[]>([]);
+  const [kicked, setKicked] = useState<{ reason: string } | null>(null);
   const [gamePublicState, setGamePublicState] = useState<{
     gameType: string;
     state: unknown;
@@ -130,6 +131,9 @@ export function useHouseSession({
         });
         room.onMessage('ai:result', (payload: { kind: 'commentary' | 'hint' | 'pacing'; text: string | null }) => {
           setAiResult(payload);
+        });
+        room.onMessage('session:kicked', (payload: { reason?: string }) => {
+          setKicked({ reason: payload?.reason ?? 'Removed by host.' });
         });
         room.onError((codeNumber, message) => {
           console.warn('[house-session] room error', codeNumber, message);
@@ -239,6 +243,14 @@ export function useHouseSession({
     roomRef.current?.send('session:resume_game');
   }, []);
 
+  const kickPlayer = useCallback((targetDeviceId: string, reason?: string) => {
+    roomRef.current?.send('session:kick_player', { deviceId: targetDeviceId, reason });
+  }, []);
+
+  const setRemoteMode = useCallback((enabled: boolean) => {
+    roomRef.current?.send('session:set_remote_mode', { enabled });
+  }, []);
+
   const endParty = useCallback(() => {
     roomRef.current?.send('session:end_party');
   }, []);
@@ -275,8 +287,11 @@ export function useHouseSession({
     endGame,
     pauseGame,
     resumeGame,
+    kickPlayer,
+    setRemoteMode,
     endParty,
     deleteParty,
     refresh,
+    kicked,
   };
 }

@@ -4,6 +4,9 @@ import {
   createCompanionPairing,
   deleteSession,
   endSession,
+  kickSessionMember,
+  setRemoteMode,
+  resolveMemberByOption,
   getPublicSession,
   getSessionRecord,
   issueOwnerCredential,
@@ -146,5 +149,24 @@ describe('house session authority', () => {
     expect(snapshot?.session.status).toBe('deleted');
     expect(getSessionRecord(session.code)).toBeNull();
     expect(deleteSession(session.code)).toBeNull();
+  });
+
+  it('kicks a player and resolves a vote option to their device id', () => {
+    const { session } = createRecord();
+    upsertSessionMember(session.code, { deviceId: 'dev-ada', displayName: 'Ada', role: 'controller' });
+    expect(resolveMemberByOption(session.code, 'Ada')).toBe('dev-ada');
+    const result = kickSessionMember(session.code, 'dev-ada');
+    expect(result.removed).toBe(true);
+    expect(getSessionRecord(session.code)?.members.has('dev-ada')).toBe(false);
+    // kicking an unknown device is a no-op
+    expect(kickSessionMember(session.code, 'ghost').removed).toBe(false);
+  });
+
+  it('toggles remote mode on the session settings', () => {
+    const { session } = createRecord();
+    expect(setRemoteMode(session.code, false)).toBe(true);
+    expect(getPublicSession(session.code)?.session.settings.allowRemote).toBe(false);
+    setRemoteMode(session.code, true);
+    expect(getPublicSession(session.code)?.session.settings.allowRemote).toBe(true);
   });
 });

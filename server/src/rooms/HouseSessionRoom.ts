@@ -3,6 +3,9 @@ import {
   clearActiveGame,
   endSession,
   deleteSession,
+  kickSessionMember,
+  setRemoteMode,
+  resolveMemberByOption,
   applySessionVote,
   archiveSessionVote,
   cancelSessionVote,
@@ -138,6 +141,17 @@ export class HouseSessionRoom extends Room {
       this.broadcast('session:transition', { type: 'party.ended', at: new Date().toISOString() });
       this.broadcast('session:state', snapshot);
       void this.persistVoteEvent('party.ended', identity?.deviceId, {});
+    });
+    this.onMessage('session:kick_player', (client, payload: { deviceId?: string; reason?: string }) => {
+      if (!this.isHostClient(client)) return;
+      const identity = this.identities.get(client.sessionId);
+      this.kickPlayer(String(payload?.deviceId ?? ''), payload?.reason, identity?.deviceId);
+    });
+    this.onMessage('session:set_remote_mode', (client, payload: { enabled?: boolean }) => {
+      if (!this.isHostClient(client)) return;
+      if (!setRemoteMode(this.code, payload?.enabled !== false)) return;
+      this.broadcast('session:state', getPublicSession(this.code));
+      this.broadcast('session:transition', { type: 'remote.changed', enabled: payload?.enabled !== false, at: new Date().toISOString() });
     });
     this.onMessage('session:delete_party', (client, payload: { confirm?: string }) => {
       if (!this.isHostClient(client)) return;
@@ -765,6 +779,26 @@ export class HouseSessionRoom extends Room {
     this.applyVoteSideEffects(applied.result);
   }
 
+  // Remove a player, notify them, force their socket out, and pause the game if they were seated.
+  private kickPlayer(deviceId: string, reason?: string, byDeviceId?: string): void {
+    if (!deviceId) return;
+    const { removed, wasSeated } = kickSessionMember(this.code, deviceId);
+    if (!removed) return;
+    // Notify and disconnect any connected client for this device.
+    for (const client of this.clients) {
+      const identity = this.identities.get(client.sessionId);
+      if (identity?.deviceId === deviceId) {
+        client.send('session:kicked', { reason: reason ?? 'Removed by host.' });
+        this.identities.delete(client.sessionId);
+        setTimeout(() => client.leave(4000), 50);
+      }
+    }
+    if (wasSeated && this.gameRuntime) void this.pauseGame('player_kicked');
+    this.broadcast('session:state', getPublicSession(this.code));
+    this.broadcast('session:transition', { type: 'member.kicked', deviceId, at: new Date().toISOString() });
+    void this.persistVoteEvent('member.kicked', byDeviceId, { deviceId, reason: reason ?? null, wasSeated });
+  }
+
   // Enact the real-world action behind an applied vote. game_selection starts the winning
   // installed game; binary action votes (end_party, end_game, pause/resume) fire when the
   // winning option is affirmative. Other vote types are applied for the audit trail only.
@@ -774,6 +808,18 @@ export class HouseSessionRoom extends Room {
       if (getSessionRecord(this.code)?.activeRuntime) return;
       const gameId = findInstalledGameId(result.winnerOption);
       if (gameId) void this.selectGame(gameId, {}, false);
+      return;
+    }
+    // kick_player carries the target player as the winning option (not a yes/no).
+    if (result.voteType === 'kick_player') {
+      const deviceId = resolveMemberByOption(this.code, result.winnerOption);
+      if (deviceId) this.kickPlayer(deviceId, 'Voted out by the house.');
+      return;
+    }
+    // remote_mode carries an enable/disable choice.
+    if (result.voteType === 'remote_mode') {
+      const enabled = /enable|on|yes|allow/i.test(result.winnerOption);
+      if (setRemoteMode(this.code, enabled)) this.broadcast('session:state', getPublicSession(this.code));
       return;
     }
     if (!isAffirmative(result.winnerOption)) return;

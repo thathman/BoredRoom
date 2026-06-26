@@ -27,6 +27,7 @@ export interface CreatedSession {
   settings: {
     allowCrowdVotes: boolean;
     allowPlayerVotes?: boolean;
+    allowRemote?: boolean;
     allowBots: boolean;
     hintsEnabled: boolean;
     maxControllers: number;

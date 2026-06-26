@@ -449,6 +449,47 @@ export function archiveSessionVote(code: string): void {
   emit(code, 'vote.archived');
 }
 
+// Remove a player from the house. Returns whether the kicked player was seated in the active
+// game (so the room can pause and let the runtime handle the empty seat).
+export function kickSessionMember(code: string, deviceId: string): { removed: boolean; wasSeated: boolean } {
+  const record = getSessionRecord(code);
+  const member = record?.members.get(deviceId);
+  if (!record || !member || member.isBot) return { removed: false, wasSeated: false };
+  const wasSeated = Boolean(
+    record.activeRuntime
+    && ['active', 'paused', 'setup'].includes(record.activeRuntime.run.status)
+    && member.role === 'controller',
+  );
+  record.members.delete(deviceId);
+  record.session.updatedAt = new Date().toISOString();
+  emit(code, 'member.kicked');
+  return { removed: true, wasSeated };
+}
+
+// Toggle remote/outsider mode. Does not create a second room — the same code stays authoritative.
+export function setRemoteMode(code: string, enabled: boolean): boolean {
+  const record = getSessionRecord(code);
+  if (!record) return false;
+  record.session.settings = { ...record.session.settings, allowRemote: enabled };
+  record.session.updatedAt = new Date().toISOString();
+  emit(code, 'remote.changed');
+  return true;
+}
+
+// Resolve a vote option (deviceId or display name) to a member deviceId for vote-driven kicks.
+export function resolveMemberByOption(code: string, option: string): string | null {
+  const record = getSessionRecord(code);
+  if (!record) return null;
+  const needle = option.trim().toLowerCase();
+  for (const member of record.members.values()) {
+    if (member.isBot) continue;
+    if (member.deviceId.toLowerCase() === needle || member.displayName.trim().toLowerCase() === needle) {
+      return member.deviceId;
+    }
+  }
+  return null;
+}
+
 export function removeSessionBotMembers(code: string): void {
   const record = getSessionRecord(code);
   if (!record) return;

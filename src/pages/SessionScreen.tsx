@@ -93,8 +93,11 @@ export default function SessionScreen() {
     endGame,
     pauseGame,
     resumeGame,
+    kickPlayer,
+    setRemoteMode,
     endParty,
     deleteParty,
+    kicked,
   } = useHouseSession({
     code: normalizedCode,
     deviceId,
@@ -224,6 +227,17 @@ export default function SessionScreen() {
     return <StatusScreen icon={<RotateCcw />} title="Session unavailable" detail="This device does not have the owner credential for that house." />;
   }
 
+  if (kicked) {
+    return (
+      <StatusScreen
+        icon={<span className="text-4xl">🚪</span>}
+        title="Removed from the house"
+        detail={kicked.reason}
+        action={<Button className="neon-primary w-full" onClick={() => navigate('/join')}>Join another house <ArrowRight className="ml-auto" /></Button>}
+      />
+    );
+  }
+
   if (snapshot?.session.status === 'ended' || snapshot?.session.status === 'deleted') {
     const deleted = snapshot.session.status === 'deleted';
     return (
@@ -341,9 +355,18 @@ export default function SessionScreen() {
         <div className="fixed bottom-4 right-4 z-[70] w-72 rounded-2xl border border-red-400/30 bg-[#160808]/95 p-4 text-left shadow-[0_0_24px_rgba(248,113,113,.14)] backdrop-blur-xl">
           <p className="text-[10px] uppercase tracking-[0.22em] text-red-300">Party controls</p>
           {partyDanger === null && (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <Button variant="outline" className="h-9 rounded-lg text-xs" onClick={() => setPartyDanger('end')}>End party</Button>
-              <Button variant="outline" className="h-9 rounded-lg text-xs text-red-200" onClick={() => setPartyDanger('delete')}>Delete party</Button>
+            <div className="mt-3 space-y-2">
+              <Button
+                variant="outline"
+                className="h-9 w-full rounded-lg text-xs"
+                onClick={() => setRemoteMode(!(snapshot?.session.settings.allowRemote ?? true))}
+              >
+                Remote mode: {(snapshot?.session.settings.allowRemote ?? true) ? 'On' : 'Off'} — tap to toggle
+              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" className="h-9 rounded-lg text-xs" onClick={() => setPartyDanger('end')}>End party</Button>
+                <Button variant="outline" className="h-9 rounded-lg text-xs text-red-200" onClick={() => setPartyDanger('delete')}>Delete party</Button>
+              </div>
             </div>
           )}
           {partyDanger === 'end' && (
@@ -653,6 +676,15 @@ export default function SessionScreen() {
                 </div>
                 <p className="mt-2 text-xs">{member.displayName}</p>
                 {member.isBot && <p className="text-[10px] uppercase tracking-[0.2em] text-secondary">Bot</p>}
+                {role === 'companion' && !member.isBot && (
+                  <button
+                    type="button"
+                    className="mt-1 text-[10px] uppercase tracking-[0.15em] text-red-300/80 hover:text-red-200"
+                    onClick={() => { if (window.confirm(`Remove ${member.displayName} from the house?`)) kickPlayer(member.deviceId, 'Removed by host.'); }}
+                  >
+                    Kick
+                  </button>
+                )}
               </div>
             ))}
             {controllerMembers.length === 0 && <p className="text-sm text-muted-foreground">Waiting for the first player…</p>}
