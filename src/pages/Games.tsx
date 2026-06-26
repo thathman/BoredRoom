@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { LagosScene } from '@/components/brand/LagosScene';
+import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -180,6 +181,7 @@ export default function Games() {
             ))}
           </div>
         </section>
+        <BuiltByFooter />
       </div>
     </LagosScene>
   );

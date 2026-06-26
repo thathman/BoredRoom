@@ -4,11 +4,14 @@ import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-
 import { toast } from 'sonner';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { LagosScene } from '@/components/brand/LagosScene';
+import { QrScanner } from '@/components/join/QrScanner';
+import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { fetchSession } from '@/lib/serverApi';
 import { detectDeviceClass } from '@/lib/deviceExperience';
 import { getPlayerName, setPlayerName } from '@/lib/roomUtils';
+import { getPlayerSessionResume, rememberPlayerSession } from '@/lib/playerSessionResume';
 
 export default function SessionJoin() {
   const navigate = useNavigate();
@@ -18,6 +21,10 @@ export default function SessionJoin() {
   const [code, setCode] = useState(sessionCode ?? '');
   const [name, setName] = useState(() => getPlayerName());
   const [joining, setJoining] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(searchParams.get('scan') === '1');
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [resume] = useState(() => getPlayerSessionResume());
   const normalized = code.trim().toUpperCase();
   const canJoin = normalized.length === 4 && (companionMode || name.trim().length >= 2);
 
@@ -31,11 +38,60 @@ export default function SessionJoin() {
         return;
       }
       if (!companionMode) setPlayerName(name.trim());
+      rememberPlayerSession({
+        code: normalized,
+        role: companionMode ? 'companion' : 'controller',
+        displayName: companionMode ? 'Host companion' : name.trim(),
+      });
       navigate(`/session/${normalized}/${companionMode ? 'companion' : 'controller'}`);
     } catch {
       toast.error('Could not reach the game-night server.');
     } finally {
       setJoining(false);
+    }
+  }
+
+  async function openScanner() {
+    setCameraError(null);
+    setScannerOpen(true);
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Camera access is not available in this browser.');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+      setCameraStream(stream);
+    } catch (error) {
+      setCameraStream(null);
+      setCameraError(error instanceof Error ? error.message : 'Could not start camera.');
+    }
+  }
+
+  function useScannedCode(nextCode: string) {
+    setCode(nextCode);
+    setScannerOpen(false);
+    if (name.trim().length >= 2 || companionMode) {
+      window.setTimeout(() => {
+        void fetchSession(nextCode).then((session) => {
+          if (!session) {
+            toast.error('That room code could not be found.');
+            return;
+          }
+          if (!companionMode) setPlayerName(name.trim());
+          rememberPlayerSession({
+            code: nextCode,
+            role: companionMode ? 'companion' : 'controller',
+            displayName: companionMode ? 'Host companion' : name.trim(),
+          });
+          navigate(`/session/${nextCode}/${companionMode ? 'companion' : 'controller'}`);
+        }).catch(() => toast.error('Could not reach the game-night server.'));
+      }, 0);
     }
   }
 
@@ -65,6 +121,17 @@ export default function SessionJoin() {
               ? 'Enter the room code, then use the one-time approval code from the host.'
               : 'Join a game in your room with a code from the host.'}
           </p>
+          {!companionMode && resume && (
+            <button
+              type="button"
+              className="neon-panel mt-5 rounded-2xl px-4 py-3 text-left"
+              onClick={() => navigate(`/session/${resume.code}/${resume.role}`)}
+            >
+              <span className="block text-xs text-muted-foreground">Resume current game</span>
+              <strong className="block text-lg">House {resume.code}</strong>
+              <span className="mt-1 block text-xs text-primary">Reconnect as {resume.displayName || 'player'} →</span>
+            </button>
+          )}
           {!companionMode && (
             <Input
               value={name}
@@ -88,12 +155,27 @@ export default function SessionJoin() {
             {joining ? <Loader2 className="animate-spin" /> : <><span className="flex-1">{companionMode ? 'Continue to pairing' : 'Join with a code'}</span><ArrowRight /></>}
           </Button>
           <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
-          <Button variant="outline" className="h-14 rounded-xl bg-black/30" onClick={() => toast.info('Point your camera at the host QR code.')}>
+          <Button variant="outline" className="h-14 rounded-xl bg-black/30" onClick={() => void openScanner()}>
             <QrCode /> Scan QR code
           </Button>
           <p className="mt-4 text-[10px] text-muted-foreground">{companionMode ? 'Pairing requires explicit host approval.' : 'You can only join games on this device.'}</p>
         </div>
+        <BuiltByFooter />
       </div>
+      <QrScanner
+        open={scannerOpen}
+        onOpenChange={(open) => {
+          setScannerOpen(open);
+          if (!open) {
+            setCameraStream(null);
+            setCameraError(null);
+          }
+        }}
+        onCode={useScannedCode}
+        stream={cameraStream}
+        acquireError={cameraError}
+        onRetryAcquire={() => void openScanner()}
+      />
     </LagosScene>
   );
 }

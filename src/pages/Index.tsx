@@ -3,6 +3,7 @@ import { ArrowRight, Download, Gamepad2, QrCode, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { LagosScene } from '@/components/brand/LagosScene';
+import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
 import { Button } from '@/components/ui/button';
 import { getLastHouseSession } from '@/lib/houseSessionResume';
 import {
@@ -196,6 +197,7 @@ export default function Index() {
               )}
             </div>
           </div>
+          <BuiltByFooter />
         </section>
       </div>
     </LagosScene>

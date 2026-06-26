@@ -13,6 +13,12 @@ interface DrawerGame {
   minPlayers: number;
   maxPlayers: number;
   available: boolean;
+  capabilities?: {
+    bots: boolean;
+    audience: boolean;
+    hints: boolean;
+    restore: boolean;
+  };
 }
 
 interface HostGameDrawerProps {

@@ -3,9 +3,11 @@ import { Check, FastForward, Trophy, Users } from 'lucide-react';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { sounds, vibrate } from '@/lib/sounds';
 
 type PlayerScore = { id: string; name: string; score: number };
 type Challenge = { kind: 'choice' | 'number' | 'text' | 'order'; prompt: string; options?: string[] };
+type WhotCard = { id?: string; label: string; shape?: string; number?: number; isWhot?: boolean };
 type GameState = {
   gameType: string;
   name: string;
@@ -17,7 +19,7 @@ type GameState = {
   challenge?: Challenge | null;
   board?: Array<Array<string | null>>;
   tokens?: Record<string, number[]>;
-  topCard?: { label: string; shape?: string; number?: number };
+  topCard?: WhotCard;
   requestedShape?: string | null;
   drawPileCount?: number;
   pendingRoll?: number | null;
@@ -34,9 +36,65 @@ type PrivateState = {
   submission?: unknown;
   isTurn?: boolean;
   tokens?: number[];
-  hand?: Array<{ id: string; label: string }>;
+  hand?: Array<WhotCard & { id: string }>;
   legalIntents?: Array<Record<string, unknown> & { label?: string }>;
 };
+
+const whotShapeGlyph: Record<string, string> = {
+  Circle: '●',
+  Triangle: '▲',
+  Cross: '✚',
+  Square: '■',
+  Star: '★',
+  Whot: 'W',
+};
+
+function whotCardTone(card?: WhotCard): string {
+  if (!card) return 'from-white/10 to-white/5 border-white/20';
+  if (card.isWhot || card.shape === 'Whot') return 'from-purple-500/30 to-fuchsia-500/10 border-secondary/70 text-secondary';
+  if (card.shape === 'Circle') return 'from-emerald-400/25 to-emerald-400/5 border-primary/70 text-primary';
+  if (card.shape === 'Triangle') return 'from-amber-300/25 to-amber-300/5 border-amber-200/70 text-amber-200';
+  if (card.shape === 'Cross') return 'from-sky-300/25 to-sky-400/5 border-sky-200/70 text-sky-200';
+  if (card.shape === 'Square') return 'from-rose-300/25 to-rose-400/5 border-rose-200/70 text-rose-200';
+  if (card.shape === 'Star') return 'from-violet-300/25 to-violet-400/5 border-violet-200/70 text-violet-200';
+  return 'from-white/10 to-white/5 border-white/20';
+}
+
+function WhotCardFace({
+  card,
+  disabled,
+  playable,
+  compact = false,
+}: {
+  card?: WhotCard;
+  disabled?: boolean;
+  playable?: boolean;
+  compact?: boolean;
+}) {
+  const shape = card?.shape ?? (card?.isWhot ? 'Whot' : '');
+  const glyph = whotShapeGlyph[shape] ?? (shape.slice(0, 1) || 'W');
+  const number = card?.number ?? card?.label.match(/\d+/)?.[0] ?? (card?.isWhot ? '20' : '');
+  return (
+    <div
+      className={`whot-card-face relative grid ${compact ? 'h-28 w-20' : 'h-40 w-28'} place-items-center overflow-hidden rounded-2xl border bg-gradient-to-br p-3 shadow-[0_18px_36px_rgba(0,0,0,.32)] transition ${
+        whotCardTone(card)
+      } ${playable ? 'scale-105 ring-2 ring-primary/70' : ''} ${disabled ? 'opacity-45 grayscale' : ''}`}
+    >
+      <span className="absolute left-2 top-2 text-lg font-black">{number}</span>
+      <span className={`${compact ? 'text-4xl' : 'text-6xl'} drop-shadow-[0_0_14px_currentColor]`}>{glyph}</span>
+      <span className="absolute bottom-2 right-2 rotate-180 text-lg font-black">{number}</span>
+    </div>
+  );
+}
+
+function WhotCardBack({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className={`relative grid ${compact ? 'h-24 w-16' : 'h-32 w-24'} place-items-center overflow-hidden rounded-2xl border border-primary/50 bg-[#031209] shadow-[0_0_22px_rgba(69,243,107,.22)]`}>
+      <div className="absolute inset-2 rounded-xl border border-primary/70" />
+      <span className="brush-display text-3xl text-primary">B</span>
+    </div>
+  );
+}
 
 export function InstalledGameSurface({
   publicState,
@@ -239,38 +297,112 @@ export function InstalledGameSurface({
                 )}
 
                 {state.mode === 'whot' && (
-                  <div className="mx-auto max-w-2xl space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-2xl border border-primary/50 bg-primary/10 p-4 text-center sm:col-span-2">
-                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Top card</p>
-                        <p className="mt-2 text-3xl font-black text-primary">{state.topCard?.label}</p>
-                        {state.requestedShape && <p className="mt-1 text-sm">Requested shape: {state.requestedShape}</p>}
+                  <div className="mx-auto w-full max-w-5xl">
+                    <div className="relative min-h-[520px] overflow-hidden rounded-[2rem] border border-primary/25 bg-[radial-gradient(circle_at_50%_48%,rgba(20,92,52,.92),rgba(4,24,18,.96)_42%,rgba(2,8,23,.98)_72%)] p-5 shadow-[inset_0_0_90px_rgba(0,0,0,.45),0_0_42px_rgba(69,243,107,.12)]">
+                      <div className="pointer-events-none absolute inset-8 rounded-full border border-primary/15" />
+                      <div className="pointer-events-none absolute inset-[18%] rounded-full border border-white/10 bg-black/10" />
+                      <div className="absolute inset-x-4 top-4 flex flex-wrap justify-center gap-3">
+                        {(state.players ?? []).map((player, index) => {
+                          const active = player.id === state.currentPlayerId;
+                          return (
+                            <div
+                              key={player.id}
+                              className={`whot-seat flex min-w-28 items-center gap-2 rounded-2xl border px-3 py-2 ${
+                                active ? 'border-primary bg-primary/15 shadow-[0_0_20px_rgba(69,243,107,.28)]' : 'border-white/10 bg-black/28'
+                              }`}
+                              style={{ animationDelay: `${index * 80}ms` }}
+                            >
+                              <span className="grid h-9 w-9 place-items-center rounded-full border border-primary/50 bg-primary/10 text-xs font-black">
+                                {player.name.slice(0, 1).toUpperCase()}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-xs font-bold">{player.name}</span>
+                                <span className="block text-[10px] text-muted-foreground">{player.handCount ?? 0} cards</span>
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-center">
-                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Market</p>
-                        <p className="mt-2 text-3xl font-black">{state.drawPileCount ?? 0}</p>
+
+                      <div className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 grid-cols-2 items-center gap-7">
+                        <div className="text-center">
+                          <button
+                            type="button"
+                            disabled={isHost || role === 'crowd' || !legalIntents.some((intent) => intent.type === 'draw') || state.phase !== 'playing'}
+                            onClick={() => {
+                              sounds.hustleCard();
+                              vibrate(35);
+                              sendIntent({ type: 'draw' });
+                            }}
+                            className="group relative disabled:cursor-default"
+                          >
+                            <div className="absolute -inset-3 rounded-3xl bg-primary/10 blur-xl transition group-enabled:group-hover:bg-primary/25" />
+                            <WhotCardBack />
+                          </button>
+                          <p className="mt-3 text-xs uppercase tracking-[0.24em] text-white/60">Market · {state.drawPileCount ?? 0}</p>
+                        </div>
+                        <div className="text-center">
+                          <div className="whot-played-card">
+                            <WhotCardFace card={state.topCard} />
+                          </div>
+                          <p className="mt-3 text-xs uppercase tracking-[0.24em] text-white/60">
+                            {state.requestedShape ? `Requested ${state.requestedShape}` : 'Discard'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="absolute inset-x-4 bottom-4 text-center">
+                        <div className="mx-auto inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-black/45 px-4 py-2 text-sm backdrop-blur">
+                          <span className={mine.isTurn ? 'text-primary' : 'text-muted-foreground'}>
+                            {mine.isTurn ? 'Your turn — play a card or go market.' : `Waiting for ${state.players.find((player) => player.id === state.currentPlayerId)?.name ?? 'the next player'}.`}
+                          </span>
+                        </div>
                       </div>
                     </div>
+
                     {!isHost && role !== 'crowd' && (
-                      <>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {(mine.hand ?? []).map((card) => {
+                      <div className="mt-5 rounded-3xl border border-white/10 bg-black/35 p-4">
+                        <div className="mb-3 flex items-center justify-between">
+                          <h2 className="text-sm font-black uppercase tracking-[0.2em] text-muted-foreground">Your hand</h2>
+                          <span className="text-xs text-primary">{(mine.hand ?? []).length} cards</span>
+                        </div>
+                        <div className="flex min-h-44 gap-3 overflow-x-auto pb-3">
+                          {(mine.hand ?? []).map((card, index) => {
                             const legal = legalIntents.find((intent) => intent.type === 'play_card' && intent.cardId === card.id);
                             return (
-                              <Button key={card.id} variant={legal ? 'default' : 'outline'} disabled={!legal || state.phase !== 'playing'} onClick={() => legal && sendIntent(legal)}>
-                                {card.label}
-                              </Button>
+                              <button
+                                key={card.id}
+                                type="button"
+                                disabled={!legal || state.phase !== 'playing'}
+                                onClick={() => {
+                                  if (!legal) return;
+                                  sounds.hustleCard();
+                                  vibrate(45);
+                                  sendIntent(legal);
+                                }}
+                                className="whot-hand-card shrink-0 disabled:cursor-not-allowed"
+                                style={{ animationDelay: `${index * 45}ms` }}
+                                aria-label={legal ? `Play ${card.label}` : `${card.label} cannot be played now`}
+                              >
+                                <WhotCardFace card={card} disabled={!legal} playable={Boolean(legal)} />
+                              </button>
                             );
                           })}
                         </div>
                         {legalIntents.some((intent) => intent.type === 'draw') && (
-                          <Button className="neon-primary w-full rounded-xl" onClick={() => sendIntent({ type: 'draw' })}>Go to market</Button>
+                          <Button
+                            className="neon-primary h-14 w-full rounded-xl"
+                            onClick={() => {
+                              sounds.hustleCard();
+                              vibrate(35);
+                              sendIntent({ type: 'draw' });
+                            }}
+                          >
+                            Go to market
+                          </Button>
                         )}
-                      </>
+                      </div>
                     )}
-                    <p className="text-center text-sm text-muted-foreground">
-                      {mine.isTurn ? 'Your turn.' : `Waiting for ${state.players.find((player) => player.id === state.currentPlayerId)?.name ?? 'the next player'}.`}
-                    </p>
                   </div>
                 )}
               </div>

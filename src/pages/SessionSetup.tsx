@@ -4,6 +4,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { LagosScene } from '@/components/brand/LagosScene';
+import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { createSession, fetchGamesCatalog } from '@/lib/serverApi';
@@ -92,6 +93,7 @@ export default function SessionSetup() {
             </Button>
           )}
         </section>
+        <BuiltByFooter />
       </div>
     </LagosScene>
   );

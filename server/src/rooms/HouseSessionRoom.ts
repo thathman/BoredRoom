@@ -5,6 +5,8 @@ import {
   getPublicSession,
   getRuntimeSnapshot,
   getSessionRecord,
+  pauseActiveGame,
+  resumeActiveGame,
   selectSessionGame,
   setRecapCopy,
   setSessionMemberConnected,
@@ -98,6 +100,32 @@ export class HouseSessionRoom extends Room {
       if (!this.isHostClient(client)) return;
       void this.endCurrentGame('finished');
     });
+    this.onMessage('session:pause_game', (client, payload: { reason?: string }) => {
+      const identity = this.identities.get(client.sessionId);
+      if (!identity) return;
+      if (identity.role === 'controller' || this.isHostClient(client)) {
+        void this.pauseGame(payload?.reason ?? (identity.role === 'controller' ? 'player_pause' : 'host_pause'));
+      }
+    });
+    this.onMessage('session:resume_game', (client) => {
+      if (!this.isHostClient(client)) return;
+      void this.resumeGame();
+    });
+    this.onMessage('session:call_vote', (client, payload: { options?: string[] }) => {
+      if (!this.isHostClient(client)) return;
+      const options = (payload?.options ?? [])
+        .map((option) => String(option ?? '').trim().slice(0, 80))
+        .filter(Boolean)
+        .slice(0, 8);
+      if (options.length < 2) return;
+      this.votes.clear();
+      this.broadcast('session:transition', {
+        type: 'vote.opened',
+        options,
+        tally: {},
+        at: new Date().toISOString(),
+      });
+    });
     this.onMessage('session:request_state', (client) => {
       const identity = this.identities.get(client.sessionId);
       client.send('session:state', getPublicSession(this.code));
@@ -106,6 +134,11 @@ export class HouseSessionRoom extends Room {
     this.onMessage('game:intent', (client, intent: Record<string, unknown>) => {
       const identity = this.identities.get(client.sessionId);
       if (!identity || !this.gameRuntime) return;
+      const activeRun = getSessionRecord(this.code)?.activeRuntime?.run;
+      if (activeRun?.status === 'paused' && intent?.type !== 'advance') {
+        client.send('session:error', { code: 'game_paused', explanation: 'The game is paused while a player reconnects.' });
+        return;
+      }
       const changed = this.gameRuntime.handleIntent(identity.deviceId, intent ?? {}, identity.isOwner);
       if (!changed) {
         const rules = this.gameRuntime.metadata.rules?.summary ?? 'Only legal server-validated actions are accepted.';
@@ -221,8 +254,9 @@ export class HouseSessionRoom extends Room {
     }
     client.send('session:state', getPublicSession(this.code));
     const snapshot = getPublicSession(this.code);
-    if (snapshot?.activeRun?.status === 'active') this.ensureRuntime(snapshot);
+    if (snapshot?.activeRun && ['active', 'paused'].includes(snapshot.activeRun.status)) this.ensureRuntime(snapshot);
     this.sendGameState(client, identity);
+    if (identity.role === 'controller') void this.maybeResumeAfterReconnect();
   }
 
   onLeave(client: Client): void {
@@ -230,6 +264,7 @@ export class HouseSessionRoom extends Room {
     if (identity) {
       setSessionMemberConnected(this.code, identity.deviceId, false);
       this.persistMember(identity.deviceId);
+      if (identity.role === 'controller') void this.pauseGame('controller_disconnected');
     }
     this.identities.delete(client.sessionId);
   }
@@ -378,6 +413,54 @@ export class HouseSessionRoom extends Room {
     ]).catch((error) => {
       log('warn', 'game_start_persist_failed', { session: this.code, error: String(error) });
     });
+  }
+
+  private async pauseGame(reason: string): Promise<void> {
+    const runtime = pauseActiveGame(this.code, reason);
+    if (!runtime) return;
+    const record = getSessionRecord(this.code);
+    await Promise.all([
+      persistGameRun(runtime.run),
+      record ? persistHouseSession(record.session) : Promise.resolve('skipped' as const),
+      appendSessionEvent(buildSessionEvent({
+        sessionId: runtime.run.houseSessionId,
+        gameRunId: runtime.run.id,
+        type: 'game_run.paused',
+        payload: { reason },
+      })),
+    ]).catch((error) => {
+      log('warn', 'game_pause_persist_failed', { session: this.code, error: String(error) });
+    });
+  }
+
+  private async resumeGame(): Promise<void> {
+    const runtime = resumeActiveGame(this.code);
+    if (!runtime) return;
+    const record = getSessionRecord(this.code);
+    await Promise.all([
+      persistGameRun(runtime.run),
+      record ? persistHouseSession(record.session) : Promise.resolve('skipped' as const),
+      appendSessionEvent(buildSessionEvent({
+        sessionId: runtime.run.houseSessionId,
+        gameRunId: runtime.run.id,
+        type: 'game_run.resumed',
+      })),
+    ]).catch((error) => {
+      log('warn', 'game_resume_persist_failed', { session: this.code, error: String(error) });
+    });
+  }
+
+  private async maybeResumeAfterReconnect(): Promise<void> {
+    const snapshot = getPublicSession(this.code);
+    if (snapshot?.activeRun?.status !== 'paused') return;
+    const seatedIds = new Set(
+      (this.gameRuntime?.publicState() as { players?: Array<{ id: string }> } | null)?.players?.map((player) => player.id) ?? [],
+    );
+    if (seatedIds.size === 0) return;
+    const disconnectedSeated = snapshot.members.some((member) =>
+      seatedIds.has(member.deviceId) && member.role === 'controller' && !member.connected,
+    );
+    if (!disconnectedSeated) await this.resumeGame();
   }
 
   private async switchGame(gameId: string, settings: Record<string, unknown>): Promise<void> {

@@ -38,6 +38,7 @@ export function useHouseSession({
   const [snapshot, setSnapshot] = useState<HouseSessionSnapshot | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
   const [lastTransition, setLastTransition] = useState<string | null>(null);
+  const [votePoll, setVotePoll] = useState<{ options: string[]; tally: Record<string, number> } | null>(null);
   const [gamePublicState, setGamePublicState] = useState<{
     gameType: string;
     state: unknown;
@@ -88,8 +89,14 @@ export function useHouseSession({
           setSnapshot(next);
           setStatus('ready');
         });
-        room.onMessage('session:transition', (event: { type?: string }) => {
+        room.onMessage('session:transition', (event: { type?: string; options?: string[]; tally?: Record<string, number> }) => {
           setLastTransition(event.type ?? null);
+          if (event.type === 'vote.opened' && Array.isArray(event.options)) {
+            setVotePoll({ options: event.options, tally: event.tally ?? {} });
+          }
+          if (event.type === 'vote.cast' && event.tally) {
+            setVotePoll((current) => current ? { ...current, tally: event.tally ?? {} } : null);
+          }
         });
         room.onMessage('game:public_state', (payload: { gameType: string; state: unknown }) => {
           setGamePublicState(payload);
@@ -155,6 +162,10 @@ export function useHouseSession({
     roomRef.current?.send('vote:cast', { option });
   }, []);
 
+  const callVote = useCallback((options: string[]) => {
+    roomRef.current?.send('session:call_vote', { options });
+  }, []);
+
   const selectGame = useCallback((gameId: string, settings: Record<string, unknown> = {}) => {
     roomRef.current?.send('session:select_game', { gameId, settings });
   }, []);
@@ -171,6 +182,14 @@ export function useHouseSession({
     roomRef.current?.send('session:end_game');
   }, []);
 
+  const pauseGame = useCallback((reason = 'player_pause') => {
+    roomRef.current?.send('session:pause_game', { reason });
+  }, []);
+
+  const resumeGame = useCallback(() => {
+    roomRef.current?.send('session:resume_game');
+  }, []);
+
   return {
     snapshot,
     status,
@@ -178,14 +197,18 @@ export function useHouseSession({
     gamePublicState,
     gamePrivateState,
     aiResult,
+    votePoll,
     setReady,
     sendGameIntent,
     requestHint,
     castVote,
+    callVote,
     selectGame,
     startGame,
     switchGame,
     endGame,
+    pauseGame,
+    resumeGame,
     refresh,
   };
 }

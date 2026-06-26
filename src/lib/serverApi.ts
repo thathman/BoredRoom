@@ -238,9 +238,10 @@ export async function fetchSessionWithRun(
   lastRecap?: SessionRecap;
 } | null> {
   const base = serverHttpBase();
-  if (!base) return null;
+  if (!base) throw new Error('no_server');
   const res = await fetch(`${base}/sessions/${encodeURIComponent(code)}`);
-  if (!res.ok) return null;
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`session_fetch_failed_${res.status}`);
   const data = (await res.json()) as {
     session?: CreatedSession;
     members?: SessionMember[];

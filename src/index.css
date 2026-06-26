@@ -202,11 +202,73 @@
     to { transform: translate3d(18px, -26px, 0) scale(0.12); opacity: 0; }
   }
 
+  .whot-card-face::before {
+    content: "";
+    position: absolute;
+    inset: 10px;
+    border: 1px solid rgb(255 255 255 / .16);
+    border-radius: 0.85rem;
+    pointer-events: none;
+  }
+
+  .whot-card-face::after {
+    content: "";
+    position: absolute;
+    inset: -40%;
+    background: linear-gradient(120deg, transparent 35%, rgb(255 255 255 / .18), transparent 65%);
+    transform: translateX(-70%) rotate(18deg);
+    transition: transform 420ms ease;
+    pointer-events: none;
+  }
+
+  .whot-hand-card:hover .whot-card-face::after,
+  .whot-played-card .whot-card-face::after {
+    transform: translateX(70%) rotate(18deg);
+  }
+
+  .whot-hand-card {
+    animation: whot-card-deal 420ms cubic-bezier(.2,.9,.2,1) both;
+  }
+
+  .whot-hand-card:enabled:hover {
+    transform: translateY(-14px) rotate(-2deg);
+  }
+
+  .whot-played-card {
+    animation: whot-card-slam 520ms cubic-bezier(.2,1.2,.2,1) both;
+  }
+
+  .whot-seat {
+    animation: whot-seat-in 360ms ease both;
+  }
+
+  @keyframes whot-card-deal {
+    from { opacity: 0; transform: translateY(32px) rotate(8deg) scale(.86); }
+    to { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+  }
+
+  @keyframes whot-card-slam {
+    from { opacity: .65; transform: translate3d(-24px, -18px, 0) rotate(-14deg) scale(.88); }
+    68% { transform: translate3d(0, 0, 0) rotate(2deg) scale(1.05); }
+    to { opacity: 1; transform: translate3d(0, 0, 0) rotate(0) scale(1); }
+  }
+
+  @keyframes whot-seat-in {
+    from { opacity: 0; transform: translateY(-12px) scale(.94); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     [style*="star-twinkle"],
     [style*="shooting-star"],
     [style*="falling-star"],
     .animate-atmosphere-trail {
+      animation: none !important;
+    }
+
+    .whot-hand-card,
+    .whot-played-card,
+    .whot-seat {
       animation: none !important;
     }
   }

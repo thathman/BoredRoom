@@ -305,6 +305,30 @@ export function finishActiveGame(
   return record.activeRuntime;
 }
 
+export function pauseActiveGame(code: string, reason = 'controller_disconnected'): SessionRuntime | null {
+  const record = getSessionRecord(code);
+  if (!record?.activeRuntime || record.activeRuntime.run.status !== 'active') return null;
+  const now = new Date().toISOString();
+  record.activeRuntime.run.status = 'paused';
+  record.session.status = 'paused';
+  record.session.currentStage = 'game';
+  record.session.updatedAt = now;
+  emit(code, reason);
+  return record.activeRuntime;
+}
+
+export function resumeActiveGame(code: string): SessionRuntime | null {
+  const record = getSessionRecord(code);
+  if (!record?.activeRuntime || record.activeRuntime.run.status !== 'paused') return null;
+  const now = new Date().toISOString();
+  record.activeRuntime.run.status = 'active';
+  record.session.status = 'game_active';
+  record.session.currentStage = 'game';
+  record.session.updatedAt = now;
+  emit(code, 'game.resumed');
+  return record.activeRuntime;
+}
+
 export function clearActiveGame(code: string): void {
   const record = getSessionRecord(code);
   if (!record) return;

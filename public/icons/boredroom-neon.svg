@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BoredRoom">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="46%" r="72%">
+      <stop offset="0%" stop-color="#062416"/>
+      <stop offset="52%" stop-color="#04140f"/>
+      <stop offset="100%" stop-color="#020817"/>
+    </radialGradient>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.269 0 0 0 0 0.953 0 0 0 0 0.420 0 0 0 0.95 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="56" fill="url(#bg)"/>
+  <circle cx="391" cy="195" r="5" fill="#85ff9a" opacity=".75"/>
+  <circle cx="233" cy="238" r="6" fill="#4bf36b" opacity=".68"/>
+  <circle cx="432" cy="250" r="3" fill="#ffffff" opacity=".76"/>
+  <g filter="url(#glow)" fill="#03120c" stroke="#45f36b" stroke-width="14">
+    <rect x="78" y="74" width="154" height="154" rx="36"/>
+    <rect x="280" y="74" width="154" height="154" rx="36"/>
+    <rect x="78" y="284" width="154" height="154" rx="36"/>
+    <rect x="280" y="284" width="154" height="154" rx="36"/>
+  </g>
+  <g fill="#f7fff8" font-family="Arial Black, Arial, sans-serif" font-weight="900" text-anchor="middle" dominant-baseline="middle">
+    <text x="155" y="154" font-size="88">1</text>
+    <text x="357" y="154" font-size="88">2</text>
+    <text x="155" y="364" font-size="88">3</text>
+    <text x="357" y="364" font-size="88">4</text>
+  </g>
+</svg>
