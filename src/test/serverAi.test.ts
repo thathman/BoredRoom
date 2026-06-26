@@ -51,7 +51,7 @@ describe('server-side AI fallback and isolation', () => {
   it('reports offline without exposing a credential', () => {
     const health = getAiHealth();
     expect(health.enabled).toBe(false);
-    expect(health.model).toBe('google/gemini-2.0-flash-001');
+    expect(health.model).toBe('google/gemini-2.5-flash-lite');
     expect(JSON.stringify(health)).not.toMatch(/api[_-]?key/i);
   });
 
