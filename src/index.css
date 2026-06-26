@@ -120,12 +120,30 @@
 
   .star-field {
     background-image:
-      radial-gradient(circle at 8% 15%, rgb(255 255 255 / .9) 0 1px, transparent 1.8px),
-      radial-gradient(circle at 22% 8%, rgb(95 181 255 / .8) 0 1px, transparent 1.8px),
-      radial-gradient(circle at 47% 14%, rgb(255 255 255 / .75) 0 1px, transparent 1.7px),
-      radial-gradient(circle at 73% 6%, rgb(88 255 157 / .75) 0 1px, transparent 1.8px),
-      radial-gradient(circle at 91% 18%, rgb(199 110 255 / .75) 0 1px, transparent 1.8px);
-    background-size: 230px 190px, 310px 260px, 390px 310px, 270px 220px, 350px 290px;
+      radial-gradient(circle at 8% 15%, rgb(255 255 255 / .9) 0 1.2px, transparent 2.1px),
+      radial-gradient(circle at 22% 8%, rgb(95 181 255 / .85) 0 1px, transparent 2px),
+      radial-gradient(circle at 47% 14%, rgb(255 255 255 / .75) 0 1px, transparent 1.9px),
+      radial-gradient(circle at 73% 6%, rgb(88 255 157 / .75) 0 1px, transparent 2px),
+      radial-gradient(circle at 91% 18%, rgb(199 110 255 / .78) 0 1.1px, transparent 2px),
+      radial-gradient(circle at 64% 42%, rgb(255 255 255 / .45) 0 .8px, transparent 1.7px),
+      radial-gradient(circle at 36% 55%, rgb(95 181 255 / .42) 0 .8px, transparent 1.7px);
+    background-size: 190px 155px, 260px 220px, 350px 280px, 235px 195px, 310px 250px, 170px 145px, 290px 230px;
+  }
+
+  .lagos-skyline-image {
+    bottom: var(--lagos-skyline-bottom, 0);
+    height: auto;
+    max-height: var(--lagos-skyline-max-height, none);
+    width: var(--lagos-skyline-width, 100%);
+    opacity: var(--lagos-skyline-opacity, .98);
+    filter:
+      saturate(1.2)
+      contrast(1.08)
+      drop-shadow(0 0 14px rgb(69 243 107 / .16))
+      drop-shadow(0 0 24px rgb(179 76 255 / .12));
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgb(0 0 0 / .4) 8%, #000 18%, #000 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, rgb(0 0 0 / .4) 8%, #000 18%, #000 100%);
+    transform: translateY(var(--lagos-skyline-y, 0));
   }
 
   .neon-box {
@@ -154,14 +172,17 @@
   }
 
   @keyframes star-twinkle {
-    0%, 100% { opacity: 0.25; transform: scale(0.85); }
-    50% { opacity: 1; transform: scale(1.15); }
+    0%, 100% { opacity: 0.18; transform: scale(0.65); }
+    45% { opacity: 1; transform: scale(1.35); }
+    52% { opacity: 0.65; transform: scale(1.05); }
+    63% { opacity: 1; transform: scale(1.5); }
   }
 
   @keyframes shooting-star {
-    0% { transform: rotate(var(--tw-rotate, 20deg)) translateX(0) scaleX(0.2); opacity: 0; }
-    10% { opacity: 1; }
-    100% { transform: rotate(var(--tw-rotate, 20deg)) translateX(60vw) scaleX(1); opacity: 0; }
+    0%, 58% { transform: rotate(var(--tw-rotate, 20deg)) translateX(-18vw) scaleX(0.2); opacity: 0; }
+    64% { opacity: 1; }
+    82% { opacity: .95; }
+    100% { transform: rotate(var(--tw-rotate, 20deg)) translateX(68vw) scaleX(1); opacity: 0; }
   }
 
   @keyframes falling-star {
@@ -172,12 +193,12 @@
   }
 
   .animate-atmosphere-trail {
-    animation: atmosphere-trail 700ms ease-out forwards;
+    animation: atmosphere-trail 1100ms ease-out forwards;
   }
 
   @keyframes atmosphere-trail {
     from { transform: translate3d(0, 0, 0) scale(1); opacity: 0.9; }
-    to { transform: translate3d(16px, -24px, 0) scale(0.15); opacity: 0; }
+    to { transform: translate3d(18px, -26px, 0) scale(0.12); opacity: 0; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -191,9 +212,9 @@
 
   @media (max-width: 767px) {
     .star-field > img[aria-hidden="true"] {
-      height: 46%;
+      height: var(--lagos-skyline-mobile-height, 42%);
       top: auto;
-      opacity: 0.68;
+      opacity: var(--lagos-skyline-mobile-opacity, 0.72);
     }
   }
 }

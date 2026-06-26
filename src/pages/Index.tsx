@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { ArrowRight, Download, Gamepad2, QrCode, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -118,7 +118,14 @@ export default function Index() {
   if (device === 'mobile_controller') return <MobileEntry />;
 
   return (
-    <LagosScene>
+    <LagosScene
+      style={
+        {
+          '--lagos-skyline-bottom': '8rem',
+          '--lagos-skyline-opacity': '1',
+        } as CSSProperties
+      }
+    >
       <div className="mx-auto flex min-h-screen max-w-[1536px] flex-col px-8 pb-6 pt-7 lg:px-14">
         <header className="flex items-center justify-between">
           <BrandLogo className="text-4xl" />
@@ -127,7 +134,7 @@ export default function Index() {
           </Button>
         </header>
 
-        <section className="flex flex-1 flex-col items-center justify-center pb-48 pt-5 text-center">
+        <section className="flex flex-1 flex-col items-center justify-start pb-72 pt-[7vh] text-center lg:pt-[8vh]">
           <h1 className="brush-display text-5xl uppercase leading-[1.04] text-white sm:text-6xl lg:text-[68px]">
             One room.<br />
             <span className="text-primary">Every phone is<br />a controller.</span>
@@ -156,7 +163,7 @@ export default function Index() {
           )}
         </section>
 
-        <section className="absolute inset-x-0 bottom-0 border-t border-white/10 bg-[#020713]/94 px-8 pb-5 pt-3 backdrop-blur-xl lg:px-14">
+        <section className="absolute inset-x-0 bottom-0 border-t border-white/10 bg-[linear-gradient(180deg,rgba(2,7,19,.78),rgba(2,7,19,.96))] px-8 pb-5 pt-3 backdrop-blur-md lg:px-14">
           <div className="mx-auto max-w-[1424px]">
             <div className="flex items-end justify-between">
               <div>
