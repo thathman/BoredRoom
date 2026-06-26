@@ -1,6 +1,6 @@
 # Codex Handoff — BoredRoom
 
-Last updated: 2026-06-26 12:31 WAT
+Last updated: 2026-06-26 12:38 WAT
 
 ## Mission
 
@@ -40,6 +40,7 @@ Do not mark the long-running goal complete until every requirement in those file
 - Game display/controller surface in current main app: `src/components/session/InstalledGameSurface.tsx`.
 - AI orchestration: `server/src/aiService.ts`.
 - Deterministic bot strategy: `server/src/botStrategy.ts`.
+- Latest main-app deployed commit: `7ef98f7 Document implementation audit baseline`.
 
 ### Runtime flow
 
@@ -205,3 +206,10 @@ Before claiming completion:
 ## Current next recommended prompt
 
 “Continue from the BoredRoom handoff docs. Fix the server audit vulnerabilities or document exact non-fixable advisory status with evidence. Keep docs updated, run full gates, deploy to Dell, and verify live entry/bot/gameplay matrix.”
+
+Latest live evidence after `7ef98f7` deploy:
+
+- `curl -fsS https://colyseus.hendrix.com.ng/healthz` passed.
+- `PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-entry-flows.mjs` passed.
+- `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-bot-autofill.mjs` passed with bot seated in `FS5W`.
+- `PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-gameplay-matrix.mjs` passed 15 games through `FMNM`.

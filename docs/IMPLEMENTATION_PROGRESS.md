@@ -1,6 +1,6 @@
 # BoredRoom Implementation Progress
 
-Last updated: 2026-06-26 12:31 WAT
+Last updated: 2026-06-26 12:38 WAT
 
 ## Current objective
 
@@ -19,7 +19,7 @@ Source of truth read this pass:
 
 Main app: `/Users/hendrix/Playground/boredroom`
 
-- HEAD: `b61cc50 Add deterministic session bots`
+- HEAD: `7ef98f7 Document implementation audit baseline`
 - Live Dell deployment verified after this commit.
 - `docs/` did not exist before this pass; this file and `docs/CODEX_HANDOFF.md` are now the baseline handoff docs.
 
@@ -56,7 +56,8 @@ Spec repo: `/Users/hendrix/Playground/BoredRoom-Spec`
   - Cloudflare health: `https://colyseus.hendrix.com.ng/healthz`
   - entry smoke: `scripts/playwright-entry-flows.mjs`
   - bot autofill: `scripts/playwright-bot-autofill.mjs`
-  - 15-game matrix: `scripts/playwright-gameplay-matrix.mjs` with `PASS 15 games through EEGG`
+- Latest 15-game matrix after audit/model deployment: `scripts/playwright-gameplay-matrix.mjs` with `PASS 15 games through FMNM`
+- OpenRouter model pin now matches the current spec: `google/gemini-2.5-flash-lite`.
 
 ## Tests and release gates last run
 
