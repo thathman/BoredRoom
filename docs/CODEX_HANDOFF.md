@@ -1,6 +1,6 @@
 # Codex Handoff — BoredRoom
 
-Last updated: 2026-06-26 12:45 WAT
+Last updated: 2026-06-26 13:30 WAT
 
 ## Mission
 
@@ -40,7 +40,7 @@ Do not mark the long-running goal complete until every requirement in those file
 - Game display/controller surface in current main app: `src/components/session/InstalledGameSurface.tsx`.
 - AI orchestration: `server/src/aiService.ts`.
 - Deterministic bot strategy: `server/src/botStrategy.ts`.
-- Latest main-app deployed commit: `7ef98f7 Document implementation audit baseline`.
+- Latest main-app deployed commit: `c833fab Align root zod dependency with SDK peers`.
 
 ### Runtime flow
 
@@ -130,8 +130,11 @@ npm run build
    - Spec says `google/gemini-2.5-flash-lite`.
    - Code now defaults to `google/gemini-2.5-flash-lite` and remains overrideable with `AI_MODEL`.
 
-2. Dependency audit:
-   - Local `npm --prefix server audit --audit-level=moderate` now passes after upgrading Colyseus server packages. Deploy/live checks are pending for this dependency change.
+2. Dependency audit / Colyseus alignment:
+   - Server npm audit now passes after upgrading Colyseus server packages.
+   - Client was migrated from `colyseus.js` to `@colyseus/sdk` to match the 0.17 server line.
+   - Root/server zod dependencies are aligned so Docker `npm ci` succeeds.
+   - Live health, entry flow, bot autofill, and 15-game matrix passed after deployment.
 
 3. Games repo version mismatch:
    - `catalog.json` and `dist/*.tgz` are `1.2.0.0`.
@@ -162,8 +165,8 @@ npm run build
 
 ### Immediate next tasks
 
-1. Deploy the Colyseus dependency upgrade and rerun live health, entry, bot autofill, and 15-game matrix.
-2. Then implement the next production gap: full vote lifecycle or companion control booth.
+1. Harden `scripts/deploy-dell.sh`: a failed `docker compose build` or failed health check must not print deployment success.
+2. Implement the next production gap: full vote lifecycle or companion control booth.
 3. Update both docs after each change.
 4. Commit/push/deploy and rerun live smoke/matrix.
 
@@ -205,11 +208,12 @@ Before claiming completion:
 
 ## Current next recommended prompt
 
-“Continue from the BoredRoom handoff docs. Deploy and verify the Colyseus dependency upgrade if not already done. Then implement the full vote lifecycle or companion control booth. Keep docs updated and run full local/live gates.”
+“Continue from the BoredRoom handoff docs. The Lagos hero and Colyseus 0.17 client/server alignment are live. Harden the Dell deploy script, then implement the full vote lifecycle or companion control booth. Keep docs updated and run full local/live gates.”
 
-Latest live evidence after `7ef98f7` deploy:
+Latest live evidence after `c833fab` deploy:
 
 - `curl -fsS https://colyseus.hendrix.com.ng/healthz` passed.
 - `PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-entry-flows.mjs` passed.
-- `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-bot-autofill.mjs` passed with bot seated in `FS5W`.
-- `PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-gameplay-matrix.mjs` passed 15 games through `FMNM`.
+- `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-bot-autofill.mjs` passed with bot seated in `NV7C`.
+- `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-gameplay-matrix.mjs` passed 15 games through `YHQG`.
+- Final live homepage visual screenshot with visible skyline, twinkle stars, shooting stars, and pointer glow/trails: `/tmp/boredroom-live-home-final.png`.

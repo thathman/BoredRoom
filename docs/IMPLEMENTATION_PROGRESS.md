@@ -1,6 +1,6 @@
 # BoredRoom Implementation Progress
 
-Last updated: 2026-06-26 12:45 WAT
+Last updated: 2026-06-26 13:30 WAT
 
 ## Current objective
 
@@ -19,7 +19,7 @@ Source of truth read this pass:
 
 Main app: `/Users/hendrix/Playground/boredroom`
 
-- HEAD: `26959a1 Update implementation handoff evidence`
+- HEAD: `c833fab Align root zod dependency with SDK peers`
 - Live Dell deployment verified after this commit.
 - `docs/` did not exist before this pass; this file and `docs/CODEX_HANDOFF.md` are now the baseline handoff docs.
 
@@ -42,7 +42,7 @@ Spec repo: `/Users/hendrix/Playground/BoredRoom-Spec`
 - Game sessions use one four-character house code; live matrix creates sessions and starts all 15 installed games through the house session.
 - Homepage no longer exposes desktop join prompt.
 - Device-aware landing exists for desktop, tablet, and mobile.
-- Homepage Lagos hero was strengthened with visible full-width skyline, twinkle stars, shooting stars, and mouse trails.
+- Homepage Lagos hero was strengthened with a fully visible Lagos skyline/waterline, explicit twinkle-star flares, shooting stars, and pointer mouse trails. Final live screenshot: `/tmp/boredroom-live-home-final.png`.
 - QR scanner component exists and QR parsing accepts `/join/:code` and `/session/:code/:screen` URLs.
 - Host lobby shows QR/code and an `Advance to games` button.
 - Active game display shows a small QR/code strip for rejoining.
@@ -56,8 +56,9 @@ Spec repo: `/Users/hendrix/Playground/BoredRoom-Spec`
   - Cloudflare health: `https://colyseus.hendrix.com.ng/healthz`
   - entry smoke: `scripts/playwright-entry-flows.mjs`
   - bot autofill: `scripts/playwright-bot-autofill.mjs`
-- Latest 15-game matrix after audit/model deployment: `scripts/playwright-gameplay-matrix.mjs` with `PASS 15 games through FMNM`
+- Latest 15-game matrix after Colyseus 0.17/client SDK deployment: `scripts/playwright-gameplay-matrix.mjs` with `PASS 15 games through YHQG`
 - OpenRouter model pin now matches the current spec: `google/gemini-2.5-flash-lite`.
+- Colyseus server/client are aligned on the 0.17 line: server `@colyseus/core`/`@colyseus/ws-transport`; client `@colyseus/sdk`. Server bootstrap uses `gameServer.listen(PORT)` so Colyseus binds matchmaking routes around the existing Express app without breaking REST request bodies.
 
 ## Tests and release gates last run
 
@@ -76,9 +77,17 @@ Live gates passed after deploy:
 - `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-bot-autofill.mjs`
 - `PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-gameplay-matrix.mjs`
 
-Known failing/unfinished release gate:
+Latest live evidence:
 
-- Server dependency audit was failing on `@colyseus/core`, `@colyseus/ws-transport`, and `nanoid`; current local gate now reports `found 0 vulnerabilities` after upgrading Colyseus server packages. Live Dell verification is still required after deploy.
+- `curl -fsS https://colyseus.hendrix.com.ng/healthz` returned `{"ok":true,"transport":"colyseus","version":3}`.
+- `curl -fsSI https://party.hendrix.com.ng/` returned HTTP 200 with `last-modified: Fri, 26 Jun 2026 12:27:21 GMT`.
+- `PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-entry-flows.mjs` passed.
+- `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-bot-autofill.mjs` passed with bot seated in `NV7C`.
+- `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-gameplay-matrix.mjs` passed all 15 games through `YHQG`.
+
+Known release-process issue:
+
+- `scripts/deploy-dell.sh` can print `[deploy] deployment successful` after a transient health `curl` reset, and previously continued after a failed web Docker build because the command chain mixes `&&` and `|| true` without grouping. The script needs hardening so a failed `docker compose build` or failed health check exits non-zero reliably.
 
 ## Current acceptance status against `15-current-product/04-acceptance-matrix.md`
 
@@ -95,7 +104,7 @@ Known failing/unfinished release gate:
 | CUR-09 | Partially met | `playwright-entry-flows.mjs` covers desktop/tablet/mobile entry. Need direct-route correction tests and iPadOS/touchscreen-laptop matrix. |
 | CUR-10 | Not met | No visual-regression ledger or native-size screenshot comparison exists. Current UI is closer, but not proven against approved references. |
 | CUR-11 | Not met | No server-restart recovery E2E. Refresh/reconnect coverage is narrow and mostly smoke-level. |
-| CUR-12 | Partially met | Lint/typecheck/tests/build/server audit pass locally. Live checks pass from the prior deploy; rerun after dependency deployment. PWA/mobile viewport coverage remains incomplete. |
+| CUR-12 | Partially met | Lint/typecheck/tests/build/frontend audit/server audit pass locally. Live health, entry, bot autofill, and 15-game matrix pass after dependency deployment. PWA/mobile viewport coverage remains incomplete. |
 
 ## Known product/spec mismatches
 
@@ -142,7 +151,7 @@ Known failing/unfinished release gate:
 
 ### Security/admin/persistence
 
-- Server npm audit vulnerabilities fixed locally by upgrading `@colyseus/core` to `^0.17.44`, `@colyseus/ws-transport` to `^0.17.13`, `@colyseus/monitor` to `^0.17.8`, `@colyseus/schema` to `^4.0.26`, and `zod` to `^4.4.3`. Needs deploy/live verification.
+- Server npm audit vulnerabilities fixed and deployed by upgrading `@colyseus/core` to `^0.17.44`, `@colyseus/ws-transport` to `^0.17.13`, `@colyseus/monitor` to `^0.17.8`, `@colyseus/schema` to `^4.0.26`, aligning root/server `zod` to v4 where required, and replacing `colyseus.js` with `@colyseus/sdk`.
 - Need Supabase RLS/service-role-only write audit against actual policies.
 - Need active-run install/update/uninstall blocking tests.
 - Need game artifact rejection tests: bad signature, digest mismatch, path traversal, oversized artifact, bad MIME.
@@ -157,18 +166,17 @@ Known failing/unfinished release gate:
 
 ## Files changed in last completed implementation pass
 
-- `shared/src/contracts/gameRuntime.ts`
-- `server/src/botStrategy.ts`
-- `server/src/sessionDirectory.ts`
-- `server/src/installedGames.ts`
-- `server/src/rooms/HouseSessionRoom.ts`
-- `src/lib/serverApi.ts`
-- `src/pages/SessionScreen.tsx`
-- `src/components/session/HostGameDrawer.tsx`
-- `src/test/botStrategy.test.ts`
-- `src/test/sessionAuthority.test.ts`
+- `server/src/index.ts`
+- `src/components/brand/LagosScene.tsx`
+- `src/index.css`
+- `src/pages/Index.tsx`
+- `src/hooks/useHouseSession.ts`
 - `scripts/playwright-bot-autofill.mjs`
+- `scripts/playwright-gameplay-matrix.mjs`
+- `scripts/smoke-unified-session.mjs`
+- `package.json`
+- `package-lock.json`
 
 ## Next recommended agent prompt
 
-Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. After the Colyseus dependency deploy/live checks, tackle the next production gap: full vote lifecycle or companion control booth. Keep docs updated after each change.
+Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. The Lagos hero/motion fix and Colyseus 0.17 deployment are verified live. Next production gap: full vote lifecycle or companion control booth. Also harden `scripts/deploy-dell.sh` so build/health failures cannot be reported as successful.
