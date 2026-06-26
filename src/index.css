@@ -242,6 +242,49 @@
     animation: whot-seat-in 360ms ease both;
   }
 
+  .ludo-cell {
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .ludo-token {
+    display: grid;
+    width: 1.9rem;
+    height: 1.9rem;
+    place-items: center;
+    border-radius: 9999px;
+    border: 2px solid rgb(255 255 255 / .76);
+    font-size: .76rem;
+    font-weight: 900;
+    transition:
+      transform 180ms ease,
+      box-shadow 180ms ease,
+      filter 180ms ease;
+    animation: ludo-token-pop 340ms cubic-bezier(.2,1.2,.2,1) both;
+  }
+
+  .ludo-token:enabled:hover {
+    transform: translateY(-4px) scale(1.12);
+    filter: saturate(1.25);
+  }
+
+  .ludo-die {
+    animation: ludo-die-pulse 1200ms ease-in-out infinite;
+  }
+
+  @keyframes ludo-token-pop {
+    from { opacity: 0; transform: scale(.55) translateY(12px); }
+    70% { opacity: 1; transform: scale(1.12) translateY(-2px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  @keyframes ludo-die-pulse {
+    0%, 100% { transform: rotate(-1deg) scale(1); box-shadow: 0 0 18px rgb(69 243 107 / .16); }
+    50% { transform: rotate(1deg) scale(1.04); box-shadow: 0 0 34px rgb(69 243 107 / .32); }
+  }
+
   @keyframes whot-card-deal {
     from { opacity: 0; transform: translateY(32px) rotate(8deg) scale(.86); }
     to { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
@@ -268,7 +311,9 @@
 
     .whot-hand-card,
     .whot-played-card,
-    .whot-seat {
+    .whot-seat,
+    .ludo-token,
+    .ludo-die {
       animation: none !important;
     }
   }

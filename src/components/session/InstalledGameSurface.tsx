@@ -96,6 +96,42 @@ function WhotCardBack({ compact = false }: { compact?: boolean }) {
   );
 }
 
+const ludoPalette = [
+  { name: 'Emerald', token: 'bg-primary text-[#031008]', glow: 'shadow-[0_0_18px_rgba(69,243,107,.65)]', border: 'border-primary/80', area: 'bg-primary/10' },
+  { name: 'Violet', token: 'bg-secondary text-white', glow: 'shadow-[0_0_18px_rgba(179,76,255,.65)]', border: 'border-secondary/80', area: 'bg-secondary/10' },
+  { name: 'Amber', token: 'bg-amber-300 text-black', glow: 'shadow-[0_0_18px_rgba(252,211,77,.55)]', border: 'border-amber-300/80', area: 'bg-amber-300/10' },
+  { name: 'Sky', token: 'bg-sky-300 text-black', glow: 'shadow-[0_0_18px_rgba(125,211,252,.55)]', border: 'border-sky-300/80', area: 'bg-sky-300/10' },
+];
+
+const ludoPath = (() => {
+  const cells: Array<{ row: number; col: number }> = [];
+  for (let col = 1; col <= 13; col += 1) cells.push({ row: 1, col });
+  for (let row = 2; row <= 13; row += 1) cells.push({ row, col: 13 });
+  for (let col = 13; col >= 1; col -= 1) cells.push({ row: 13, col });
+  for (let row = 12; row >= 2; row -= 1) cells.push({ row, col: 1 });
+  return cells;
+})();
+
+const ludoHomeCells = [
+  { row: 5, col: 7 },
+  { row: 6, col: 7 },
+  { row: 7, col: 7 },
+  { row: 8, col: 7 },
+  { row: 9, col: 7 },
+  { row: 7, col: 6 },
+];
+
+const ludoYards = [
+  { row: 2, col: 2, className: 'items-start justify-start' },
+  { row: 2, col: 10, className: 'items-start justify-end' },
+  { row: 10, col: 10, className: 'items-end justify-end' },
+  { row: 10, col: 2, className: 'items-end justify-start' },
+];
+
+function ludoTokenLabel(index: number) {
+  return ['A', 'B', 'C', 'D'][index] ?? String(index + 1);
+}
+
 export function InstalledGameSurface({
   publicState,
   privateState,
@@ -265,34 +301,170 @@ export function InstalledGameSurface({
                 )}
 
                 {state.mode === 'ludo' && (
-                  <div className="mx-auto max-w-2xl space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {(state.players ?? []).map((player) => (
-                        <div key={player.id} className={`rounded-2xl border p-4 ${player.id === state.currentPlayerId ? 'border-primary bg-primary/10' : 'border-white/10 bg-white/[0.035]'}`}>
-                          <p className="font-semibold">{player.name}</p>
-                          <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
-                            {(state.tokens?.[player.id] ?? []).map((position, index) => (
-                              <div key={index} className="rounded-xl border border-white/10 bg-black/30 p-2">
-                                T{index + 1}<br /><span className="text-primary">{position < 0 ? 'Yard' : position >= 57 ? 'Home' : position}</span>
+                  <div className="mx-auto w-full max-w-5xl">
+                    <div className="grid gap-5 xl:grid-cols-[1fr_280px]">
+                      <div className="ludo-board relative mx-auto aspect-square w-full max-w-[720px] overflow-hidden rounded-[2rem] border border-primary/25 bg-[#071018] p-3 shadow-[inset_0_0_70px_rgba(0,0,0,.55),0_0_34px_rgba(69,243,107,.12)]">
+                        <div className="grid h-full w-full grid-cols-[repeat(15,minmax(0,1fr))] grid-rows-[repeat(15,minmax(0,1fr))] gap-1">
+                          {ludoPath.map((cell, index) => {
+                            const safe = [0, 8, 13, 21, 26, 34, 39, 47].includes(index);
+                            return (
+                              <div
+                                key={`path-${index}`}
+                                className={`ludo-cell rounded-md border text-[9px] ${safe ? 'border-primary/55 bg-primary/18 text-primary' : 'border-white/10 bg-white/[0.045] text-white/28'}`}
+                                style={{ gridRow: cell.row + 1, gridColumn: cell.col + 1 }}
+                              >
+                                {safe ? '★' : ''}
                               </div>
+                            );
+                          })}
+                          {ludoHomeCells.map((cell, index) => (
+                            <div
+                              key={`home-${index}`}
+                              className="ludo-cell rounded-md border border-primary/50 bg-primary/15 text-[9px] text-primary"
+                              style={{ gridRow: cell.row + 1, gridColumn: cell.col + 1 }}
+                            >
+                              HOME
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="absolute inset-[34%] grid place-items-center rounded-3xl border border-primary/40 bg-[radial-gradient(circle,rgba(69,243,107,.22),rgba(2,8,23,.9))] text-center shadow-[0_0_28px_rgba(69,243,107,.18)]">
+                          <p className="brush-display text-4xl text-primary">Ludo</p>
+                          <p className="text-xs text-white/60">Race home</p>
+                        </div>
+
+                        {(state.players ?? []).map((player, playerIndex) => {
+                          const palette = ludoPalette[playerIndex % ludoPalette.length];
+                          const yard = ludoYards[playerIndex % ludoYards.length];
+                          const tokens = state.tokens?.[player.id] ?? [];
+                          return (
+                            <div
+                              key={`yard-${player.id}`}
+                              className={`absolute grid h-[25%] w-[25%] ${yard.className} rounded-[1.5rem] border ${palette.border} ${palette.area} p-3`}
+                              style={{
+                                top: `${(yard.row / 15) * 100}%`,
+                                left: `${(yard.col / 15) * 100}%`,
+                              }}
+                            >
+                              <p className="mb-2 truncate text-xs font-bold">{player.name}</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {tokens.map((position, tokenIndex) => {
+                                  if (position >= 0) return null;
+                                  const legal = legalIntents.find((intent) => intent.type === 'move_token' && intent.tokenIndex === tokenIndex);
+                                  return (
+                                    <button
+                                      key={`yard-token-${player.id}-${tokenIndex}`}
+                                      type="button"
+                                      disabled={isHost || role === 'crowd' || !legal || state.phase !== 'playing'}
+                                      onClick={() => {
+                                        if (!legal) return;
+                                        sounds.tokenMove();
+                                        vibrate(45);
+                                        sendIntent(legal);
+                                      }}
+                                      className={`ludo-token ${palette.token} ${palette.glow} ${legal ? 'ring-2 ring-white/80' : ''}`}
+                                      aria-label={`${player.name} token ${tokenIndex + 1} in yard`}
+                                    >
+                                      {ludoTokenLabel(tokenIndex)}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {(state.players ?? []).flatMap((player, playerIndex) => {
+                          const palette = ludoPalette[playerIndex % ludoPalette.length];
+                          const tokens = state.tokens?.[player.id] ?? [];
+                          return tokens.map((position, tokenIndex) => {
+                            if (position < 0) return null;
+                            const cell = position >= 52
+                              ? ludoHomeCells[Math.min(position - 52, ludoHomeCells.length - 1)]
+                              : ludoPath[(position + playerIndex * 13) % ludoPath.length];
+                            const legal = player.id === state.currentPlayerId
+                              ? legalIntents.find((intent) => intent.type === 'move_token' && intent.tokenIndex === tokenIndex)
+                              : null;
+                            return (
+                              <button
+                                key={`track-token-${player.id}-${tokenIndex}`}
+                                type="button"
+                                disabled={isHost || role === 'crowd' || !legal || state.phase !== 'playing'}
+                                onClick={() => {
+                                  if (!legal) return;
+                                  sounds.tokenMove();
+                                  vibrate(45);
+                                  sendIntent(legal);
+                                }}
+                                className={`ludo-token absolute ${palette.token} ${palette.glow} ${legal ? 'ring-2 ring-white/80' : ''}`}
+                                style={{
+                                  top: `calc(${(cell.row / 15) * 100}% + 2px + ${(tokenIndex % 2) * 12}px)`,
+                                  left: `calc(${(cell.col / 15) * 100}% + 2px + ${Math.floor(tokenIndex / 2) * 12}px)`,
+                                }}
+                                aria-label={`${player.name} token ${tokenIndex + 1} at ${position >= 57 ? 'home' : `position ${position}`}`}
+                              >
+                                {ludoTokenLabel(tokenIndex)}
+                              </button>
+                            );
+                          });
+                        })}
+                      </div>
+
+                      <aside className="space-y-4">
+                        <div className="rounded-[1.5rem] border border-white/10 bg-black/35 p-4 text-center">
+                          <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Dice</p>
+                          <div className="ludo-die mx-auto mt-3 grid h-24 w-24 place-items-center rounded-3xl border border-primary/60 bg-primary/10 text-5xl font-black text-primary shadow-[0_0_28px_rgba(69,243,107,.22)]">
+                            {state.pendingRoll ?? '•'}
+                          </div>
+                          <p className="mt-3 text-sm text-muted-foreground">
+                            {mine.isTurn ? 'Your turn.' : `Waiting for ${state.players.find((player) => player.id === state.currentPlayerId)?.name ?? 'the next player'}.`}
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          {(state.players ?? []).map((player, playerIndex) => {
+                            const palette = ludoPalette[playerIndex % ludoPalette.length];
+                            const active = player.id === state.currentPlayerId;
+                            return (
+                              <div key={`rail-${player.id}`} className={`rounded-2xl border p-3 ${active ? `${palette.border} ${palette.area}` : 'border-white/10 bg-white/[0.035]'}`}>
+                                <div className="flex items-center gap-2">
+                                  <span className={`h-4 w-4 rounded-full ${palette.token}`} />
+                                  <strong className="min-w-0 flex-1 truncate text-sm">{player.name}</strong>
+                                  <span className="text-xs text-muted-foreground">{player.score}</span>
+                                </div>
+                                <div className="mt-2 flex gap-1">
+                                  {(state.tokens?.[player.id] ?? []).map((position, index) => (
+                                    <span key={index} className="rounded-full bg-black/35 px-2 py-1 text-[10px] text-white/65">
+                                      {position < 0 ? 'Yard' : position >= 57 ? 'Home' : position}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {!isHost && role !== 'crowd' && (
+                          <div className="grid gap-2">
+                            {legalIntents.map((intent, index) => (
+                              <Button
+                                key={index}
+                                className="neon-primary h-13 rounded-xl"
+                                disabled={state.phase !== 'playing'}
+                                onClick={() => {
+                                  if (intent.type === 'roll') sounds.ludoDiceGlassRoll();
+                                  else sounds.tokenMove();
+                                  vibrate(intent.type === 'roll' ? [30, 20, 30] : 45);
+                                  sendIntent(intent);
+                                }}
+                              >
+                                {intent.label ?? (intent.type === 'roll' ? 'Roll dice' : 'Move token')}
+                              </Button>
                             ))}
                           </div>
-                        </div>
-                      ))}
+                        )}
+                      </aside>
                     </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-center">
-                      <p className="text-sm text-muted-foreground">Dice</p>
-                      <p className="mt-1 text-4xl font-black text-primary">{state.pendingRoll ?? '—'}</p>
-                    </div>
-                    {!isHost && role !== 'crowd' && (
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {legalIntents.map((intent, index) => (
-                          <Button key={index} className="neon-primary rounded-xl" disabled={state.phase !== 'playing'} onClick={() => sendIntent(intent)}>
-                            {intent.label ?? (intent.type === 'roll' ? 'Roll dice' : 'Move token')}
-                          </Button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 )}
 
