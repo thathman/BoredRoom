@@ -176,17 +176,64 @@
   }
 
   @keyframes star-twinkle {
-    0%, 100% { opacity: 0.28; transform: scale(0.72); filter: brightness(0.9); }
-    38% { opacity: 1; transform: scale(1.65); filter: brightness(1.7); }
-    51% { opacity: 0.58; transform: scale(1.05); filter: brightness(1.1); }
-    64% { opacity: 1; transform: scale(1.9); filter: brightness(1.8); }
+    0%, 100% { opacity: 0.42; transform: scale(0.82) rotate(0deg); filter: brightness(1); }
+    36% { opacity: 1; transform: scale(1.85) rotate(24deg); filter: brightness(2); }
+    51% { opacity: 0.62; transform: scale(1.12) rotate(48deg); filter: brightness(1.2); }
+    64% { opacity: 1; transform: scale(2.2) rotate(90deg); filter: brightness(2.2); }
   }
 
   @keyframes shooting-star {
-    0%, 45% { transform: rotate(var(--tw-rotate, 20deg)) translateX(-24vw) scaleX(0.15); opacity: 0; }
+    0%, 40% { transform: rotate(var(--tw-rotate, 20deg)) translateX(-28vw) scaleX(0.12); opacity: 0; }
     52% { opacity: 1; }
-    72% { opacity: .98; }
-    100% { transform: rotate(var(--tw-rotate, 20deg)) translateX(86vw) scaleX(1); opacity: 0; }
+    74% { opacity: .98; }
+    100% { transform: rotate(var(--tw-rotate, 20deg)) translateX(100vw) scaleX(1); opacity: 0; }
+  }
+
+  .atmosphere-star::before,
+  .atmosphere-star::after {
+    content: "";
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: calc(var(--star-flare, 18px));
+    height: 1px;
+    border-radius: 999px;
+    background: currentColor;
+    color: inherit;
+    transform: translate(-50%, -50%);
+    opacity: .72;
+    box-shadow: 0 0 14px currentColor;
+  }
+
+  .atmosphere-star::after {
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+
+  .atmosphere-shooting-star {
+    height: 2px;
+  }
+
+  .atmosphere-shooting-star::after {
+    content: "";
+    position: absolute;
+    right: -3px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / .96);
+    transform: translateY(-50%);
+    box-shadow: 0 0 14px rgb(255 255 255 / .95);
+  }
+
+  .atmosphere-cursor-glow {
+    width: 28px;
+    height: 28px;
+    transform: translate(-50%, -50%);
+    opacity: .34;
+    filter: blur(8px);
+    box-shadow:
+      0 0 20px currentColor,
+      0 0 48px currentColor;
   }
 
   @keyframes falling-star {
@@ -197,13 +244,14 @@
   }
 
   .animate-atmosphere-trail {
-    animation: atmosphere-trail 1100ms ease-out forwards;
+    animation: atmosphere-trail 1300ms ease-out forwards;
+    filter: blur(.5px);
   }
 
   @keyframes atmosphere-trail {
-    from { transform: rotate(var(--trail-angle, 0deg)) translate3d(0, 0, 0) scale(1); opacity: 0.95; }
+    from { transform: rotate(var(--trail-angle, 0deg)) translate3d(0, 0, 0) scale(1); opacity: 0.98; }
     28% { opacity: 1; }
-    to { transform: rotate(var(--trail-angle, 0deg)) translate3d(42px, -34px, 0) scale(0.08); opacity: 0; }
+    to { transform: rotate(var(--trail-angle, 0deg)) translate3d(64px, -48px, 0) scale(0.04); opacity: 0; }
   }
 
   .whot-card-face::before {
@@ -309,8 +357,10 @@
     [style*="star-twinkle"],
     [style*="shooting-star"],
     [style*="falling-star"],
+    .atmosphere-cursor-glow,
     .animate-atmosphere-trail {
       animation: none !important;
+      display: none !important;
     }
 
     .whot-hand-card,

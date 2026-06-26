@@ -122,9 +122,9 @@ export default function Index() {
     <LagosScene
       style={
         {
-          '--lagos-skyline-bottom': '11.5rem',
-          '--lagos-skyline-height': 'min(58svh, calc(100svh - 12rem))',
-          '--lagos-skyline-max-height': '58svh',
+          '--lagos-skyline-bottom': 'clamp(15.75rem, 27svh, 19.5rem)',
+          '--lagos-skyline-height': 'min(54svh, calc(100svh - 14rem))',
+          '--lagos-skyline-max-height': '54svh',
           '--lagos-skyline-width': '100%',
           '--lagos-skyline-object-fit': 'fill',
           '--lagos-skyline-opacity': '1',
@@ -139,7 +139,7 @@ export default function Index() {
           </Button>
         </header>
 
-        <section className="flex flex-1 flex-col items-center justify-start pb-72 pt-[7vh] text-center lg:pt-[8vh]">
+        <section className="flex flex-1 flex-col items-center justify-start pb-[21rem] pt-[7vh] text-center lg:pt-[8vh]">
           <h1 className="brush-display text-5xl uppercase leading-[1.04] text-white sm:text-6xl lg:text-[68px]">
             One room.<br />
             <span className="text-primary">Every phone is<br />a controller.</span>
@@ -168,7 +168,7 @@ export default function Index() {
           )}
         </section>
 
-        <section className="absolute inset-x-0 bottom-0 border-t border-white/10 bg-[linear-gradient(180deg,rgba(2,7,19,.58),rgba(2,7,19,.9)_22%,rgba(2,7,19,.97))] px-8 pb-5 pt-3 backdrop-blur-[6px] lg:px-14">
+        <section className="absolute inset-x-0 bottom-0 border-t border-white/10 bg-[linear-gradient(180deg,rgba(2,7,19,.28),rgba(2,7,19,.76)_18%,rgba(2,7,19,.95)_64%,rgba(2,7,19,.98))] px-8 pb-5 pt-3 backdrop-blur-[3px] lg:px-14">
           <div className="mx-auto max-w-[1424px]">
             <div className="flex items-end justify-between">
               <div>

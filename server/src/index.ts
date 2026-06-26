@@ -348,6 +348,7 @@ const gameServer = new Server({
 
 gameServer.define('house-session', HouseSessionRoom).filterBy(['code']);
 
+await gameServer.serverless();
 await reconcileInstalledGames();
 void applyAutomaticUpdates();
 setInterval(() => { void applyAutomaticUpdates(); }, 60 * 60 * 1000).unref();
