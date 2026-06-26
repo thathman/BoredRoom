@@ -10,6 +10,8 @@ Last updated: 2026-06-26 22:05 WAT
 
 > **Codex continuation (2026-06-26 22:05 WAT):** User clarified they prefer the feature set in `christelbuchanan/Monopoly-Game` for Oga Landlord and has permission from the author. Use that as the preferred feature target; use `itaylayzer/Monopoly` secondarily for bots/audio/music/React polish. `docs/IMPLEMENTATION_PROGRESS.md` now has a top-level GOAL1/GOAL2 verification snapshot plus a Claude continuation TODO list.
 
+> **Claude continuation (GOAL2 game runtimes):** P0 safety re-verified (no signing material tracked; `.signing/` gitignored; all repos clean). Rebuilt/hardened four BoredRoom-Games runtimes with tests — Ludo `cd0ff78` (correct absolute 52-square board, captures, entry/star safe zones, exact-finish, three-sixes, capture bot), Connect 4 `a6e689a` (team mode + best-of-N + contributions + win/block bot), ETTT `ae1e549` (team-mode restore fix), Word Wahala `f810480` (pass/swap + 8 tests). Games suite 126 → 149. Still pending per game: browser display/controller UI; and the source-guided ports (Faith Feud ← Friendly-Feud, Oga Landlord ← christelbuchanan/Monopoly-Game). Nothing deployed this pass.
+
 ## Mission
 
 BoredRoom must become a production-ready Nigerian party-game platform:

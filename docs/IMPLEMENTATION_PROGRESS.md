@@ -1,6 +1,10 @@
 # BoredRoom Implementation Progress
 
-Last updated: 2026-06-26 22:05 WAT (Codex GOAL1/GOAL2 verification)
+Last updated: 2026-06-26 (Claude GOAL2 game-runtime pass)
+
+> **Claude continuation (GOAL2 game runtimes):** Verified P0 safety (signing material untracked + gitignored, all repos clean). Rebuilt/hardened four game runtimes in BoredRoom-Games with dedicated tests — Ludo (`cd0ff78`, correct absolute board/captures/safe-zones/exact-finish/three-sixes/bot), Connect 4 (`a6e689a`, team mode + best-of rounds + contributions + bot), ETTT (`ae1e549`, team-mode restore fix), Word Wahala (`f810480`, pass/swap + tests). Games suite 126 → 149, all green. Remaining game work is browser/display UI per game plus the source-guided rebuilds (Faith Feud from Friendly-Feud, Oga Landlord from christelbuchanan/Monopoly-Game, content banks). Not deployed.
+
+Last updated (prior): 2026-06-26 22:05 WAT (Codex GOAL1/GOAL2 verification)
 
 ## Current GOAL1 / GOAL2 verification snapshot (2026-06-26 22:05 WAT)
 
@@ -49,13 +53,13 @@ This section supersedes older “current status” notes below where they confli
 | Connect 4 | Runtime rebuilt (BoredRoom-Games `a6e689a`) | Solo + team mode (alternating-side turns, team-credited round wins), best-of-N matches with per-round board history, contribution tracking, win/block bot; 5 dedicated tests (suite 140/140). | Browser board UI for team colours/best-of scoreboard/final review and visual match to `joshtom/connect-four-game` still pending. |
 | Bible Timeline Rush | Partial | Runtime/tests cover shuffled order, scoring, reveal, restore. | Needs larger licensed content bank, drag/drop controller, configurable countdown/rounds, AI/manual bank and no-repeat across full session. |
 | Color Wahala | Partial | Runtime/tests cover Stroop prompt, misleading ink, flag content, reveal/restore. | Needs richer bank, AI generation/validation, repetition cooldown, speed scoring and browser controller proof. |
-| Endless Tic Tac Toe | Partial | Rolling marks runtime/tests exist. | Needs team mode, host final board review, controller oldest-mark warning UI and browser proof. |
+| Endless Tic Tac Toe | Runtime solid + restore fixed (`ae1e549`) | Rolling marks, team mode, oldest-mark tracking, target score, bot; team-mode restore now persists roll-off config (was instance-only). 15 tests. | Host final-board-review and controller oldest-mark-warning browser UI still pending. |
 | Half & Half | Partial | Runtime exists. | Needs complete split/midpoint/debate mechanic verification, distribution visualization, prompts/settings/tests beyond generic acceptance. |
 | Faith Feud | Incomplete | Runtime exists but is not yet adapted from `joshzcold/Friendly-Feud`. | Port/adapt Friendly-Feud host/display/buzzer/reveal/data/timer flow into HouseSession runtime; add team/strikes/steal/reveal tests and UI. |
 | Hustle | Partial | Snakes-and-ladders style runtime/tests exist. | Needs richer Nigerian board/content, event density settings, animations/sounds and browser UI. |
 | Oga Landlord | Partial, preferred feature source clarified | Existing source comments reference `christelbuchanan/Monopoly-Game`; Hendrix states author permission. Runtime exists and contract passes. | Hendrix prefers `christelbuchanan/Monopoly-Game` features. Preserve permission/attribution evidence, use it as feature target, use `itaylayzer/Monopoly` secondarily for bots/audio/polish, then complete Monopoly mechanics/UI/tests. |
 | Logo Guesser | Partial | Runtime exists. | Needs obscured logo bank/reveal stages, safe asset/source policy, categories, no-repeat, hints and browser proof. |
-| Word Wahala | Partial | Scrabble-like runtime exists. | Needs stronger rack/board/crossword/dictionary/pass/swap/scoring tests, Nigerian/Pidgin dictionary mode and UI proof. |
+| Word Wahala | Runtime improved (`f810480`) | Tile bag/racks/dictionary scoring, pass + swap intents, no-repeat words, bot, snapshot/restore; 8 dedicated tests. | Full board/crossword placement (currently rack-word spelling), Nigerian/Pidgin dictionary mode, and UI proof still pending. |
 | Market Price | Partial | Runtime has cached product snapshot concept and Supermart credit text. | Needs real importer/admin cache flow, DB tables, no-live-network gameplay proof, image fallback, source-credit rendering tests and README credit. |
 | Pidgin Translator | Incomplete | Runtime accepts text/voice transcript intents; defaults to text-only. | Needs privacy-safe push-to-talk UI, mic permission/fallback, transcript pipeline, fastest-correct server timestamp, no raw-audio proof and tests. |
 | Who Sabi Pass / Trivia | Partial | Runtime exists. | Needs large categories/difficulty/no-repeat/reveal/explanation/AI fallback/team-option tests and UI. |
