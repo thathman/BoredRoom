@@ -121,7 +121,9 @@ export default function Index() {
     <LagosScene
       style={
         {
-          '--lagos-skyline-bottom': '8rem',
+          '--lagos-skyline-bottom': '15rem',
+          '--lagos-skyline-max-height': 'calc(100svh - 18rem)',
+          '--lagos-skyline-width': 'min(100%, calc((100svh - 18rem) * 2.3))',
           '--lagos-skyline-opacity': '1',
         } as CSSProperties
       }

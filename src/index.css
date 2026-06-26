@@ -135,6 +135,7 @@
     height: auto;
     max-height: var(--lagos-skyline-max-height, none);
     width: var(--lagos-skyline-width, 100%);
+    margin-inline: auto;
     opacity: var(--lagos-skyline-opacity, .98);
     filter:
       saturate(1.2)
