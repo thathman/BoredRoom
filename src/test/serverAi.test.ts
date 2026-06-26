@@ -107,6 +107,58 @@ describe('server-side AI fallback and isolation', () => {
     expect(getAiHealth()).toMatchObject({ status: 'degraded', lastError: 'ai_schema_validation_failed', fallbackActive: true });
   });
 
+  it('fails soft and marks degraded on a 429 rate limit', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    globalThis.fetch = (async () => new Response('{}', {
+      status: 429,
+      headers: { 'content-type': 'application/json', 'x-ratelimit-remaining': '0' },
+    })) as typeof globalThis.fetch;
+
+    const hint = await generatePrivateHint({
+      gameName: 'Test game',
+      rules: 'Choose one legal option.',
+      publicState: { phase: 'playing' },
+      privateState: { submitted: false },
+      legalIntents: [{ type: 'answer', optionIndex: 1 }],
+    });
+    // Gameplay never blocks: still returns a server-generated legal intent.
+    expect(hint).toContain('"optionIndex":1');
+    expect(getAiHealth()).toMatchObject({ status: 'degraded' });
+  });
+
+  it('marks credit exhausted on a 402 and still returns a legal fallback', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    globalThis.fetch = (async () => new Response('{}', {
+      status: 402,
+      headers: { 'content-type': 'application/json' },
+    })) as typeof globalThis.fetch;
+
+    const hint = await generatePrivateHint({
+      gameName: 'Test game',
+      rules: 'Choose one legal option.',
+      publicState: { phase: 'playing' },
+      privateState: { submitted: false },
+      legalIntents: [{ type: 'answer', optionIndex: 0 }],
+    });
+    expect(hint).toContain('"optionIndex":0');
+    expect(getAiHealth()).toMatchObject({ status: 'degraded', creditStatus: 'exhausted' });
+  });
+
+  it('fails soft when the provider call times out / throws', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    globalThis.fetch = (async () => { throw new DOMException('The operation timed out', 'TimeoutError'); }) as typeof globalThis.fetch;
+
+    const hint = await generatePrivateHint({
+      gameName: 'Test game',
+      rules: 'Choose one legal option.',
+      publicState: { phase: 'playing' },
+      privateState: { submitted: false },
+      legalIntents: [{ type: 'answer', optionIndex: 1 }],
+    });
+    expect(hint).toContain('"optionIndex":1');
+    expect(getAiHealth()).toMatchObject({ status: 'offline' });
+  });
+
   it('parses structured moderation decisions', async () => {
     process.env.OPENROUTER_API_KEY = 'test-key';
     mockOpenRouter({ allowed: false, reason: 'targeted abuse' });
