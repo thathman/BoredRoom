@@ -147,7 +147,9 @@ async function verifyLudo(buckets, displayBucket) {
 
 async function verifyWhot(buckets, displayBucket) {
   const [p1, p2] = buckets;
-  assert(!JSON.stringify(displayBucket.public.state).includes(p1.private.state.hand?.[0]?.id), 'whot leaked private hand into public state');
+  assert(Array.isArray(p1.private.state.hand) && p1.private.state.hand.length > 0, 'whot private hand missing');
+  assert(!('hand' in displayBucket.public.state), 'whot leaked a root hand into public state');
+  assert((displayBucket.public.state.players ?? []).every((player) => !('hand' in player)), 'whot leaked player hands into public state');
   const beforeMarket = displayBucket.public.state.drawPileCount;
   await sendAndWait(p1.room, displayBucket, { type: 'draw' }, 'whot market draw', (state) => state.drawPileCount === beforeMarket - 1);
   const legalPlay = firstLegal(p2.private, 'play_card');
