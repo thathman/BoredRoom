@@ -120,21 +120,24 @@
 
   .star-field {
     background-image:
-      radial-gradient(circle at 8% 15%, rgb(255 255 255 / .9) 0 1.2px, transparent 2.1px),
-      radial-gradient(circle at 22% 8%, rgb(95 181 255 / .85) 0 1px, transparent 2px),
-      radial-gradient(circle at 47% 14%, rgb(255 255 255 / .75) 0 1px, transparent 1.9px),
-      radial-gradient(circle at 73% 6%, rgb(88 255 157 / .75) 0 1px, transparent 2px),
-      radial-gradient(circle at 91% 18%, rgb(199 110 255 / .78) 0 1.1px, transparent 2px),
-      radial-gradient(circle at 64% 42%, rgb(255 255 255 / .45) 0 .8px, transparent 1.7px),
-      radial-gradient(circle at 36% 55%, rgb(95 181 255 / .42) 0 .8px, transparent 1.7px);
-    background-size: 190px 155px, 260px 220px, 350px 280px, 235px 195px, 310px 250px, 170px 145px, 290px 230px;
+      radial-gradient(circle at 8% 15%, rgb(255 255 255 / .95) 0 1.35px, transparent 2.25px),
+      radial-gradient(circle at 22% 8%, rgb(95 181 255 / .9) 0 1.15px, transparent 2.15px),
+      radial-gradient(circle at 47% 14%, rgb(255 255 255 / .82) 0 1.1px, transparent 2px),
+      radial-gradient(circle at 73% 6%, rgb(88 255 157 / .82) 0 1.15px, transparent 2.15px),
+      radial-gradient(circle at 91% 18%, rgb(199 110 255 / .86) 0 1.2px, transparent 2.2px),
+      radial-gradient(circle at 64% 42%, rgb(255 255 255 / .64) 0 .95px, transparent 1.85px),
+      radial-gradient(circle at 36% 55%, rgb(95 181 255 / .62) 0 .95px, transparent 1.85px),
+      radial-gradient(circle at 18% 63%, rgb(88 255 157 / .42) 0 .8px, transparent 1.8px),
+      radial-gradient(circle at 84% 56%, rgb(255 255 255 / .5) 0 .9px, transparent 1.9px);
+    background-size: 150px 126px, 210px 176px, 285px 228px, 188px 156px, 248px 200px, 136px 116px, 232px 184px, 172px 148px, 196px 166px;
   }
 
   .lagos-skyline-image {
     bottom: var(--lagos-skyline-bottom, 0);
-    height: auto;
+    height: var(--lagos-skyline-height, auto);
     max-height: var(--lagos-skyline-max-height, none);
     width: var(--lagos-skyline-width, 100%);
+    object-fit: var(--lagos-skyline-object-fit, contain);
     margin-inline: auto;
     opacity: var(--lagos-skyline-opacity, .98);
     filter:
@@ -142,8 +145,8 @@
       contrast(1.08)
       drop-shadow(0 0 14px rgb(69 243 107 / .16))
       drop-shadow(0 0 24px rgb(179 76 255 / .12));
-    -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgb(0 0 0 / .4) 8%, #000 18%, #000 100%);
-    mask-image: linear-gradient(180deg, transparent 0%, rgb(0 0 0 / .4) 8%, #000 18%, #000 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgb(0 0 0 / .76) 3%, #000 9%, #000 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, rgb(0 0 0 / .76) 3%, #000 9%, #000 100%);
     transform: translateY(var(--lagos-skyline-y, 0));
   }
 
@@ -173,17 +176,17 @@
   }
 
   @keyframes star-twinkle {
-    0%, 100% { opacity: 0.18; transform: scale(0.65); }
-    45% { opacity: 1; transform: scale(1.35); }
-    52% { opacity: 0.65; transform: scale(1.05); }
-    63% { opacity: 1; transform: scale(1.5); }
+    0%, 100% { opacity: 0.28; transform: scale(0.72); filter: brightness(0.9); }
+    38% { opacity: 1; transform: scale(1.65); filter: brightness(1.7); }
+    51% { opacity: 0.58; transform: scale(1.05); filter: brightness(1.1); }
+    64% { opacity: 1; transform: scale(1.9); filter: brightness(1.8); }
   }
 
   @keyframes shooting-star {
-    0%, 58% { transform: rotate(var(--tw-rotate, 20deg)) translateX(-18vw) scaleX(0.2); opacity: 0; }
-    64% { opacity: 1; }
-    82% { opacity: .95; }
-    100% { transform: rotate(var(--tw-rotate, 20deg)) translateX(68vw) scaleX(1); opacity: 0; }
+    0%, 45% { transform: rotate(var(--tw-rotate, 20deg)) translateX(-24vw) scaleX(0.15); opacity: 0; }
+    52% { opacity: 1; }
+    72% { opacity: .98; }
+    100% { transform: rotate(var(--tw-rotate, 20deg)) translateX(86vw) scaleX(1); opacity: 0; }
   }
 
   @keyframes falling-star {
@@ -198,8 +201,9 @@
   }
 
   @keyframes atmosphere-trail {
-    from { transform: translate3d(0, 0, 0) scale(1); opacity: 0.9; }
-    to { transform: translate3d(18px, -26px, 0) scale(0.12); opacity: 0; }
+    from { transform: rotate(var(--trail-angle, 0deg)) translate3d(0, 0, 0) scale(1); opacity: 0.95; }
+    28% { opacity: 1; }
+    to { transform: rotate(var(--trail-angle, 0deg)) translate3d(42px, -34px, 0) scale(0.08); opacity: 0; }
   }
 
   .whot-card-face::before {

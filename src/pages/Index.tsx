@@ -122,9 +122,11 @@ export default function Index() {
     <LagosScene
       style={
         {
-          '--lagos-skyline-bottom': '15rem',
-          '--lagos-skyline-max-height': 'calc(100svh - 18rem)',
-          '--lagos-skyline-width': 'min(100%, calc((100svh - 18rem) * 2.3))',
+          '--lagos-skyline-bottom': '11.5rem',
+          '--lagos-skyline-height': 'min(58svh, calc(100svh - 12rem))',
+          '--lagos-skyline-max-height': '58svh',
+          '--lagos-skyline-width': '100%',
+          '--lagos-skyline-object-fit': 'fill',
           '--lagos-skyline-opacity': '1',
         } as CSSProperties
       }
@@ -166,7 +168,7 @@ export default function Index() {
           )}
         </section>
 
-        <section className="absolute inset-x-0 bottom-0 border-t border-white/10 bg-[linear-gradient(180deg,rgba(2,7,19,.78),rgba(2,7,19,.96))] px-8 pb-5 pt-3 backdrop-blur-md lg:px-14">
+        <section className="absolute inset-x-0 bottom-0 border-t border-white/10 bg-[linear-gradient(180deg,rgba(2,7,19,.58),rgba(2,7,19,.9)_22%,rgba(2,7,19,.97))] px-8 pb-5 pt-3 backdrop-blur-[6px] lg:px-14">
           <div className="mx-auto max-w-[1424px]">
             <div className="flex items-end justify-between">
               <div>
