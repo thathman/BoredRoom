@@ -10,13 +10,21 @@ type GameState = {
   gameType: string;
   name: string;
   emoji: string;
+  mode?: string;
   phase: 'playing' | 'reveal' | 'finished';
-  round: number;
-  totalRounds: number;
-  challenge: Challenge | null;
-  players: PlayerScore[];
-  submittedCount: number;
-  lastResults: Array<{ playerId: string; points: number }>;
+  round?: number;
+  totalRounds?: number;
+  challenge?: Challenge | null;
+  board?: Array<Array<string | null>>;
+  tokens?: Record<string, number[]>;
+  topCard?: { label: string; shape?: string; number?: number };
+  requestedShape?: string | null;
+  drawPileCount?: number;
+  pendingRoll?: number | null;
+  currentPlayerId?: string;
+  players: Array<PlayerScore & { disc?: string; mark?: string; handCount?: number }>;
+  submittedCount?: number;
+  lastResults?: Array<{ playerId: string; points: number }>;
   winnerPlayerIds: string[];
   lastAction: string;
 };
@@ -24,6 +32,10 @@ type PrivateState = {
   seated?: boolean;
   submitted?: boolean;
   submission?: unknown;
+  isTurn?: boolean;
+  tokens?: number[];
+  hand?: Array<{ id: string; label: string }>;
+  legalIntents?: Array<Record<string, unknown> & { label?: string }>;
 };
 
 export function InstalledGameSurface({
@@ -59,6 +71,8 @@ export function InstalledGameSurface({
     [state.players],
   );
   const challenge = state.challenge;
+  const legalIntents = mine.legalIntents ?? [];
+  const isBoardGame = !challenge && ['connect4', 'ettt', 'ludo', 'whot'].includes(state.mode ?? '');
 
   function submit() {
     if (!challenge || mine.submitted) return;
@@ -87,8 +101,10 @@ export function InstalledGameSurface({
         <section className="flex flex-col items-center justify-center">
           <div className="neon-panel w-full max-w-3xl overflow-hidden rounded-2xl">
             <div className="border-b border-white/10 px-5 py-8 text-center">
-              <p className="text-xs uppercase tracking-[0.24em] text-secondary">{state.phase === 'reveal' ? 'Round result' : 'Your challenge'}</p>
-              <h1 className="mt-3 text-2xl font-bold leading-tight sm:text-4xl">{challenge?.prompt ?? 'Game complete'}</h1>
+              <p className="text-xs uppercase tracking-[0.24em] text-secondary">{state.phase === 'reveal' ? 'Round result' : state.mode ?? 'Your challenge'}</p>
+              <h1 className="mt-3 text-2xl font-bold leading-tight sm:text-4xl">
+                {challenge?.prompt ?? (state.phase === 'finished' ? 'Game complete' : state.lastAction)}
+              </h1>
             </div>
 
             {challenge?.kind === 'choice' && (
@@ -148,6 +164,118 @@ export function InstalledGameSurface({
               </div>
             )}
 
+            {isBoardGame && (
+              <div className="p-4">
+                {(state.mode === 'connect4' || state.mode === 'ettt') && (
+                  <div className="mx-auto max-w-xl">
+                    <div
+                      className={`grid gap-2 ${state.mode === 'connect4' ? 'grid-cols-7' : 'grid-cols-3'}`}
+                      aria-label={state.mode === 'connect4' ? 'Connect 4 board' : 'Endless Tic Tac Toe board'}
+                    >
+                      {(state.board ?? []).flatMap((row, rowIndex) =>
+                        row.map((cell, columnIndex) => {
+                          const cellIndex = state.mode === 'connect4' ? columnIndex : rowIndex * 3 + columnIndex;
+                          const legal = legalIntents.find((intent) =>
+                            state.mode === 'connect4'
+                              ? intent.type === 'drop' && intent.column === columnIndex
+                              : intent.type === 'place' && intent.cell === cellIndex,
+                          );
+                          return (
+                            <button
+                              key={`${rowIndex}-${columnIndex}`}
+                              type="button"
+                              disabled={isHost || role === 'crowd' || !legal || state.phase !== 'playing'}
+                              onClick={() => legal && sendIntent(legal)}
+                              className={`grid aspect-square place-items-center rounded-xl border text-lg font-black transition ${
+                                cell
+                                  ? 'border-primary/50 bg-primary/15 text-primary'
+                                  : legal
+                                    ? 'border-secondary/70 bg-secondary/10 text-secondary hover:bg-secondary/20'
+                                    : 'border-white/10 bg-white/[0.035] text-white/30'
+                              }`}
+                            >
+                              {cell ?? (state.mode === 'connect4' ? columnIndex + 1 : cellIndex + 1)}
+                            </button>
+                          );
+                        }),
+                      )}
+                    </div>
+                    <p className="mt-4 text-center text-sm text-muted-foreground">
+                      {mine.isTurn ? 'Your turn.' : `Waiting for ${state.players.find((player) => player.id === state.currentPlayerId)?.name ?? 'the next player'}.`}
+                    </p>
+                  </div>
+                )}
+
+                {state.mode === 'ludo' && (
+                  <div className="mx-auto max-w-2xl space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {(state.players ?? []).map((player) => (
+                        <div key={player.id} className={`rounded-2xl border p-4 ${player.id === state.currentPlayerId ? 'border-primary bg-primary/10' : 'border-white/10 bg-white/[0.035]'}`}>
+                          <p className="font-semibold">{player.name}</p>
+                          <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
+                            {(state.tokens?.[player.id] ?? []).map((position, index) => (
+                              <div key={index} className="rounded-xl border border-white/10 bg-black/30 p-2">
+                                T{index + 1}<br /><span className="text-primary">{position < 0 ? 'Yard' : position >= 57 ? 'Home' : position}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-center">
+                      <p className="text-sm text-muted-foreground">Dice</p>
+                      <p className="mt-1 text-4xl font-black text-primary">{state.pendingRoll ?? '—'}</p>
+                    </div>
+                    {!isHost && role !== 'crowd' && (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {legalIntents.map((intent, index) => (
+                          <Button key={index} className="neon-primary rounded-xl" disabled={state.phase !== 'playing'} onClick={() => sendIntent(intent)}>
+                            {intent.label ?? (intent.type === 'roll' ? 'Roll dice' : 'Move token')}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {state.mode === 'whot' && (
+                  <div className="mx-auto max-w-2xl space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-primary/50 bg-primary/10 p-4 text-center sm:col-span-2">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Top card</p>
+                        <p className="mt-2 text-3xl font-black text-primary">{state.topCard?.label}</p>
+                        {state.requestedShape && <p className="mt-1 text-sm">Requested shape: {state.requestedShape}</p>}
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-center">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Market</p>
+                        <p className="mt-2 text-3xl font-black">{state.drawPileCount ?? 0}</p>
+                      </div>
+                    </div>
+                    {!isHost && role !== 'crowd' && (
+                      <>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {(mine.hand ?? []).map((card) => {
+                            const legal = legalIntents.find((intent) => intent.type === 'play_card' && intent.cardId === card.id);
+                            return (
+                              <Button key={card.id} variant={legal ? 'default' : 'outline'} disabled={!legal || state.phase !== 'playing'} onClick={() => legal && sendIntent(legal)}>
+                                {card.label}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                        {legalIntents.some((intent) => intent.type === 'draw') && (
+                          <Button className="neon-primary w-full rounded-xl" onClick={() => sendIntent({ type: 'draw' })}>Go to market</Button>
+                        )}
+                      </>
+                    )}
+                    <p className="text-center text-sm text-muted-foreground">
+                      {mine.isTurn ? 'Your turn.' : `Waiting for ${state.players.find((player) => player.id === state.currentPlayerId)?.name ?? 'the next player'}.`}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {(role === 'crowd' || (!isHost && mine.seated === false)) && (
               <p className="p-5 text-center text-sm text-muted-foreground">
                 You joined after this game started. You’re watching from the crowd and will be seated in the next game.
@@ -155,10 +283,16 @@ export function InstalledGameSurface({
             )}
             {isHost && state.phase !== 'finished' && (
               <div className="border-t border-white/10 p-4 text-center">
-                <p className="mb-3 text-xs text-muted-foreground">{state.submittedCount} of {state.players.length} players locked in</p>
-                <Button className="neon-primary min-w-52 rounded-xl" onClick={() => sendIntent({ type: 'advance' })}>
-                  <FastForward className="h-4 w-4" /> {state.phase === 'playing' ? 'Reveal answers' : 'Next round'}
-                </Button>
+                {challenge ? (
+                  <>
+                    <p className="mb-3 text-xs text-muted-foreground">{state.submittedCount ?? 0} of {state.players.length} players locked in</p>
+                    <Button className="neon-primary min-w-52 rounded-xl" onClick={() => sendIntent({ type: 'advance' })}>
+                      <FastForward className="h-4 w-4" /> {state.phase === 'playing' ? 'Reveal answers' : 'Next round'}
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Board actions are controlled by the active player’s controller.</p>
+                )}
               </div>
             )}
             {state.phase === 'finished' && (
