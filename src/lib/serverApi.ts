@@ -28,6 +28,7 @@ export interface CreatedSession {
     allowCrowdVotes: boolean;
     allowPlayerVotes?: boolean;
     allowRemote?: boolean;
+    requireAdmission?: boolean;
     allowBots: boolean;
     hintsEnabled: boolean;
     maxControllers: number;
@@ -39,6 +40,7 @@ export interface SessionMember {
   displayName: string;
   role: 'display' | 'controller' | 'crowd' | 'companion';
   isBot?: boolean;
+  pending?: boolean;
   avatar?: string;
   accentColor?: string;
   ready: boolean;

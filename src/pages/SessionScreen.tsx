@@ -94,6 +94,8 @@ export default function SessionScreen() {
     pauseGame,
     resumeGame,
     kickPlayer,
+    admitPlayer,
+    rejectPlayer,
     setRemoteMode,
     endParty,
     deleteParty,
@@ -295,6 +297,22 @@ export default function SessionScreen() {
         games={drawerGames}
         sessionCode={normalizedCode}
       />
+      {role === 'companion' && members.some((m) => m.pending) && (
+        <div className="fixed left-4 top-4 z-[71] w-72 rounded-2xl border border-amber-300/40 bg-[#16110a]/95 p-4 text-left shadow-[0_0_24px_rgba(251,191,36,.18)] backdrop-blur-xl">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-amber-200">Admission queue</p>
+          <ul className="mt-3 space-y-2">
+            {members.filter((m) => m.pending).map((m) => (
+              <li key={m.deviceId} className="flex items-center justify-between gap-2 text-sm">
+                <span className="truncate">{m.avatar ?? '🙋'} {m.displayName}</span>
+                <span className="flex shrink-0 gap-1">
+                  <button type="button" className="rounded-md bg-primary/20 px-2 py-1 text-[11px] text-primary" onClick={() => admitPlayer(m.deviceId)}>Admit</button>
+                  <button type="button" className="rounded-md bg-red-500/20 px-2 py-1 text-[11px] text-red-200" onClick={() => rejectPlayer(m.deviceId)}>Reject</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {role === 'companion' && (votePoll || voteHistory.length > 0) && (
         <div className="fixed left-4 top-20 z-[70] max-h-[80vh] w-72 overflow-y-auto rounded-2xl border border-secondary/40 bg-[#050914]/95 p-4 text-left shadow-[0_0_24px_rgba(168,85,247,.18)] backdrop-blur-xl">
           <p className="text-[10px] uppercase tracking-[0.22em] text-secondary">Vote control booth</p>
@@ -556,6 +574,15 @@ export default function SessionScreen() {
 
   if (role === 'controller' || role === 'crowd') {
     const me = members.find((member) => member.deviceId === deviceId);
+    if (me?.pending) {
+      return (
+        <StatusScreen
+          icon={<Loader2 className="h-9 w-9 animate-spin" />}
+          title="Waiting for the host"
+          detail="The host needs to admit you to this house. Hang tight — you’ll join automatically once approved."
+        />
+      );
+    }
     if (editingProfile) {
       return (
         <LagosScene>

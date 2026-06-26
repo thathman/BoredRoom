@@ -33,6 +33,7 @@ export const HouseSessionSettings = z.object({
   allowCrowdVotes: z.boolean().default(false), // O4 default; see clarifications
   allowPlayerVotes: z.boolean().default(true), // controllers may request a house vote
   allowRemote: z.boolean().default(true), // outsiders may join with the same code from anywhere
+  requireAdmission: z.boolean().default(false), // new players wait for host approval
   allowBots: z.boolean().default(true),
   hintsEnabled: z.boolean().default(true),
   defaultHintBudget: z.number().int().nonnegative().default(3),

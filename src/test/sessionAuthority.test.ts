@@ -5,6 +5,7 @@ import {
   deleteSession,
   endSession,
   kickSessionMember,
+  admitSessionMember,
   setRemoteMode,
   resolveMemberByOption,
   getPublicSession,
@@ -160,6 +161,19 @@ describe('house session authority', () => {
     expect(getSessionRecord(session.code)?.members.has('dev-ada')).toBe(false);
     // kicking an unknown device is a no-op
     expect(kickSessionMember(session.code, 'ghost').removed).toBe(false);
+  });
+
+  it('holds new controllers pending when admission is required, then admits them', () => {
+    const session = buildHouseSession({ hostDeviceId: `host-${Math.random()}`, settings: { requireAdmission: true } });
+    registerSession(session, issueOwnerCredential());
+    upsertSessionMember(session.code, { deviceId: 'dev-ada', displayName: 'Ada', role: 'controller' });
+    const pending = getSessionRecord(session.code)?.members.get('dev-ada');
+    expect(pending?.pending).toBe(true);
+    expect(pending?.ready).toBe(false);
+    expect(admitSessionMember(session.code, 'dev-ada')).toBe(true);
+    expect(getSessionRecord(session.code)?.members.get('dev-ada')?.pending).toBe(false);
+    // admitting again is a no-op
+    expect(admitSessionMember(session.code, 'dev-ada')).toBe(false);
   });
 
   it('toggles remote mode on the session settings', () => {

@@ -17,6 +17,7 @@ export interface SessionMember {
   displayName: string;
   role: SessionRole;
   isBot?: boolean;
+  pending?: boolean; // awaiting host admission (requireAdmission mode)
   avatar?: string; // emoji glyph or empty for initial
   accentColor?: string; // hex
   ready: boolean;
@@ -288,20 +289,26 @@ export function subscribeToSession(code: string, listener: Listener): () => void
 
 export function upsertSessionMember(
   code: string,
-  input: Pick<SessionMember, 'deviceId' | 'displayName' | 'role'> & Partial<Pick<SessionMember, 'isBot' | 'ready' | 'connected' | 'avatar' | 'accentColor'>>,
+  input: Pick<SessionMember, 'deviceId' | 'displayName' | 'role'> & Partial<Pick<SessionMember, 'isBot' | 'ready' | 'connected' | 'avatar' | 'accentColor' | 'pending'>>,
 ): SessionMember | null {
   const record = getSessionRecord(code);
   if (!record) return null;
   const now = new Date().toISOString();
   const previous = record.members.get(input.deviceId);
+  // New human controllers start pending when the party requires admission; reconnecting members
+  // and bots keep their prior status.
+  const pending = previous
+    ? previous.pending
+    : (input.pending ?? (record.session.settings.requireAdmission && input.role === 'controller' && !input.isBot));
   const member: SessionMember = {
     deviceId: input.deviceId,
     displayName: input.displayName || previous?.displayName || 'Player',
     role: input.role,
     isBot: input.isBot ?? previous?.isBot,
+    pending,
     avatar: input.avatar ?? previous?.avatar,
     accentColor: input.accentColor ?? previous?.accentColor,
-    ready: input.ready ?? previous?.ready ?? input.role !== 'crowd',
+    ready: input.ready ?? previous?.ready ?? (input.role !== 'crowd' && !pending),
     connected: input.connected ?? true,
     joinedAt: previous?.joinedAt ?? now,
     lastSeenAt: now,
@@ -309,6 +316,17 @@ export function upsertSessionMember(
   record.members.set(input.deviceId, member);
   emit(code, previous ? 'member.reconnected' : 'member.joined');
   return member;
+}
+
+// Approve a pending player so they can ready up, vote and be seated.
+export function admitSessionMember(code: string, deviceId: string): boolean {
+  const record = getSessionRecord(code);
+  const member = record?.members.get(deviceId);
+  if (!record || !member || !member.pending) return false;
+  member.pending = false;
+  record.session.updatedAt = new Date().toISOString();
+  emit(code, 'member.admitted');
+  return true;
 }
 
 export function setSessionMemberConnected(code: string, deviceId: string, connected: boolean): void {
@@ -337,6 +355,7 @@ function eligibleVoteMembers(record: SessionRecord, allowCrowdVotes: boolean): s
     .filter((member) =>
       member.connected
       && !member.isBot
+      && !member.pending
       && (member.role === 'controller' || (allowCrowdVotes && member.role === 'crowd')),
     )
     .map((member) => member.deviceId);

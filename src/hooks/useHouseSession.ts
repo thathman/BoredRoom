@@ -247,6 +247,14 @@ export function useHouseSession({
     roomRef.current?.send('session:kick_player', { deviceId: targetDeviceId, reason });
   }, []);
 
+  const admitPlayer = useCallback((targetDeviceId: string) => {
+    roomRef.current?.send('session:admit_player', { deviceId: targetDeviceId });
+  }, []);
+
+  const rejectPlayer = useCallback((targetDeviceId: string) => {
+    roomRef.current?.send('session:reject_player', { deviceId: targetDeviceId });
+  }, []);
+
   const setRemoteMode = useCallback((enabled: boolean) => {
     roomRef.current?.send('session:set_remote_mode', { enabled });
   }, []);
@@ -288,6 +296,8 @@ export function useHouseSession({
     pauseGame,
     resumeGame,
     kickPlayer,
+    admitPlayer,
+    rejectPlayer,
     setRemoteMode,
     endParty,
     deleteParty,

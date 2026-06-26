@@ -4,6 +4,7 @@ import {
   endSession,
   deleteSession,
   kickSessionMember,
+  admitSessionMember,
   setRemoteMode,
   resolveMemberByOption,
   applySessionVote,
@@ -110,10 +111,22 @@ export class HouseSessionRoom extends Room {
     });
     this.onMessage('session:ready', (client, payload: { ready?: boolean }) => {
       const identity = this.identities.get(client.sessionId);
-      if (identity) {
-        setSessionMemberReady(this.code, identity.deviceId, payload?.ready !== false);
-        this.persistMember(identity.deviceId);
+      if (!identity) return;
+      // Pending players cannot ready up until the host admits them.
+      if (getSessionRecord(this.code)?.members.get(identity.deviceId)?.pending) return;
+      setSessionMemberReady(this.code, identity.deviceId, payload?.ready !== false);
+      this.persistMember(identity.deviceId);
+    });
+    this.onMessage('session:admit_player', (client, payload: { deviceId?: string }) => {
+      if (!this.isHostClient(client)) return;
+      if (admitSessionMember(this.code, String(payload?.deviceId ?? ''))) {
+        this.broadcast('session:state', getPublicSession(this.code));
+        this.broadcast('session:transition', { type: 'member.admitted', deviceId: payload?.deviceId, at: new Date().toISOString() });
       }
+    });
+    this.onMessage('session:reject_player', (client, payload: { deviceId?: string }) => {
+      if (!this.isHostClient(client)) return;
+      this.kickPlayer(String(payload?.deviceId ?? ''), 'Admission declined by host.');
     });
     this.onMessage('session:select_game', (client, payload: { gameId?: string; settings?: Record<string, unknown> }) => {
       if (!this.isHostClient(client)) return;
@@ -814,6 +827,15 @@ export class HouseSessionRoom extends Room {
     if (result.voteType === 'kick_player') {
       const deviceId = resolveMemberByOption(this.code, result.winnerOption);
       if (deviceId) this.kickPlayer(deviceId, 'Voted out by the house.');
+      return;
+    }
+    // admit_player carries the pending player as the winning option.
+    if (result.voteType === 'admit_player') {
+      const deviceId = resolveMemberByOption(this.code, result.winnerOption);
+      if (deviceId && admitSessionMember(this.code, deviceId)) {
+        this.broadcast('session:state', getPublicSession(this.code));
+        this.broadcast('session:transition', { type: 'member.admitted', deviceId, at: new Date().toISOString() });
+      }
       return;
     }
     // remote_mode carries an enable/disable choice.
