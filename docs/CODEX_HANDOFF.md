@@ -1,6 +1,6 @@
 # Codex Handoff — BoredRoom
 
-Last updated: 2026-06-26 15:10 WAT
+Last updated: 2026-06-26 15:25 WAT
 
 ## Mission
 
@@ -40,8 +40,7 @@ Do not mark the long-running goal complete until every requirement in those file
 - Game display/controller surface in current main app: `src/components/session/InstalledGameSurface.tsx`.
 - AI orchestration: `server/src/aiService.ts`.
 - Deterministic bot strategy: `server/src/botStrategy.ts`.
-- Latest main-app deployed commit: `ed6b90d Harden Dell deploy failure handling`.
-- Current local vote lifecycle work is pending commit/deploy after `61fccbc Record hardened deploy verification`.
+- Latest main-app deployed commit: `d3d196b Add server-backed vote lifecycle state`.
 
 ### Runtime flow
 
@@ -152,7 +151,7 @@ npm run build
    - `.signing/private.pem` exists locally in BoredRoom-Games. Do not print it. Check whether tracked; move secrets out of repo tree if necessary.
 
 5. Vote lifecycle incomplete:
-   - First server-authoritative vote lifecycle slice is implemented locally: spec-style statuses, active vote state, vote history, quorum/majority/tie/expiry results, close/cancel/apply messages, timed resolution, session snapshot restoration, and controller result display.
+   - First server-authoritative vote lifecycle slice is implemented and live: spec-style statuses, active vote state, vote history, quorum/majority/tie/expiry results, close/cancel/apply messages, timed resolution, session snapshot restoration, and controller result display.
    - Still missing full companion vote-management UI, controller-requested votes/support threshold flow, auto-application for all vote types, admin visibility, and browser E2E.
 
 6. Companion control incomplete:
@@ -174,8 +173,8 @@ npm run build
 
 ### Immediate next tasks
 
-1. Commit/deploy/live-smoke the first vote lifecycle slice if not already done.
-2. Continue vote lifecycle: companion vote management UI, player-requested support flow, auto-apply actions, admin visibility, and browser E2E.
+1. Continue vote lifecycle: companion vote management UI, player-requested support flow, auto-apply actions, admin visibility, and browser E2E.
+2. Keep `scripts/playwright-vote-lifecycle.mjs` in the live smoke set when changing votes/session messages.
 3. Update both docs after each change.
 4. Commit/push/deploy and rerun live smoke/matrix.
 
@@ -218,12 +217,13 @@ Before claiming completion:
 
 ## Current next recommended prompt
 
-“Continue from the BoredRoom handoff docs. The Lagos hero, Colyseus 0.17 client/server alignment, and hardened Dell deploy script are live. The first server-side vote lifecycle slice is in progress; commit/deploy/live-smoke it if needed, then continue companion vote management, player-requested votes, auto-apply actions, admin visibility, and browser E2E. Keep docs updated and run full local/live gates.”
+“Continue from the BoredRoom handoff docs. The Lagos hero, Colyseus 0.17 client/server alignment, hardened Dell deploy script, and first server-side vote lifecycle slice are live. Continue companion vote management, player-requested votes, auto-apply actions, admin visibility, and browser E2E. Keep docs updated and run full local/live gates.”
 
-Latest live evidence after `c833fab` deploy:
+Latest live evidence after `d3d196b` deploy:
 
 - `curl -fsS https://colyseus.hendrix.com.ng/healthz` passed.
 - `PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-entry-flows.mjs` passed.
-- `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-bot-autofill.mjs` passed with bot seated in `NV7C`.
-- `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-gameplay-matrix.mjs` passed 15 games through `YHQG`.
+- `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-vote-lifecycle.mjs` passed with vote `vote_mqv0okiih5n6lx` through `EYSF`.
+- `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-bot-autofill.mjs` passed with bot seated in `XNG6`.
+- `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-gameplay-matrix.mjs` passed 15 games through `CN76`.
 - Final live homepage visual screenshot with visible skyline, twinkle stars, shooting stars, and pointer glow/trails: `/tmp/boredroom-live-home-final.png`.

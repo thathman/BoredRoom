@@ -1,6 +1,6 @@
 # BoredRoom Implementation Progress
 
-Last updated: 2026-06-26 15:10 WAT
+Last updated: 2026-06-26 15:25 WAT
 
 ## Current objective
 
@@ -19,8 +19,8 @@ Source of truth read this pass:
 
 Main app: `/Users/hendrix/Playground/boredroom`
 
-- HEAD: pending vote lifecycle commit after `61fccbc Record hardened deploy verification`
-- Latest live Dell deployment verified at `ed6b90d`; docs-only `61fccbc` is pushed.
+- HEAD: `d3d196b Add server-backed vote lifecycle state`
+- Live Dell deployment verified after this commit.
 - `docs/` did not exist before this pass; this file and `docs/CODEX_HANDOFF.md` are now the baseline handoff docs.
 
 Games repo: `/Users/hendrix/Playground/BoredRoom-Games`
@@ -56,7 +56,7 @@ Spec repo: `/Users/hendrix/Playground/BoredRoom-Spec`
   - Cloudflare health: `https://colyseus.hendrix.com.ng/healthz`
   - entry smoke: `scripts/playwright-entry-flows.mjs`
   - bot autofill: `scripts/playwright-bot-autofill.mjs`
-- Latest 15-game matrix after Colyseus 0.17/client SDK deployment: `scripts/playwright-gameplay-matrix.mjs` with `PASS 15 games through YHQG`
+- Latest 15-game matrix after vote lifecycle deployment: `scripts/playwright-gameplay-matrix.mjs` with `PASS 15 games through CN76`
 - OpenRouter model pin now matches the current spec: `google/gemini-2.5-flash-lite`.
 - Colyseus server/client are aligned on the 0.17 line: server `@colyseus/core`/`@colyseus/ws-transport`; client `@colyseus/sdk`. Server bootstrap uses `gameServer.listen(PORT)` so Colyseus binds matchmaking routes around the existing Express app without breaking REST request bodies.
 
@@ -85,6 +85,9 @@ Latest live evidence:
 - `PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-entry-flows.mjs` passed.
 - `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-bot-autofill.mjs` passed with bot seated in `NV7C`.
 - `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-gameplay-matrix.mjs` passed all 15 games through `YHQG`.
+- After `d3d196b`: `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-vote-lifecycle.mjs` passed with vote `vote_mqv0okiih5n6lx` through `EYSF`.
+- After `d3d196b`: `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-bot-autofill.mjs` passed with bot seated in `XNG6`.
+- After `d3d196b`: `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-gameplay-matrix.mjs` passed all 15 games through `CN76`.
 
 Release-process hardening:
 
@@ -194,4 +197,4 @@ Release-process hardening:
 
 ## Next recommended agent prompt
 
-Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. The Lagos hero/motion fix, Colyseus 0.17 deployment, and hardened Dell deploy script are verified live. The first vote lifecycle/server-state slice passed local gates and should be deployed/live-smoked next if not already done. Continue toward full vote lifecycle: companion vote management UI, player-requested votes/support, auto-apply actions, admin visibility, and browser E2E.
+Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. The Lagos hero/motion fix, Colyseus 0.17 deployment, hardened Dell deploy script, and first vote lifecycle/server-state slice are verified live. Continue toward full vote lifecycle: companion vote management UI, player-requested votes/support, auto-apply actions, admin visibility, and browser E2E.
