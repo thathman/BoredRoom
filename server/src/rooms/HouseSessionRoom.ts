@@ -280,7 +280,7 @@ export class HouseSessionRoom extends Room {
   private ensureRuntime(snapshot: NonNullable<ReturnType<typeof getPublicSession>>): void {
     if (!snapshot.activeRun || this.gameRuntime?.gameType === snapshot.activeRun.gameType) return;
     const players = snapshot.members
-      .filter((member) => member.role === 'controller' && member.ready)
+      .filter((member) => member.role === 'controller' && member.ready && member.connected)
       .slice(0, snapshot.session.settings.maxControllers)
       .map((member) => ({ id: member.deviceId, name: member.displayName }));
     try {
