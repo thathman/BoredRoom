@@ -18,7 +18,7 @@ git -C "$ROOT_DIR" push origin main
 
 echo "[deploy] syncing repository archive to ${TARGET_HOST}:${TARGET_DIR}"
 git -C "$ROOT_DIR" archive --format=tar HEAD \
-  | ssh "$TARGET_HOST" "mkdir -p '$TARGET_DIR' && tar -xf - -C '$TARGET_DIR'"
+  | ssh "$TARGET_HOST" "rm -rf '$TARGET_DIR' && mkdir -p '$TARGET_DIR' && tar -xf - -C '$TARGET_DIR'"
 
 echo "[deploy] building + restarting stack on ${TARGET_HOST}"
 ssh "$TARGET_HOST" "cd '$TARGET_DIR' && docker compose build && docker compose up -d"
