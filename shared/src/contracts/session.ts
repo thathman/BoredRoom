@@ -69,7 +69,7 @@ export const GameRun = z.object({
   gameType: z.string(),
   gameVersion: z.string().regex(/^\d+\.\d+\.\d+\.\d+$/),
   status: GameRunStatus,
-  settings: z.record(z.unknown()).default({}),
+  settings: z.record(z.string(), z.unknown()).default({}),
   startedAt: Iso.optional(),
   endedAt: Iso.optional(),
   winnerPlayerIds: z.array(Id).optional(),
@@ -93,7 +93,7 @@ export const SessionEvent = z.object({
   gameRunId: Id.optional(),
   type: z.string(), // e.g. "session.created", "vote.passed"
   actorId: Id.optional(),
-  payload: z.record(z.unknown()).default({}),
+  payload: z.record(z.string(), z.unknown()).default({}),
   at: Iso,
 });
 
@@ -122,7 +122,7 @@ export const HouseVote = z.object({
   question: z.string(),
   options: z.array(z.string()).min(2),
   status: HouseVoteStatus,
-  tally: z.record(z.number().int().nonnegative()).default({}),
+  tally: z.record(z.string(), z.number().int().nonnegative()).default({}),
   eligibleVoterIds: z.array(Id),
   openedAt: Iso.optional(),
   closesAt: Iso.optional(),
