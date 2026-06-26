@@ -52,6 +52,38 @@ export interface SessionRecap {
   paragraph?: string;
 }
 
+export interface HouseVoteResult {
+  voteId: string;
+  voteType: string;
+  winnerOption: string | null;
+  voteCounts: Record<string, number>;
+  eligibleVoterCount: number;
+  castCount: number;
+  quorumMet: boolean;
+  tied: boolean;
+  tiedOptions: string[];
+  applied: boolean;
+  autoApplied: boolean;
+  status: string;
+  resolvedAt: string;
+}
+
+export interface HouseVote {
+  id: string;
+  sessionId: string;
+  type: string;
+  question: string;
+  options: string[];
+  status: string;
+  tally: Record<string, number>;
+  eligibleVoterIds: string[];
+  openedAt?: string;
+  closesAt?: string;
+  resolvedAt?: string;
+  cancelledAt?: string;
+  result?: HouseVoteResult;
+}
+
 export interface AiHealth {
   enabled: boolean;
   model: string;

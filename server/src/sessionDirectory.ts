@@ -1,5 +1,14 @@
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
-import type { GameRun, HouseSession } from '../../shared/src/contracts/session.js';
+import type { GameRun, HouseSession, HouseVote, HouseVoteResult, HouseVoteSettings, HouseVoteType } from '../../shared/src/contracts/session.js';
+import {
+  applyVote,
+  cancelVote,
+  castVote,
+  closeVote,
+  createVote,
+  resolveVote,
+  type VoteRound,
+} from '../../shared/src/votes/engine.js';
 
 export type SessionRole = 'display' | 'controller' | 'crowd' | 'companion';
 
@@ -26,6 +35,8 @@ export interface SessionRecord {
   companionCredentialHashes: Set<string>;
   members: Map<string, SessionMember>;
   activeRuntime: SessionRuntime | null;
+  activeVote: VoteRound | null;
+  voteHistory: HouseVoteResult[];
   lastRecap?: {
     gameType: string;
     status: 'finished' | 'abandoned';
@@ -47,6 +58,8 @@ export interface PublicSessionSnapshot {
   session: HouseSession;
   members: SessionMember[];
   activeRun: GameRun | null;
+  activeVote: HouseVote | null;
+  voteHistory: HouseVoteResult[];
   lastRecap?: SessionRecord['lastRecap'];
 }
 
@@ -72,6 +85,8 @@ function publicSnapshot(record: SessionRecord): PublicSessionSnapshot {
     session: structuredClone(record.session),
     members: Array.from(record.members.values()).map((member) => ({ ...member })),
     activeRun,
+    activeVote: record.activeVote ? structuredClone(record.activeVote.vote) : null,
+    voteHistory: record.voteHistory.map((result) => structuredClone(result)),
     lastRecap: record.lastRecap ? { ...record.lastRecap } : undefined,
   };
 }
@@ -131,6 +146,8 @@ export function registerSession(session: HouseSession, ownerCredential: string):
     companionCredentialHashes: new Set(),
     members: new Map(),
     activeRuntime: null,
+    activeVote: null,
+    voteHistory: [],
   };
   sessions.set(key, record);
   emit(key, 'session.created');
@@ -150,6 +167,8 @@ export function hydrateSession(
     companionCredentialHashes: new Set(credentials?.companionCredentialHashes ?? []),
     members: new Map(),
     activeRuntime: null,
+    activeVote: null,
+    voteHistory: [],
   };
   sessions.set(key, record);
   return record;
@@ -257,6 +276,123 @@ export function setSessionMemberReady(code: string, deviceId: string, ready: boo
   if (!record || !member) return;
   record.members.set(deviceId, { ...member, ready, lastSeenAt: new Date().toISOString() });
   emit(code, 'member.ready_changed');
+}
+
+function eligibleVoteMembers(record: SessionRecord, allowCrowdVotes: boolean): string[] {
+  return Array.from(record.members.values())
+    .filter((member) =>
+      member.connected
+      && !member.isBot
+      && (member.role === 'controller' || (allowCrowdVotes && member.role === 'crowd')),
+    )
+    .map((member) => member.deviceId);
+}
+
+export function openSessionVote(
+  code: string,
+  input: {
+    type?: HouseVoteType;
+    question: string;
+    options: string[];
+    createdBy?: string;
+    settings?: Partial<HouseVoteSettings>;
+  },
+): HouseVote | null {
+  const record = getSessionRecord(code);
+  if (!record) return null;
+  const settings = {
+    allowCrowdVotes: record.session.settings.allowCrowdVotes,
+    ...(input.settings ?? {}),
+  };
+  const eligibleVoterIds = eligibleVoteMembers(record, settings.allowCrowdVotes ?? false);
+  if (eligibleVoterIds.length === 0) return null;
+  const now = Date.now();
+  const round = createVote({
+    id: `vote_${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+    sessionId: record.session.id,
+    type: input.type ?? 'custom',
+    question: input.question,
+    options: input.options,
+    eligibleVoterIds,
+    createdBy: input.createdBy,
+    settings,
+    now,
+  });
+  record.activeVote = round;
+  record.session.status = record.session.status === 'game_active' ? record.session.status : 'voting';
+  record.session.updatedAt = new Date(now).toISOString();
+  emit(code, 'vote.opened');
+  return structuredClone(round.vote);
+}
+
+export function castSessionVote(code: string, voterId: string, option: string): HouseVote | null {
+  const record = getSessionRecord(code);
+  if (!record?.activeVote) return null;
+  const next = castVote(record.activeVote, voterId, option, Date.now());
+  if (next === record.activeVote) return null;
+  record.activeVote = next;
+  record.session.updatedAt = new Date().toISOString();
+  emit(code, 'vote.cast');
+  return structuredClone(next.vote);
+}
+
+export function closeSessionVote(code: string): HouseVote | null {
+  const record = getSessionRecord(code);
+  if (!record?.activeVote) return null;
+  const next = closeVote(record.activeVote, Date.now());
+  record.activeVote = next;
+  record.session.updatedAt = new Date().toISOString();
+  emit(code, 'vote.locked');
+  return structuredClone(next.vote);
+}
+
+export function cancelSessionVote(code: string): HouseVote | null {
+  const record = getSessionRecord(code);
+  if (!record?.activeVote) return null;
+  const next = cancelVote(record.activeVote, Date.now());
+  record.activeVote = next;
+  record.session.updatedAt = new Date().toISOString();
+  emit(code, 'vote.cancelled');
+  return structuredClone(next.vote);
+}
+
+export function resolveSessionVote(
+  code: string,
+  override?: { actorId: string; option: string; reason?: string },
+): { vote: HouseVote; result: HouseVoteResult | null } | null {
+  const record = getSessionRecord(code);
+  if (!record?.activeVote) return null;
+  const next = resolveVote(record.activeVote, Date.now(), override);
+  record.activeVote = next;
+  if (next.vote.result && !record.voteHistory.some((result) => result.voteId === next.vote.result?.voteId)) {
+    record.voteHistory.unshift(structuredClone(next.vote.result));
+    record.voteHistory = record.voteHistory.slice(0, 25);
+  }
+  record.session.updatedAt = new Date().toISOString();
+  emit(code, next.vote.status === 'expired' ? 'vote.expired' : 'vote.resolved');
+  return { vote: structuredClone(next.vote), result: next.vote.result ? structuredClone(next.vote.result) : null };
+}
+
+export function applySessionVote(code: string): { vote: HouseVote; result: HouseVoteResult | null } | null {
+  const record = getSessionRecord(code);
+  if (!record?.activeVote) return null;
+  const next = applyVote(record.activeVote, Date.now());
+  record.activeVote = next;
+  if (next.vote.result) {
+    record.voteHistory = record.voteHistory.filter((result) => result.voteId !== next.vote.result?.voteId);
+    record.voteHistory.unshift(structuredClone(next.vote.result));
+  }
+  record.session.updatedAt = new Date().toISOString();
+  emit(code, 'vote.applied');
+  return { vote: structuredClone(next.vote), result: next.vote.result ? structuredClone(next.vote.result) : null };
+}
+
+export function archiveSessionVote(code: string): void {
+  const record = getSessionRecord(code);
+  if (!record?.activeVote) return;
+  record.activeVote = null;
+  record.session.updatedAt = new Date().toISOString();
+  emit(code, 'vote.archived');
 }
 
 export function removeSessionBotMembers(code: string): void {

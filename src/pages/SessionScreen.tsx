@@ -352,15 +352,34 @@ export default function SessionScreen() {
             </Button>
             {votePoll && (
               <div className="rounded-2xl border border-secondary/40 bg-secondary/10 p-3 text-left">
-                <p className="text-xs uppercase tracking-[0.2em] text-secondary">Vote call</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-secondary">
+                  {votePoll.status === 'open' ? 'Vote open' : votePoll.status === 'expired' ? 'Vote expired' : 'Vote result'}
+                </p>
                 <div className="mt-3 grid gap-2">
                   {votePoll.options.map((option) => (
-                    <Button key={option} variant="outline" className="justify-between rounded-xl bg-black/25" onClick={() => castVote(option)}>
+                    <Button
+                      key={option}
+                      variant="outline"
+                      className="justify-between rounded-xl bg-black/25"
+                      disabled={votePoll.status !== 'open'}
+                      onClick={() => castVote(option)}
+                    >
                       {option}
                       <span className="text-primary">{votePoll.tally[option] ?? 0}</span>
                     </Button>
                   ))}
                 </div>
+                {votePoll.result && (
+                  <p className="mt-3 text-xs text-white/70">
+                    {votePoll.result.winnerOption
+                      ? `Result: ${votePoll.result.winnerOption}${votePoll.result.applied ? ' applied' : ''}.`
+                      : votePoll.result.tied
+                        ? `Tie: ${votePoll.result.tiedOptions.join(', ')}. Host decides.`
+                        : votePoll.result.quorumMet
+                          ? 'No option reached the required majority.'
+                          : 'Not enough eligible players voted.'}
+                  </p>
+                )}
               </div>
             )}
           </div>

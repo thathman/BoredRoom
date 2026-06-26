@@ -108,24 +108,104 @@ export const ControllerRequest = z.object({
 });
 
 export const HouseVoteStatus = z.enum([
-  'gathering_support',
+  'draft',
   'open',
-  'passed',
-  'failed',
+  'locked',
+  'resolved',
+  'applied',
+  'cancelled',
   'expired',
+  'archived',
 ]);
+
+export const HouseVoteType = z.enum([
+  'game_selection',
+  'pause_game',
+  'resume_game',
+  'skip_round',
+  'replay_round',
+  'end_game',
+  'rematch',
+  'next_game',
+  'admit_player',
+  'kick_player',
+  'remote_mode',
+  'team_change',
+  'end_party',
+  'custom',
+]);
+
+export const HouseVoteTieBreakRule = z.enum([
+  'host_decides',
+  'random',
+  'runoff',
+  'no_action',
+]);
+
+export const HouseVoteSettings = z.object({
+  anonymous: z.boolean().default(false),
+  majorityThreshold: z.number().min(0).max(1).default(0.5),
+  quorum: z.number().int().nonnegative().default(1),
+  allowCrowdVotes: z.boolean().default(false),
+  timerMs: z.number().int().positive().default(30_000),
+  tieBreakRule: HouseVoteTieBreakRule.default('host_decides'),
+  hostOverrideAllowed: z.boolean().default(true),
+  autoApply: z.boolean().default(false),
+});
+
+const DEFAULT_HOUSE_VOTE_SETTINGS = {
+  anonymous: false,
+  majorityThreshold: 0.5,
+  quorum: 1,
+  allowCrowdVotes: false,
+  timerMs: 30_000,
+  tieBreakRule: 'host_decides' as const,
+  hostOverrideAllowed: true,
+  autoApply: false,
+};
+
+export const HouseVoteResult = z.object({
+  voteId: Id,
+  voteType: HouseVoteType,
+  winnerOption: z.string().nullable(),
+  voteCounts: z.record(z.string(), z.number().int().nonnegative()),
+  eligibleVoterCount: z.number().int().nonnegative(),
+  castCount: z.number().int().nonnegative(),
+  quorumMet: z.boolean(),
+  tied: z.boolean(),
+  tiedOptions: z.array(z.string()).default([]),
+  applied: z.boolean().default(false),
+  autoApplied: z.boolean().default(false),
+  status: HouseVoteStatus,
+  hostOverride: z.object({
+    actorId: Id,
+    option: z.string(),
+    reason: z.string().optional(),
+    at: Iso,
+  }).optional(),
+  resolvedAt: Iso,
+});
 
 export const HouseVote = z.object({
   id: Id,
   sessionId: Id,
   requestId: Id.optional(),
+  type: HouseVoteType.default('custom'),
   question: z.string(),
   options: z.array(z.string()).min(2),
   status: HouseVoteStatus,
   tally: z.record(z.string(), z.number().int().nonnegative()).default({}),
   eligibleVoterIds: z.array(Id),
+  settings: HouseVoteSettings.default(DEFAULT_HOUSE_VOTE_SETTINGS),
+  createdBy: Id.optional(),
+  createdAt: Iso,
   openedAt: Iso.optional(),
   closesAt: Iso.optional(),
+  closedAt: Iso.optional(),
+  resolvedAt: Iso.optional(),
+  appliedAt: Iso.optional(),
+  cancelledAt: Iso.optional(),
+  result: HouseVoteResult.optional(),
 });
 
 // --- Snapshots / recovery (Phase 10) ---------------------------------------
@@ -155,6 +235,9 @@ export type ControllerDevice = z.infer<typeof ControllerDevice>;
 export type SessionEvent = z.infer<typeof SessionEvent>;
 export type ControllerRequest = z.infer<typeof ControllerRequest>;
 export type HouseVoteStatus = z.infer<typeof HouseVoteStatus>;
+export type HouseVoteType = z.infer<typeof HouseVoteType>;
+export type HouseVoteSettings = z.infer<typeof HouseVoteSettings>;
+export type HouseVoteResult = z.infer<typeof HouseVoteResult>;
 export type HouseVote = z.infer<typeof HouseVote>;
 export type GameSnapshot = z.infer<typeof GameSnapshot>;
 export type RecoveryToken = z.infer<typeof RecoveryToken>;

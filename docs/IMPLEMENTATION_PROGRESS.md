@@ -1,6 +1,6 @@
 # BoredRoom Implementation Progress
 
-Last updated: 2026-06-26 13:55 WAT
+Last updated: 2026-06-26 15:10 WAT
 
 ## Current objective
 
@@ -19,8 +19,8 @@ Source of truth read this pass:
 
 Main app: `/Users/hendrix/Playground/boredroom`
 
-- HEAD: `ed6b90d Harden Dell deploy failure handling`
-- Live Dell deployment verified after this commit.
+- HEAD: pending vote lifecycle commit after `61fccbc Record hardened deploy verification`
+- Latest live Dell deployment verified at `ed6b90d`; docs-only `61fccbc` is pushed.
 - `docs/` did not exist before this pass; this file and `docs/CODEX_HANDOFF.md` are now the baseline handoff docs.
 
 Games repo: `/Users/hendrix/Playground/BoredRoom-Games`
@@ -48,7 +48,7 @@ Spec repo: `/Users/hendrix/Playground/BoredRoom-Spec`
 - Active game display shows a small QR/code strip for rejoining.
 - Wake Lock hook and controller persistence/resume storage exist.
 - Host detects disconnected seated controllers and pauses active game; controllers have a pause button.
-- Voting smoke exists through `session:call_vote` and `vote:cast`, but vote lifecycle is still minimal.
+- Voting now has a first server-authoritative lifecycle slice: shared vote contracts use spec-style statuses, votes include settings/results, session snapshots expose `activeVote`/`voteHistory`, and HouseSessionRoom uses session-backed vote state instead of a loose in-room tally map.
 - Whot/Ludo visual surfaces were improved in the main installed surface.
 - Server-side AI now uses structured JSON-schema responses with deterministic fallback and private-state isolation tests.
 - Deterministic session bots exist in `HouseSessionRoom`; bots act only through server-generated legal intents.
@@ -75,6 +75,7 @@ Live gates passed after deploy:
 - `curl -fsS https://colyseus.hendrix.com.ng/healthz`
 - `PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-entry-flows.mjs`
 - `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-bot-autofill.mjs`
+- `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-vote-lifecycle.mjs`
 - `PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-gameplay-matrix.mjs`
 
 Latest live evidence:
@@ -114,7 +115,7 @@ Release-process hardening:
 - OpenRouter production model is now aligned with the current spec: default `server/src/aiService.ts` model is `google/gemini-2.5-flash-lite`, still overrideable through `AI_MODEL`.
 - The current spec describes companion as optional and older product contract says host controls are a concealed drawer on public display. The goal objective says companion is the primary host control booth and heavy host controls belong there. This needs reconciliation in BoredRoom-Spec or implementation.
 - Current `HouseSessionStatus` enum still uses `setup`, `waiting_for_players`, `game_active`, `recap`, etc. Goal objective wants party statuses: `draft`, `open_lobby`, `selecting_game`, `configuring_game`, `in_game`, `game_recap`, `intermission`, `ending_confirm`, `ended`, `deleted`. This is a schema/API migration, not a cosmetic rename.
-- Vote lifecycle is currently a simple open/cast tally broadcast in `HouseSessionRoom`. It does not yet implement controller requests, support thresholds, close timers, pass/fail/expired status, or persistence model from the spec.
+- Vote lifecycle now has server-side active vote state, timed resolution, quorum/majority/tie/expiry result objects, host close/cancel/apply messages, session snapshot restoration, vote event persistence attempts, and controller result display. Still missing full companion vote-management UI, controller-requested votes/support threshold, auto-application across all vote types, admin visibility, and broad browser E2E.
 - Public display still owns significant game selection/control UI. The goal objective says public display is the stage and companion should be the producer/control booth.
 - `/games` is owner/admin plus catalog; there is no separate admin dashboard for health/logs/active parties/moderation.
 - Game source/catalog mismatch in BoredRoom-Games: source manifests are `1.0.0.0`; catalog/artifacts are `1.2.0.0`.
@@ -170,12 +171,22 @@ Release-process hardening:
 ## Files changed in last completed implementation pass
 
 - `server/src/index.ts`
+- `shared/src/contracts/session.ts`
+- `shared/src/votes/engine.ts`
+- `server/src/sessionDirectory.ts`
+- `server/src/rooms/HouseSessionRoom.ts`
+- `src/lib/serverApi.ts`
+- `src/hooks/useHouseSession.ts`
+- `src/pages/SessionScreen.tsx`
+- `src/test/voteEngine.test.ts`
+- `src/test/sessionAuthority.test.ts`
 - `src/components/brand/LagosScene.tsx`
 - `src/index.css`
 - `src/pages/Index.tsx`
 - `src/hooks/useHouseSession.ts`
 - `scripts/playwright-bot-autofill.mjs`
 - `scripts/playwright-gameplay-matrix.mjs`
+- `scripts/playwright-vote-lifecycle.mjs`
 - `scripts/smoke-unified-session.mjs`
 - `scripts/deploy-dell.sh`
 - `package.json`
@@ -183,4 +194,4 @@ Release-process hardening:
 
 ## Next recommended agent prompt
 
-Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. The Lagos hero/motion fix, Colyseus 0.17 deployment, and hardened Dell deploy script are verified live. Next production gap: full vote lifecycle or companion control booth.
+Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. The Lagos hero/motion fix, Colyseus 0.17 deployment, and hardened Dell deploy script are verified live. The first vote lifecycle/server-state slice passed local gates and should be deployed/live-smoked next if not already done. Continue toward full vote lifecycle: companion vote management UI, player-requested votes/support, auto-apply actions, admin visibility, and browser E2E.

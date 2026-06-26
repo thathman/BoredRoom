@@ -4,11 +4,14 @@ import {
   createCompanionPairing,
   getPublicSession,
   issueOwnerCredential,
+  openSessionVote,
   removeSessionBotMembers,
   redeemCompanionPairing,
   registerSession,
+  resolveSessionVote,
   selectSessionGame,
   setSessionMemberConnected,
+  castSessionVote,
   upsertSessionMember,
   verifyControlCredential,
   verifyOwnerCredential,
@@ -83,5 +86,45 @@ describe('house session authority', () => {
 
     removeSessionBotMembers(session.code);
     expect(getPublicSession(session.code)?.members).toHaveLength(0);
+  });
+
+  it('tracks active vote state and resolved history in public session snapshots', () => {
+    const { session } = createRecord();
+    upsertSessionMember(session.code, {
+      deviceId: 'p1',
+      displayName: 'Ada',
+      role: 'controller',
+    });
+    upsertSessionMember(session.code, {
+      deviceId: 'p2',
+      displayName: 'Tobi',
+      role: 'controller',
+    });
+
+    const opened = openSessionVote(session.code, {
+      type: 'game_selection',
+      question: 'Next game?',
+      options: ['Whot', 'Ludo'],
+      createdBy: session.hostDeviceId,
+      settings: { quorum: 1, timerMs: 30_000 },
+    });
+
+    expect(opened?.status).toBe('open');
+    expect(getPublicSession(session.code)?.activeVote?.question).toBe('Next game?');
+
+    castSessionVote(session.code, 'p1', 'Whot');
+    castSessionVote(session.code, 'p1', 'Ludo');
+    castSessionVote(session.code, 'p2', 'Ludo');
+    const resolved = resolveSessionVote(session.code);
+
+    expect(resolved?.result?.winnerOption).toBe('Ludo');
+    const snapshot = getPublicSession(session.code);
+    expect(snapshot?.activeVote?.status).toBe('resolved');
+    expect(snapshot?.activeVote?.tally).toEqual({ Whot: 0, Ludo: 2 });
+    expect(snapshot?.voteHistory[0]).toMatchObject({
+      voteType: 'game_selection',
+      winnerOption: 'Ludo',
+      castCount: 2,
+    });
   });
 });

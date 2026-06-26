@@ -1,31 +1,36 @@
-// Vote & request engine (Phase 5) — pure, Colyseus-free, easy to unit-test.
-//
-// Flow: a controller raises a ControllerRequest -> it gathers support -> at threshold it opens as a
-// HouseVote -> eligible voters cast ballots -> majority (or expiry) resolves it. Majority governs
-// session/game decisions unless a host override is used (constitution Art. III.1). Cooldowns reuse
-// the same time-window idea as the reaction policy to stop request spam.
+// Server-authoritative vote engine. It is intentionally pure and Colyseus-free so vote lifecycle,
+// quorum, ties, expiry, and host override behavior can be tested without sockets.
 
-import type { HouseVote, HouseVoteStatus } from '../contracts/session.js';
+import {
+  HouseVote as HouseVoteSchema,
+  HouseVoteSettings as HouseVoteSettingsSchema,
+  type HouseVote,
+  type HouseVoteResult,
+  type HouseVoteSettings,
+  type HouseVoteStatus,
+  type HouseVoteType,
+} from '../contracts/session.js';
 
 export interface VoteRound {
   vote: HouseVote;
-  // Controllers backing the request while it gathers support.
-  supporters: string[];
-  // Who voted for what, so a voter can't double-count. Not part of the public vote shape.
+  // Kept server-side. Public projections expose tally/result, not individual ballots.
   ballots: Record<string, string>;
 }
 
 export interface VoteConfig {
-  supportThreshold: number; // supporters needed to open the vote
-  durationMs: number; // voting window once open
+  supportThreshold: number;
+  durationMs: number;
 }
 
 export const DEFAULT_VOTE_CONFIG: VoteConfig = { supportThreshold: 2, durationMs: 30_000 };
 
-// Per-controller request cooldown (mirrors reaction cooldown semantics).
 export function canRequest(lastRequestAt: number | undefined, now: number, cooldownMs: number): boolean {
   if (!lastRequestAt) return true;
   return now - lastRequestAt >= cooldownMs;
+}
+
+function iso(now: number): string {
+  return new Date(now).toISOString();
 }
 
 function recount(ballots: Record<string, string>, options: string[]): Record<string, number> {
@@ -37,51 +42,59 @@ function recount(ballots: Record<string, string>, options: string[]): Record<str
   return tally;
 }
 
-// Open a request as a vote round in the gathering-support stage. The raising controller is the
-// first supporter.
-export function openRound(input: {
-  vote: Omit<HouseVote, 'status' | 'tally' | 'openedAt' | 'closesAt'>;
-  raisedBy: string;
-}): VoteRound {
-  return {
-    vote: {
-      ...input.vote,
-      status: 'gathering_support',
-      tally: recount({}, input.vote.options),
-    },
-    supporters: [input.raisedBy],
-    ballots: {},
-  };
+function castCount(tally: Record<string, number>): number {
+  return Object.values(tally).reduce((sum, count) => sum + count, 0);
 }
 
-// Add support. Once the threshold is met the round opens for voting with a closing time.
-export function addSupport(
-  round: VoteRound,
-  controllerId: string,
-  config: VoteConfig,
-  now: number,
-): VoteRound {
-  if (round.vote.status !== 'gathering_support') return round;
-  const supporters = round.supporters.includes(controllerId)
-    ? round.supporters
-    : [...round.supporters, controllerId];
-  if (supporters.length >= config.supportThreshold) {
-    return {
-      ...round,
-      supporters,
-      vote: {
-        ...round.vote,
-        status: 'open',
-        openedAt: new Date(now).toISOString(),
-        closesAt: new Date(now + config.durationMs).toISOString(),
-      },
-    };
+function leadingOptions(tally: Record<string, number>): { leaders: string[]; count: number } {
+  let count = 0;
+  let leaders: string[] = [];
+  for (const [option, optionCount] of Object.entries(tally)) {
+    if (optionCount > count) {
+      count = optionCount;
+      leaders = [option];
+    } else if (optionCount === count && optionCount > 0) {
+      leaders.push(option);
+    }
   }
-  return { ...round, supporters };
+  return { leaders, count };
 }
 
-// Cast (or change) a ballot. Ignored unless the vote is open, the voter is eligible, and the option
-// is valid.
+export function normaliseVoteSettings(settings?: Partial<HouseVoteSettings>): HouseVoteSettings {
+  return HouseVoteSettingsSchema.parse(settings ?? {});
+}
+
+export function createVote(input: {
+  id: string;
+  sessionId: string;
+  type?: HouseVoteType;
+  question: string;
+  options: string[];
+  eligibleVoterIds: string[];
+  createdBy?: string;
+  settings?: Partial<HouseVoteSettings>;
+  now: number;
+}): VoteRound {
+  const settings = normaliseVoteSettings(input.settings);
+  const options = input.options.map((option) => option.trim()).filter(Boolean);
+  const vote = HouseVoteSchema.parse({
+    id: input.id,
+    sessionId: input.sessionId,
+    type: input.type ?? 'custom',
+    question: input.question.trim(),
+    options,
+    status: 'open',
+    tally: recount({}, options),
+    eligibleVoterIds: Array.from(new Set(input.eligibleVoterIds)),
+    settings,
+    createdBy: input.createdBy,
+    createdAt: iso(input.now),
+    openedAt: iso(input.now),
+    closesAt: iso(input.now + settings.timerMs),
+  });
+  return { vote, ballots: {} };
+}
+
 export function castVote(round: VoteRound, voterId: string, option: string, now: number): VoteRound {
   if (round.vote.status !== 'open') return round;
   if (isExpired(round, now)) return round;
@@ -91,46 +104,94 @@ export function castVote(round: VoteRound, voterId: string, option: string, now:
   return { ...round, ballots, vote: { ...round.vote, tally: recount(ballots, round.vote.options) } };
 }
 
+export function closeVote(round: VoteRound, now: number): VoteRound {
+  if (round.vote.status !== 'open') return round;
+  return { ...round, vote: { ...round.vote, status: 'locked', closedAt: iso(now) } };
+}
+
+export function cancelVote(round: VoteRound, now: number): VoteRound {
+  if (!['draft', 'open', 'locked'].includes(round.vote.status)) return round;
+  return { ...round, vote: { ...round.vote, status: 'cancelled', cancelledAt: iso(now) } };
+}
+
+export function applyVote(round: VoteRound, now: number): VoteRound {
+  if (round.vote.status !== 'resolved' || !round.vote.result) return round;
+  const result: HouseVoteResult = {
+    ...round.vote.result,
+    applied: true,
+    autoApplied: round.vote.settings.autoApply,
+    status: 'applied',
+  };
+  return { ...round, vote: { ...round.vote, status: 'applied', appliedAt: iso(now), result } };
+}
+
 export function isExpired(round: VoteRound, now: number): boolean {
   return !!round.vote.closesAt && now >= Date.parse(round.vote.closesAt);
 }
 
-// Resolve the round: a strict majority of eligible voters passes the leading option; an expired
-// window without majority fails. Returns the updated round (status passed/failed/expired/open).
-export function resolveRound(round: VoteRound, now: number): VoteRound {
-  if (round.vote.status !== 'open') return round;
+export function resolveVote(
+  round: VoteRound,
+  now: number,
+  hostOverride?: { actorId: string; option: string; reason?: string },
+): VoteRound {
+  if (!['open', 'locked'].includes(round.vote.status)) return round;
+  if (hostOverride && !round.vote.settings.hostOverrideAllowed) return round;
+  if (hostOverride && !round.vote.options.includes(hostOverride.option)) return round;
+
   const tally = round.vote.tally;
-  const total = round.vote.eligibleVoterIds.length;
-  const majority = Math.floor(total / 2) + 1;
-
-  let leader: string | null = null;
-  let leadCount = 0;
-  for (const [opt, count] of Object.entries(tally) as [string, number][]) {
-    if (count > leadCount) {
-      leader = opt;
-      leadCount = count;
-    }
+  const eligibleVoterCount = round.vote.eligibleVoterIds.length;
+  const totalCast = castCount(tally);
+  const quorumMet = totalCast >= round.vote.settings.quorum;
+  const { leaders, count } = leadingOptions(tally);
+  const tied = leaders.length > 1;
+  const thresholdCount = Math.max(1, Math.floor(eligibleVoterCount * round.vote.settings.majorityThreshold) + 1);
+  const thresholdMet = count >= thresholdCount;
+  const expired = isExpired(round, now);
+  const winnerOption = hostOverride
+    ? hostOverride.option
+    : quorumMet && thresholdMet && !tied
+      ? leaders[0]
+      : null;
+  if (!winnerOption && round.vote.status === 'open' && !expired) {
+    return round;
   }
-
-  let status: HouseVoteStatus = round.vote.status;
-  if (leader && leadCount >= majority) {
-    status = 'passed';
-  } else if (isExpired(round, now)) {
-    status = 'failed';
-  }
-  if (status === round.vote.status) return round;
-  return { ...round, vote: { ...round.vote, status } };
+  const status: HouseVoteStatus = expired && !winnerOption && round.vote.status === 'open'
+    ? 'expired'
+    : 'resolved';
+  const result: HouseVoteResult = {
+    voteId: round.vote.id,
+    voteType: round.vote.type,
+    winnerOption,
+    voteCounts: { ...tally },
+    eligibleVoterCount,
+    castCount: totalCast,
+    quorumMet,
+    tied,
+    tiedOptions: tied ? leaders : [],
+    applied: false,
+    autoApplied: false,
+    status,
+    hostOverride: hostOverride
+      ? {
+          actorId: hostOverride.actorId,
+          option: hostOverride.option,
+          reason: hostOverride.reason,
+          at: iso(now),
+        }
+      : undefined,
+    resolvedAt: iso(now),
+  };
+  return {
+    ...round,
+    vote: {
+      ...round.vote,
+      status,
+      resolvedAt: iso(now),
+      result,
+    },
+  };
 }
 
 export function winningOption(round: VoteRound): string | null {
-  if (round.vote.status !== 'passed') return null;
-  let leader: string | null = null;
-  let leadCount = -1;
-  for (const [opt, count] of Object.entries(round.vote.tally) as [string, number][]) {
-    if (count > leadCount) {
-      leader = opt;
-      leadCount = count;
-    }
-  }
-  return leader;
+  return round.vote.result?.winnerOption ?? null;
 }

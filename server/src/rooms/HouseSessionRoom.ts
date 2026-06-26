@@ -1,6 +1,11 @@
 import { Room, type Client } from '@colyseus/core';
 import {
   clearActiveGame,
+  applySessionVote,
+  archiveSessionVote,
+  cancelSessionVote,
+  castSessionVote,
+  closeSessionVote,
   finishActiveGame,
   getPublicSession,
   getRuntimeSnapshot,
@@ -8,6 +13,8 @@ import {
   pauseActiveGame,
   removeSessionBotMembers,
   resumeActiveGame,
+  resolveSessionVote,
+  openSessionVote,
   selectSessionGame,
   setRecapCopy,
   setSessionMemberConnected,
@@ -66,7 +73,7 @@ export class HouseSessionRoom extends Room {
   private unsubscribe: (() => void) | null = null;
   private identities = new Map<string, ClientIdentity>();
   private gameRuntime: GameRuntime | null = null;
-  private votes = new Map<string, string>();
+  private voteTimer: NodeJS.Timeout | null = null;
   private botTimer: NodeJS.Timeout | null = null;
   private botTurnNumber = 0;
 
@@ -117,20 +124,77 @@ export class HouseSessionRoom extends Room {
       if (!this.isHostClient(client)) return;
       void this.resumeGame();
     });
-    this.onMessage('session:call_vote', (client, payload: { options?: string[] }) => {
+    this.onMessage('session:call_vote', (client, payload: {
+      type?: string;
+      question?: string;
+      options?: string[];
+      settings?: Record<string, unknown>;
+    }) => {
       if (!this.isHostClient(client)) return;
       const options = (payload?.options ?? [])
         .map((option) => String(option ?? '').trim().slice(0, 80))
         .filter(Boolean)
         .slice(0, 8);
       if (options.length < 2) return;
-      this.votes.clear();
+      const identity = this.identities.get(client.sessionId);
+      const vote = openSessionVote(this.code, {
+        type: payload?.type === 'game_selection' ? 'game_selection' : 'custom',
+        question: String(payload?.question ?? 'What should the house choose?').trim().slice(0, 160),
+        options,
+        createdBy: identity?.deviceId,
+        settings: {
+          timerMs: typeof payload?.settings?.timerMs === 'number' ? payload.settings.timerMs : undefined,
+          quorum: typeof payload?.settings?.quorum === 'number' ? payload.settings.quorum : undefined,
+          majorityThreshold: typeof payload?.settings?.majorityThreshold === 'number' ? payload.settings.majorityThreshold : undefined,
+          autoApply: typeof payload?.settings?.autoApply === 'boolean' ? payload.settings.autoApply : undefined,
+        },
+      });
+      if (!vote) return;
+      this.scheduleVoteResolution(vote.closesAt);
       this.broadcast('session:transition', {
         type: 'vote.opened',
-        options,
-        tally: {},
+        vote,
         at: new Date().toISOString(),
       });
+      void this.persistVoteEvent('vote.opened', identity?.deviceId, { vote });
+    });
+    this.onMessage('vote:close', (client) => {
+      if (!this.isHostClient(client)) return;
+      const identity = this.identities.get(client.sessionId);
+      const vote = closeSessionVote(this.code);
+      if (!vote) return;
+      const resolved = resolveSessionVote(this.code);
+      this.clearVoteTimer();
+      this.broadcast('session:transition', {
+        type: 'vote.resolved',
+        vote: resolved?.vote ?? vote,
+        result: resolved?.result ?? null,
+        at: new Date().toISOString(),
+      });
+      void this.persistVoteEvent('vote.resolved', identity?.deviceId, { vote: resolved?.vote ?? vote, result: resolved?.result ?? null });
+    });
+    this.onMessage('vote:cancel', (client) => {
+      if (!this.isHostClient(client)) return;
+      const identity = this.identities.get(client.sessionId);
+      const vote = cancelSessionVote(this.code);
+      if (!vote) return;
+      this.clearVoteTimer();
+      this.broadcast('session:transition', { type: 'vote.cancelled', vote, at: new Date().toISOString() });
+      void this.persistVoteEvent('vote.cancelled', identity?.deviceId, { vote });
+    });
+    this.onMessage('vote:apply', (client) => {
+      if (!this.isHostClient(client)) return;
+      const identity = this.identities.get(client.sessionId);
+      const applied = applySessionVote(this.code);
+      if (!applied) return;
+      archiveSessionVote(this.code);
+      this.broadcast('session:transition', {
+        type: 'vote.applied',
+        vote: applied.vote,
+        result: applied.result,
+        at: new Date().toISOString(),
+      });
+      void this.persistVoteEvent('vote.applied', identity?.deviceId, { vote: applied.vote, result: applied.result });
     });
     this.onMessage('session:request_state', (client) => {
       const identity = this.identities.get(client.sessionId);
@@ -212,19 +276,21 @@ export class HouseSessionRoom extends Room {
         || (identity.role === 'crowd' && !record.session.settings.allowCrowdVotes)
         || !['controller', 'crowd'].includes(identity.role)
       ) return;
-      this.votes.set(identity.deviceId, option);
-      const tally = Array.from(this.votes.values()).reduce<Record<string, number>>((result, vote) => {
-        result[vote] = (result[vote] ?? 0) + 1;
-        return result;
-      }, {});
-      this.broadcast('session:transition', { type: 'vote.cast', tally, at: new Date().toISOString() });
-      void appendSessionEvent(buildSessionEvent({
-        sessionId: record.session.id,
-        gameRunId: record.activeRuntime?.run.id,
-        type: 'vote.cast',
-        actorId: identity.deviceId,
-        payload: { option },
-      })).catch((error) => log('warn', 'vote_persist_failed', { session: this.code, error: String(error) }));
+      const vote = castSessionVote(this.code, identity.deviceId, option);
+      if (!vote) return;
+      this.broadcast('session:transition', { type: 'vote.cast', vote, at: new Date().toISOString() });
+      void this.persistVoteEvent('vote.cast', identity.deviceId, { voteId: vote.id, option, tally: vote.tally });
+      const resolved = resolveSessionVote(this.code);
+      if (resolved?.result?.winnerOption) {
+        this.clearVoteTimer();
+        this.broadcast('session:transition', {
+          type: 'vote.resolved',
+          vote: resolved.vote,
+          result: resolved.result,
+          at: new Date().toISOString(),
+        });
+        void this.persistVoteEvent('vote.resolved', undefined, { vote: resolved.vote, result: resolved.result });
+      }
     });
     log('info', 'house_session_room_created', { session: this.code });
   }
@@ -281,9 +347,9 @@ export class HouseSessionRoom extends Room {
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.clearBotTimer();
+    this.clearVoteTimer();
     this.gameRuntime?.dispose();
     this.gameRuntime = null;
-    this.votes.clear();
   }
 
   private ensureRuntime(snapshot: NonNullable<ReturnType<typeof getPublicSession>>): void {
@@ -554,6 +620,43 @@ export class HouseSessionRoom extends Room {
   private clearBotTimer(): void {
     if (this.botTimer) clearTimeout(this.botTimer);
     this.botTimer = null;
+  }
+
+  private scheduleVoteResolution(closesAt: string | undefined): void {
+    this.clearVoteTimer();
+    if (!closesAt) return;
+    const delay = Math.max(0, Date.parse(closesAt) - Date.now());
+    this.voteTimer = setTimeout(() => {
+      const resolved = resolveSessionVote(this.code);
+      if (!resolved) return;
+      this.broadcast('session:transition', {
+        type: resolved.vote.status === 'expired' ? 'vote.expired' : 'vote.resolved',
+        vote: resolved.vote,
+        result: resolved.result,
+        at: new Date().toISOString(),
+      });
+      void this.persistVoteEvent(resolved.vote.status === 'expired' ? 'vote.expired' : 'vote.resolved', undefined, {
+        vote: resolved.vote,
+        result: resolved.result,
+      });
+    }, delay).unref();
+  }
+
+  private clearVoteTimer(): void {
+    if (this.voteTimer) clearTimeout(this.voteTimer);
+    this.voteTimer = null;
+  }
+
+  private async persistVoteEvent(type: string, actorId: string | undefined, payload: Record<string, unknown>): Promise<void> {
+    const record = getSessionRecord(this.code);
+    if (!record) return;
+    await appendSessionEvent(buildSessionEvent({
+      sessionId: record.session.id,
+      gameRunId: record.activeRuntime?.run.id,
+      type,
+      actorId,
+      payload,
+    })).catch((error) => log('warn', 'vote_persist_failed', { session: this.code, type, error: String(error) }));
   }
 
   private scheduleBotTurn(delayMs = 700): void {

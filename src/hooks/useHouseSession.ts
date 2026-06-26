@@ -5,6 +5,8 @@ import {
   getControlCredential,
   type ActiveRun,
   type CreatedSession,
+  type HouseVote,
+  type HouseVoteResult,
   type SessionMember,
   type SessionRecap,
 } from '@/lib/serverApi';
@@ -15,6 +17,8 @@ export interface HouseSessionSnapshot {
   session: CreatedSession;
   members: SessionMember[];
   activeRun: ActiveRun | null;
+  activeVote: HouseVote | null;
+  voteHistory: HouseVoteResult[];
   lastRecap?: SessionRecap;
 }
 
@@ -38,7 +42,8 @@ export function useHouseSession({
   const [snapshot, setSnapshot] = useState<HouseSessionSnapshot | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
   const [lastTransition, setLastTransition] = useState<string | null>(null);
-  const [votePoll, setVotePoll] = useState<{ options: string[]; tally: Record<string, number> } | null>(null);
+  const [activeVote, setActiveVote] = useState<HouseVote | null>(null);
+  const [voteHistory, setVoteHistory] = useState<HouseVoteResult[]>([]);
   const [gamePublicState, setGamePublicState] = useState<{
     gameType: string;
     state: unknown;
@@ -63,10 +68,14 @@ export function useHouseSession({
       if (cancelled) return;
       if (!initial) {
         setSnapshot(null);
+        setActiveVote(null);
+        setVoteHistory([]);
         setStatus('missing');
         return;
       }
       setSnapshot(initial);
+      setActiveVote(initial.activeVote ?? null);
+      setVoteHistory(initial.voteHistory ?? []);
 
       try {
         const client = new Client(COLYSEUS_URL);
@@ -87,15 +96,24 @@ export function useHouseSession({
         roomRef.current = room;
         room.onMessage('session:state', (next: HouseSessionSnapshot) => {
           setSnapshot(next);
+          setActiveVote(next.activeVote ?? null);
+          setVoteHistory(next.voteHistory ?? []);
           setStatus('ready');
         });
-        room.onMessage('session:transition', (event: { type?: string; options?: string[]; tally?: Record<string, number> }) => {
+        room.onMessage('session:transition', (event: {
+          type?: string;
+          vote?: HouseVote;
+          result?: HouseVoteResult | null;
+        }) => {
           setLastTransition(event.type ?? null);
-          if (event.type === 'vote.opened' && Array.isArray(event.options)) {
-            setVotePoll({ options: event.options, tally: event.tally ?? {} });
+          if (event.vote) {
+            setActiveVote(event.vote);
           }
-          if (event.type === 'vote.cast' && event.tally) {
-            setVotePoll((current) => current ? { ...current, tally: event.tally ?? {} } : null);
+          if (event.result) {
+            setVoteHistory((current) => [event.result as HouseVoteResult, ...current.filter((item) => item.voteId !== event.result?.voteId)].slice(0, 25));
+          }
+          if (event.type === 'vote.archived') {
+            setActiveVote(null);
           }
         });
         room.onMessage('game:public_state', (payload: { gameType: string; state: unknown }) => {
@@ -163,7 +181,7 @@ export function useHouseSession({
   }, []);
 
   const callVote = useCallback((options: string[]) => {
-    roomRef.current?.send('session:call_vote', { options });
+    roomRef.current?.send('session:call_vote', { type: 'game_selection', question: 'Which game should we play next?', options });
   }, []);
 
   const selectGame = useCallback((gameId: string, settings: Record<string, unknown> = {}) => {
@@ -197,7 +215,11 @@ export function useHouseSession({
     gamePublicState,
     gamePrivateState,
     aiResult,
-    votePoll,
+    activeVote,
+    voteHistory,
+    votePoll: activeVote && ['open', 'locked', 'resolved', 'expired'].includes(activeVote.status)
+      ? { options: activeVote.options, tally: activeVote.tally, status: activeVote.status, result: activeVote.result }
+      : null,
     setReady,
     sendGameIntent,
     requestHint,

@@ -1,81 +1,143 @@
 import { describe, expect, it } from 'vitest';
 import {
-  openRound,
-  addSupport,
-  castVote,
-  resolveRound,
-  winningOption,
+  applyVote,
+  cancelVote,
   canRequest,
-  isExpired,
+  castVote,
+  closeVote,
+  createVote,
   DEFAULT_VOTE_CONFIG,
+  isExpired,
+  resolveVote,
+  winningOption,
   type VoteRound,
 } from '../../shared/src/votes/engine';
 
-const config = { supportThreshold: 2, durationMs: 1000 };
 const T0 = 1_000_000;
 
-function newRound(eligible: string[]): VoteRound {
-  return openRound({
-    vote: {
-      id: 'v1',
-      sessionId: 's1',
-      question: 'Switch to Whot?',
-      options: ['yes', 'no'],
-      eligibleVoterIds: eligible,
-    },
-    raisedBy: 'c1',
+function newRound(eligible: string[], settings = {}): VoteRound {
+  return createVote({
+    id: 'v1',
+    sessionId: 's1',
+    type: 'game_selection',
+    question: 'Next game?',
+    options: ['Whot', 'Ludo'],
+    eligibleVoterIds: eligible,
+    createdBy: 'host',
+    settings: { timerMs: 1000, quorum: 1, ...settings },
+    now: T0,
   });
 }
 
-// AC-5.1 / AC-5.2: request gathers support, opens, passes on majority, respects cooldown/expiry.
 describe('vote engine', () => {
-  it('gathers support then opens at threshold', () => {
-    let r = newRound(['c1', 'c2', 'c3']);
-    expect(r.vote.status).toBe('gathering_support');
-    expect(r.supporters).toEqual(['c1']);
-    r = addSupport(r, 'c1', config, T0); // dup supporter ignored
-    expect(r.vote.status).toBe('gathering_support');
-    r = addSupport(r, 'c2', config, T0); // reaches threshold 2
+  it('opens with a timed, typed public vote', () => {
+    const r = newRound(['c1', 'c2']);
     expect(r.vote.status).toBe('open');
-    expect(r.vote.openedAt).toBeDefined();
-    expect(r.vote.closesAt).toBeDefined();
+    expect(r.vote.type).toBe('game_selection');
+    expect(r.vote.tally).toEqual({ Whot: 0, Ludo: 0 });
+    expect(r.vote.openedAt).toBe(new Date(T0).toISOString());
+    expect(r.vote.closesAt).toBe(new Date(T0 + 1000).toISOString());
+    expect(r.ballots).toEqual({});
   });
 
-  it('passes on strict majority of eligible voters', () => {
-    let r = addSupport(newRound(['c1', 'c2', 'c3']), 'c2', config, T0);
-    r = castVote(r, 'c1', 'yes', T0 + 1);
-    r = castVote(r, 'c2', 'yes', T0 + 2); // 2 of 3 = majority
-    r = resolveRound(r, T0 + 3);
-    expect(r.vote.status).toBe('passed');
-    expect(winningOption(r)).toBe('yes');
+  it('resolves to a winner only when quorum and threshold are met without a tie', () => {
+    let r = newRound(['c1', 'c2', 'c3']);
+    r = castVote(r, 'c1', 'Whot', T0 + 1);
+    r = castVote(r, 'c2', 'Whot', T0 + 2);
+    r = resolveVote(r, T0 + 3);
+    expect(r.vote.status).toBe('resolved');
+    expect(winningOption(r)).toBe('Whot');
+    expect(r.vote.result).toMatchObject({
+      winnerOption: 'Whot',
+      eligibleVoterCount: 3,
+      castCount: 2,
+      quorumMet: true,
+      tied: false,
+      applied: false,
+    });
+  });
+
+  it('keeps an open vote open when no option has won yet', () => {
+    let r = newRound(['c1', 'c2', 'c3']);
+    r = castVote(r, 'c1', 'Whot', T0 + 1);
+    r = resolveVote(r, T0 + 2);
+    expect(r.vote.status).toBe('open');
+    expect(r.vote.result).toBeUndefined();
   });
 
   it('ignores ineligible voters and invalid options', () => {
-    let r = addSupport(newRound(['c1', 'c2']), 'c2', config, T0);
-    r = castVote(r, 'stranger', 'yes', T0 + 1);
-    r = castVote(r, 'c1', 'maybe', T0 + 1);
-    expect(r.vote.tally).toEqual({ yes: 0, no: 0 });
+    let r = newRound(['c1', 'c2']);
+    r = castVote(r, 'stranger', 'Whot', T0 + 1);
+    r = castVote(r, 'c1', 'Market', T0 + 1);
+    expect(r.vote.tally).toEqual({ Whot: 0, Ludo: 0 });
   });
 
   it('a voter can change their ballot without double-counting', () => {
-    let r = addSupport(newRound(['c1', 'c2', 'c3']), 'c2', config, T0);
-    r = castVote(r, 'c1', 'yes', T0 + 1);
-    r = castVote(r, 'c1', 'no', T0 + 2);
-    expect(r.vote.tally).toEqual({ yes: 0, no: 1 });
+    let r = newRound(['c1', 'c2', 'c3']);
+    r = castVote(r, 'c1', 'Whot', T0 + 1);
+    r = castVote(r, 'c1', 'Ludo', T0 + 2);
+    expect(r.vote.tally).toEqual({ Whot: 0, Ludo: 1 });
   });
 
-  it('fails when the window expires without majority', () => {
-    let r = addSupport(newRound(['c1', 'c2', 'c3', 'c4']), 'c2', config, T0);
-    r = castVote(r, 'c1', 'yes', T0 + 10);
+  it('expires without a winner when quorum or threshold is not met', () => {
+    let r = newRound(['c1', 'c2', 'c3', 'c4'], { quorum: 3 });
+    r = castVote(r, 'c1', 'Whot', T0 + 10);
     expect(isExpired(r, T0 + 10)).toBe(false);
-    r = resolveRound(r, T0 + 2000); // past closesAt
-    expect(r.vote.status).toBe('failed');
+    r = resolveVote(r, T0 + 2000);
+    expect(r.vote.status).toBe('expired');
+    expect(r.vote.result?.quorumMet).toBe(false);
+    expect(winningOption(r)).toBeNull();
   });
 
   it('rejects votes after expiry', () => {
-    const r = addSupport(newRound(['c1', 'c2']), 'c2', config, T0);
-    const after = castVote(r, 'c1', 'yes', T0 + 5000);
-    expect(after.vote.tally.yes).toBe(0);
+    const r = newRound(['c1', 'c2']);
+    const after = castVote(r, 'c1', 'Whot', T0 + 5000);
+    expect(after.vote.tally.Whot).toBe(0);
+  });
+
+  it('locks before resolving when the host closes voting', () => {
+    let r = newRound(['c1', 'c2']);
+    r = castVote(r, 'c1', 'Whot', T0 + 10);
+    r = closeVote(r, T0 + 20);
+    expect(r.vote.status).toBe('locked');
+    r = resolveVote(r, T0 + 21);
+    expect(r.vote.status).toBe('resolved');
+  });
+
+  it('records ties in the result', () => {
+    let r = newRound(['c1', 'c2'], { majorityThreshold: 0 });
+    r = castVote(r, 'c1', 'Whot', T0 + 1);
+    r = castVote(r, 'c2', 'Ludo', T0 + 2);
+    r = closeVote(r, T0 + 3);
+    r = resolveVote(r, T0 + 4);
+    expect(r.vote.status).toBe('resolved');
+    expect(r.vote.result?.tied).toBe(true);
+    expect(r.vote.result?.tiedOptions).toEqual(['Whot', 'Ludo']);
+    expect(winningOption(r)).toBeNull();
+  });
+
+  it('allows an authorized host override when configured', () => {
+    let r = newRound(['c1', 'c2'], { hostOverrideAllowed: true });
+    r = castVote(r, 'c1', 'Whot', T0 + 1);
+    r = resolveVote(r, T0 + 2, { actorId: 'host', option: 'Ludo', reason: 'Host picked faster game.' });
+    expect(r.vote.status).toBe('resolved');
+    expect(winningOption(r)).toBe('Ludo');
+    expect(r.vote.result?.hostOverride?.actorId).toBe('host');
+  });
+
+  it('applies a resolved result once', () => {
+    let r = newRound(['c1']);
+    r = castVote(r, 'c1', 'Whot', T0 + 1);
+    r = resolveVote(r, T0 + 2);
+    r = applyVote(r, T0 + 3);
+    expect(r.vote.status).toBe('applied');
+    expect(r.vote.result?.applied).toBe(true);
+  });
+
+  it('cancels open or locked votes', () => {
+    const r = cancelVote(newRound(['c1']), T0 + 1);
+    expect(r.vote.status).toBe('cancelled');
+    expect(r.vote.cancelledAt).toBe(new Date(T0 + 1).toISOString());
   });
 
   it('enforces request cooldown', () => {
