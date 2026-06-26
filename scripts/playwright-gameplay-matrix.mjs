@@ -60,6 +60,7 @@ async function joinRoom(client, code, input) {
 
 function wireRoom(room, bucket) {
   room.onMessage('session:state', (state) => { bucket.session = state; });
+  room.onMessage('session:transition', (event) => { bucket.transition = event; });
   room.onMessage('game:public_state', (payload) => { bucket.public = payload; });
   room.onMessage('game:private_state', (payload) => { bucket.private = payload; });
   room.onMessage('session:error', (payload) => { bucket.errors.push(payload); });
@@ -186,7 +187,7 @@ async function runBrowserSmoke(code, ownerCredential) {
       localStorage.setItem('boredroom_player_name', 'Browser Ada');
     }, { sessionCode: code });
     await controller.goto(`${BASE_URL}/session/${code}/controller`, { waitUntil: 'networkidle' });
-    await controller.getByText(/Waiting to play|Your turn|Waiting for/i).waitFor({ timeout: 8_000 });
+    await controller.getByRole('heading', { name: /Waiting to play|Game complete|Your turn/i }).waitFor({ timeout: 8_000 });
     await controller.screenshot({ path: '/tmp/boredroom-gameplay-controller.png', fullPage: false });
   } finally {
     await desktop.close();
