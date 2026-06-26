@@ -1,6 +1,6 @@
 # BoredRoom Implementation Progress
 
-Last updated: 2026-06-26 13:30 WAT
+Last updated: 2026-06-26 13:45 WAT
 
 ## Current objective
 
@@ -85,9 +85,11 @@ Latest live evidence:
 - `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-bot-autofill.mjs` passed with bot seated in `NV7C`.
 - `BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-gameplay-matrix.mjs` passed all 15 games through `YHQG`.
 
-Known release-process issue:
+Release-process hardening:
 
-- `scripts/deploy-dell.sh` can print `[deploy] deployment successful` after a transient health `curl` reset, and previously continued after a failed web Docker build because the command chain mixes `&&` and `|| true` without grouping. The script needs hardening so a failed `docker compose build` or failed health check exits non-zero reliably.
+- `scripts/deploy-dell.sh` no longer lets `docker compose up -d` run after a failed `docker compose build`; the optional container removal is grouped separately.
+- Health check now suppresses transient curl noise, retries for 60 seconds, and prints `docker compose ps` plus recent server logs before exiting non-zero on failure.
+- Verified locally with `bash -n scripts/deploy-dell.sh` and `DRY_RUN=1 bash scripts/deploy-dell.sh`. Next real Dell deploy should verify the hardened path end-to-end.
 
 ## Current acceptance status against `15-current-product/04-acceptance-matrix.md`
 
@@ -174,9 +176,10 @@ Known release-process issue:
 - `scripts/playwright-bot-autofill.mjs`
 - `scripts/playwright-gameplay-matrix.mjs`
 - `scripts/smoke-unified-session.mjs`
+- `scripts/deploy-dell.sh`
 - `package.json`
 - `package-lock.json`
 
 ## Next recommended agent prompt
 
-Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. The Lagos hero/motion fix and Colyseus 0.17 deployment are verified live. Next production gap: full vote lifecycle or companion control booth. Also harden `scripts/deploy-dell.sh` so build/health failures cannot be reported as successful.
+Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. The Lagos hero/motion fix and Colyseus 0.17 deployment are verified live. The deploy script has been hardened and dry-run checked; verify it on the next real Dell deploy. Next production gap: full vote lifecycle or companion control booth.
