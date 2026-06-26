@@ -112,8 +112,13 @@ async function advanceChallenge(display, displayBucket, buckets, gameId) {
 }
 
 async function verifyConnect4(buckets, displayBucket) {
-  const [p1, p2] = buckets;
-  for (const [bucket, column] of [[p1, 0], [p2, 0], [p1, 1], [p2, 1], [p1, 2], [p2, 2], [p1, 3]]) {
+  const [p1, p2, p3, p4] = buckets;
+  for (const [bucket, column] of [
+    [p1, 0], [p2, 0], [p3, 0], [p4, 0],
+    [p1, 1], [p2, 1], [p3, 1], [p4, 1],
+    [p1, 2], [p2, 2], [p3, 2], [p4, 2],
+    [p1, 3],
+  ]) {
     await sendAndWait(bucket.room, displayBucket, { type: 'drop', column }, `connect4 column ${column}`);
   }
   const state = displayBucket.public.state;
@@ -122,8 +127,8 @@ async function verifyConnect4(buckets, displayBucket) {
 }
 
 async function verifyEttt(buckets, displayBucket) {
-  const [p1, p2] = buckets;
-  for (const [bucket, cell] of [[p1, 0], [p2, 1], [p1, 4], [p2, 2], [p1, 8]]) {
+  const [p1, p2, p3, p4] = buckets;
+  for (const [bucket, cell] of [[p1, 0], [p2, 1], [p3, 2], [p4, 3], [p1, 4], [p2, 5], [p3, 6], [p4, 7], [p1, 8]]) {
     await sendAndWait(bucket.room, displayBucket, { type: 'place', cell }, `ettt cell ${cell}`);
   }
   assert(displayBucket.public.state.phase === 'finished', 'ettt did not finish on diagonal');
