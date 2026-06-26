@@ -21,7 +21,7 @@ git -C "$ROOT_DIR" archive --format=tar HEAD \
   | ssh "$TARGET_HOST" "rm -rf '$TARGET_DIR' && mkdir -p '$TARGET_DIR' && tar -xf - -C '$TARGET_DIR'"
 
 echo "[deploy] building + restarting stack on ${TARGET_HOST}"
-ssh "$TARGET_HOST" "cd '$TARGET_DIR' && docker compose build && docker compose up -d"
+ssh "$TARGET_HOST" "cd '$TARGET_DIR' && docker compose build && docker rm -f boredroom-server boredroom-web >/dev/null 2>&1 || true && docker compose up -d"
 
 echo "[deploy] waiting for /healthz"
 ssh "$TARGET_HOST" "for i in {1..30}; do curl -fsS http://127.0.0.1:2567/healthz >/dev/null && exit 0; sleep 2; done; exit 1"
