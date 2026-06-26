@@ -1,6 +1,6 @@
 # Codex Handoff — BoredRoom
 
-Last updated: 2026-06-26 12:38 WAT
+Last updated: 2026-06-26 12:45 WAT
 
 ## Mission
 
@@ -130,8 +130,8 @@ npm run build
    - Spec says `google/gemini-2.5-flash-lite`.
    - Code now defaults to `google/gemini-2.5-flash-lite` and remains overrideable with `AI_MODEL`.
 
-2. Audit failure:
-   - `npm --prefix server audit --audit-level=moderate` reports 3 moderate vulnerabilities: `@colyseus/core`, `@colyseus/ws-transport`, `nanoid`.
+2. Dependency audit:
+   - Local `npm --prefix server audit --audit-level=moderate` now passes after upgrading Colyseus server packages. Deploy/live checks are pending for this dependency change.
 
 3. Games repo version mismatch:
    - `catalog.json` and `dist/*.tgz` are `1.2.0.0`.
@@ -162,8 +162,8 @@ npm run build
 
 ### Immediate next tasks
 
-1. Fix server dependency audit or document exact non-fixable advisory status with evidence.
-2. Keep AI model health and fallback tests passing after dependency changes.
+1. Deploy the Colyseus dependency upgrade and rerun live health, entry, bot autofill, and 15-game matrix.
+2. Then implement the next production gap: full vote lifecycle or companion control booth.
 3. Update both docs after each change.
 4. Commit/push/deploy and rerun live smoke/matrix.
 
@@ -205,7 +205,7 @@ Before claiming completion:
 
 ## Current next recommended prompt
 
-“Continue from the BoredRoom handoff docs. Fix the server audit vulnerabilities or document exact non-fixable advisory status with evidence. Keep docs updated, run full gates, deploy to Dell, and verify live entry/bot/gameplay matrix.”
+“Continue from the BoredRoom handoff docs. Deploy and verify the Colyseus dependency upgrade if not already done. Then implement the full vote lifecycle or companion control booth. Keep docs updated and run full local/live gates.”
 
 Latest live evidence after `7ef98f7` deploy:
 

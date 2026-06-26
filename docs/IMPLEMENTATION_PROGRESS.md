@@ -1,6 +1,6 @@
 # BoredRoom Implementation Progress
 
-Last updated: 2026-06-26 12:38 WAT
+Last updated: 2026-06-26 12:45 WAT
 
 ## Current objective
 
@@ -19,7 +19,7 @@ Source of truth read this pass:
 
 Main app: `/Users/hendrix/Playground/boredroom`
 
-- HEAD: `7ef98f7 Document implementation audit baseline`
+- HEAD: `26959a1 Update implementation handoff evidence`
 - Live Dell deployment verified after this commit.
 - `docs/` did not exist before this pass; this file and `docs/CODEX_HANDOFF.md` are now the baseline handoff docs.
 
@@ -78,7 +78,7 @@ Live gates passed after deploy:
 
 Known failing/unfinished release gate:
 
-- `npm --prefix server audit --audit-level=moderate` reports 3 moderate vulnerabilities involving `@colyseus/core`, `@colyseus/ws-transport`, and `nanoid`.
+- Server dependency audit was failing on `@colyseus/core`, `@colyseus/ws-transport`, and `nanoid`; current local gate now reports `found 0 vulnerabilities` after upgrading Colyseus server packages. Live Dell verification is still required after deploy.
 
 ## Current acceptance status against `15-current-product/04-acceptance-matrix.md`
 
@@ -95,7 +95,7 @@ Known failing/unfinished release gate:
 | CUR-09 | Partially met | `playwright-entry-flows.mjs` covers desktop/tablet/mobile entry. Need direct-route correction tests and iPadOS/touchscreen-laptop matrix. |
 | CUR-10 | Not met | No visual-regression ledger or native-size screenshot comparison exists. Current UI is closer, but not proven against approved references. |
 | CUR-11 | Not met | No server-restart recovery E2E. Refresh/reconnect coverage is narrow and mostly smoke-level. |
-| CUR-12 | Not met | Lint/typecheck/tests/build/live checks pass, but audit is failing and PWA/mobile viewport coverage is incomplete. |
+| CUR-12 | Partially met | Lint/typecheck/tests/build/server audit pass locally. Live checks pass from the prior deploy; rerun after dependency deployment. PWA/mobile viewport coverage remains incomplete. |
 
 ## Known product/spec mismatches
 
@@ -142,7 +142,7 @@ Known failing/unfinished release gate:
 
 ### Security/admin/persistence
 
-- Need fix server npm audit vulnerabilities.
+- Server npm audit vulnerabilities fixed locally by upgrading `@colyseus/core` to `^0.17.44`, `@colyseus/ws-transport` to `^0.17.13`, `@colyseus/monitor` to `^0.17.8`, `@colyseus/schema` to `^4.0.26`, and `zod` to `^4.4.3`. Needs deploy/live verification.
 - Need Supabase RLS/service-role-only write audit against actual policies.
 - Need active-run install/update/uninstall blocking tests.
 - Need game artifact rejection tests: bad signature, digest mismatch, path traversal, oversized artifact, bad MIME.
@@ -171,4 +171,4 @@ Known failing/unfinished release gate:
 
 ## Next recommended agent prompt
 
-Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. Address the failing server dependency audit by upgrading Colyseus/nanoid safely or documenting any non-fixable advisory with evidence. Then rerun typecheck/lint/tests/build/server build plus live entry, bot autofill, and 15-game matrix. Keep `docs/IMPLEMENTATION_PROGRESS.md` and `docs/CODEX_HANDOFF.md` updated after the change.
+Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. After the Colyseus dependency deploy/live checks, tackle the next production gap: full vote lifecycle or companion control booth. Keep docs updated after each change.

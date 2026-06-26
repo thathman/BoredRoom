@@ -10,13 +10,13 @@
     "start": "node dist/server/src/index.js"
   },
   "dependencies": {
-    "@colyseus/core": "^0.16.0",
-    "@colyseus/monitor": "^0.16.0",
-    "@colyseus/schema": "^3.0.0",
-    "@colyseus/ws-transport": "^0.16.0",
+    "@colyseus/core": "^0.17.44",
+    "@colyseus/monitor": "^0.17.8",
+    "@colyseus/schema": "^4.0.26",
+    "@colyseus/ws-transport": "^0.17.13",
     "cors": "^2.8.5",
     "express": "^4.21.0",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
