@@ -95,7 +95,7 @@ async function startGame(display, displayBucket, buckets, gameId) {
 }
 
 async function advanceChallenge(display, displayBucket, buckets, gameId) {
-  for (const bucket of buckets.slice(0, 2)) {
+  for (const bucket of buckets) {
     const legal = firstLegal(bucket.private);
     assert(legal, `${gameId}: missing legal challenge intent`);
     const intent = legal.type === 'guess'
@@ -106,7 +106,7 @@ async function advanceChallenge(display, displayBucket, buckets, gameId) {
     bucket.room.send('game:intent', intent);
   }
   await waitFor(`${gameId} reveal`, () => ['reveal', 'finished'].includes(displayBucket.public?.state?.phase));
-  assert((displayBucket.public.state.lastResults ?? []).length >= 2, `${gameId}: no scoring results`);
+  assert((displayBucket.public.state.lastResults ?? []).length >= buckets.length, `${gameId}: no scoring results`);
   display.send('game:intent', { type: 'advance' });
   await waitFor(`${gameId} next or finish`, () => displayBucket.public?.state?.phase === 'playing' || displayBucket.public?.state?.phase === 'finished');
 }
