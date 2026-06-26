@@ -6,6 +6,7 @@ import {
   getRuntimeSnapshot,
   getSessionRecord,
   pauseActiveGame,
+  removeSessionBotMembers,
   resumeActiveGame,
   selectSessionGame,
   setRecapCopy,
@@ -31,6 +32,7 @@ import {
 } from '../foundations.js';
 import {
   createInstalledGameRuntime,
+  getInstalledGameManifest,
   getInstalledGameVersion,
   isGameInstalled,
 } from '../installedGames.js';
@@ -42,6 +44,7 @@ import {
   generatePrivateHint,
   generateRecap,
 } from '../aiService.js';
+import { chooseDeterministicBotIntent } from '../botStrategy.js';
 
 interface JoinOptions {
   code?: string;
@@ -64,6 +67,8 @@ export class HouseSessionRoom extends Room {
   private identities = new Map<string, ClientIdentity>();
   private gameRuntime: GameRuntime | null = null;
   private votes = new Map<string, string>();
+  private botTimer: NodeJS.Timeout | null = null;
+  private botTurnNumber = 0;
 
   onCreate(options: JoinOptions): void {
     this.code = String(options.code ?? '').trim().toUpperCase();
@@ -73,6 +78,7 @@ export class HouseSessionRoom extends Room {
       if (event) this.broadcast('session:transition', { type: event, at: new Date().toISOString() });
       if (event === 'game.started') this.ensureRuntime(snapshot);
       if (event === 'game.cleared' || event === 'game.abandoned') {
+        this.clearBotTimer();
         this.gameRuntime?.dispose();
         this.gameRuntime = null;
       }
@@ -162,6 +168,7 @@ export class HouseSessionRoom extends Room {
       }
       const publicState = this.gameRuntime.publicState() as { phase?: unknown };
       if (publicState?.phase === 'finished') {
+        this.clearBotTimer();
         finishActiveGame(this.code, 'finished', this.gameRuntime.finish().winnerPlayerIds);
       }
       void generateCommentary({
@@ -178,6 +185,7 @@ export class HouseSessionRoom extends Room {
           if (line) this.broadcast('ai:result', { kind: 'pacing', text: line });
         });
       }
+      this.scheduleBotTurn();
     });
     this.onMessage('ai:request_hint', (client) => {
       const identity = this.identities.get(client.sessionId);
@@ -272,6 +280,7 @@ export class HouseSessionRoom extends Room {
   onDispose(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.clearBotTimer();
     this.gameRuntime?.dispose();
     this.gameRuntime = null;
     this.votes.clear();
@@ -279,8 +288,14 @@ export class HouseSessionRoom extends Room {
 
   private ensureRuntime(snapshot: NonNullable<ReturnType<typeof getPublicSession>>): void {
     if (!snapshot.activeRun || this.gameRuntime?.gameType === snapshot.activeRun.gameType) return;
+    const activeManifest = getInstalledGameManifest(snapshot.activeRun.gameType);
     const players = snapshot.members
-      .filter((member) => member.role === 'controller' && member.ready && member.connected)
+      .filter((member) =>
+        member.role === 'controller'
+        && member.ready
+        && member.connected
+        && (!member.isBot || activeManifest?.capabilities.bots === true),
+      )
       .slice(0, snapshot.session.settings.maxControllers)
       .map((member) => ({ id: member.deviceId, name: member.displayName }));
     try {
@@ -306,6 +321,7 @@ export class HouseSessionRoom extends Room {
         }).catch((error) => log('warn', 'runtime_snapshot_persist_failed', { session: this.code, error: String(error) }));
       }
       this.broadcastGameState();
+      this.scheduleBotTurn(250);
     } catch (error) {
       this.gameRuntime = null;
       this.broadcast('session:error', {
@@ -396,6 +412,7 @@ export class HouseSessionRoom extends Room {
   }
 
   private async startGame(): Promise<void> {
+    this.prepareBotSeats();
     const runtime = startSelectedGame(this.code);
     if (!runtime) {
       this.broadcast('session:error', { code: 'run_not_found' });
@@ -416,6 +433,7 @@ export class HouseSessionRoom extends Room {
   }
 
   private async pauseGame(reason: string): Promise<void> {
+    this.clearBotTimer();
     const runtime = pauseActiveGame(this.code, reason);
     if (!runtime) return;
     const record = getSessionRecord(this.code);
@@ -448,6 +466,7 @@ export class HouseSessionRoom extends Room {
     ]).catch((error) => {
       log('warn', 'game_resume_persist_failed', { session: this.code, error: String(error) });
     });
+    this.scheduleBotTurn(250);
   }
 
   private async maybeResumeAfterReconnect(): Promise<void> {
@@ -458,7 +477,7 @@ export class HouseSessionRoom extends Room {
     );
     if (seatedIds.size === 0) return;
     const disconnectedSeated = snapshot.members.some((member) =>
-      seatedIds.has(member.deviceId) && member.role === 'controller' && !member.connected,
+      seatedIds.has(member.deviceId) && member.role === 'controller' && !member.isBot && !member.connected,
     );
     if (!disconnectedSeated) await this.resumeGame();
   }
@@ -471,6 +490,7 @@ export class HouseSessionRoom extends Room {
 
   private async endCurrentGame(status: 'finished' | 'abandoned'): Promise<void> {
     if (this.gameRuntime) {
+      this.clearBotTimer();
       const final = this.gameRuntime.finish();
       finishActiveGame(this.code, status, final.winnerPlayerIds);
     } else {
@@ -499,5 +519,97 @@ export class HouseSessionRoom extends Room {
     ]).catch((error) => {
       log('warn', 'game_finish_persist_failed', { session: this.code, error: String(error) });
     });
+  }
+
+  private prepareBotSeats(): void {
+    const record = getSessionRecord(this.code);
+    const run = record?.activeRuntime?.run;
+    removeSessionBotMembers(this.code);
+    if (!record || !run || !record.session.settings.allowBots) return;
+    const manifest = getInstalledGameManifest(run.gameType);
+    if (!manifest?.capabilities.bots) return;
+    const humans = Array.from(record.members.values())
+      .filter((member) => member.role === 'controller' && !member.isBot && member.ready && member.connected);
+    const existingBots = Array.from(record.members.values())
+      .filter((member) => member.role === 'controller' && member.isBot);
+    const requested = Math.max(0, Math.trunc(Number(run.settings?.botCount ?? run.settings?.bots ?? 0)));
+    const targetSeats = Math.min(
+      manifest.maxPlayers,
+      Math.max(manifest.minPlayers, humans.length + requested),
+    );
+    const requiredBots = Math.max(0, targetSeats - humans.length);
+    for (let index = existingBots.length; index < requiredBots; index += 1) {
+      const deviceId = `bot:${run.id}:${index + 1}`;
+      upsertSessionMember(this.code, {
+        deviceId,
+        displayName: `Bot ${index + 1}`,
+        role: 'controller',
+        isBot: true,
+        ready: true,
+        connected: true,
+      });
+    }
+  }
+
+  private clearBotTimer(): void {
+    if (this.botTimer) clearTimeout(this.botTimer);
+    this.botTimer = null;
+  }
+
+  private scheduleBotTurn(delayMs = 700): void {
+    this.clearBotTimer();
+    const record = getSessionRecord(this.code);
+    if (!this.gameRuntime || record?.activeRuntime?.run.status !== 'active') return;
+    const publicState = this.gameRuntime.publicState() as { phase?: unknown };
+    if (publicState?.phase === 'finished') return;
+    const botMembers = Array.from(record.members.values())
+      .filter((member) => member.role === 'controller' && member.isBot && member.ready && member.connected);
+    if (botMembers.length === 0) return;
+    const hasBotMove = botMembers.some((member) => (this.gameRuntime?.legalIntents?.(member.deviceId) ?? []).length > 0);
+    if (!hasBotMove) return;
+    this.botTimer = setTimeout(() => void this.runBotTurn(), delayMs);
+  }
+
+  private async runBotTurn(): Promise<void> {
+    this.botTimer = null;
+    const record = getSessionRecord(this.code);
+    if (!record || !this.gameRuntime || record.activeRuntime?.run.status !== 'active') return;
+    const botMembers = Array.from(record.members.values())
+      .filter((member) => member.role === 'controller' && member.isBot && member.ready && member.connected);
+    for (const member of botMembers) {
+      const legalIntents = this.gameRuntime.legalIntents?.(member.deviceId) ?? [];
+      if (legalIntents.length === 0) continue;
+      const publicState = this.gameRuntime.publicState();
+      const privateState = this.gameRuntime.privateState(member.deviceId);
+      const selected = this.gameRuntime.rankBotIntent?.(member.deviceId, legalIntents, publicState, privateState)
+        ?? chooseDeterministicBotIntent({
+          gameType: this.gameRuntime.gameType,
+          botPlayerId: member.deviceId,
+          legalIntents,
+          publicState,
+          privateState,
+          turnNumber: this.botTurnNumber,
+        });
+      if (!selected) continue;
+      this.botTurnNumber += 1;
+      const changed = this.gameRuntime.handleIntent(member.deviceId, selected, false);
+      if (!changed) continue;
+      this.broadcastGameState();
+      const runtimeSnapshot = this.gameRuntime.snapshot();
+      storeRuntimeSnapshot(this.code, runtimeSnapshot);
+      const runId = record.activeRuntime?.run.id;
+      if (runId) {
+        void persistRuntimeSnapshot({ gameRunId: runId, reason: 'bot_turn', state: runtimeSnapshot })
+          .catch((error) => log('warn', 'runtime_snapshot_persist_failed', { session: this.code, error: String(error) }));
+      }
+      const nextPublic = this.gameRuntime.publicState() as { phase?: unknown };
+      if (nextPublic?.phase === 'finished') {
+        this.clearBotTimer();
+        finishActiveGame(this.code, 'finished', this.gameRuntime.finish().winnerPlayerIds);
+        return;
+      }
+      break;
+    }
+    this.scheduleBotTurn();
   }
 }

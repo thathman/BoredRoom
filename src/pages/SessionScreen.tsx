@@ -402,8 +402,11 @@ export default function SessionScreen() {
           <div className="mt-4 flex gap-5 overflow-x-auto">
             {controllerMembers.map((member) => (
               <div key={member.deviceId} className="min-w-16 text-center">
-                <div className="mx-auto grid h-12 w-12 place-items-center rounded-full border-2 border-primary bg-primary/10">{member.displayName.slice(0, 1).toUpperCase()}</div>
+                <div className={`mx-auto grid h-12 w-12 place-items-center rounded-full border-2 ${member.isBot ? 'border-secondary bg-secondary/10' : 'border-primary bg-primary/10'}`}>
+                  {member.isBot ? '🤖' : member.displayName.slice(0, 1).toUpperCase()}
+                </div>
                 <p className="mt-2 text-xs">{member.displayName}</p>
+                {member.isBot && <p className="text-[10px] uppercase tracking-[0.2em] text-secondary">Bot</p>}
               </div>
             ))}
             {controllerMembers.length === 0 && <p className="text-sm text-muted-foreground">Waiting for the first player…</p>}

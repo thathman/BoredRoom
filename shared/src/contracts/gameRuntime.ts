@@ -42,6 +42,12 @@ export interface GameRuntime {
   restore(snapshot: unknown): void;
   legalIntents?(playerId: string): Array<Record<string, unknown>>;
   explainIntent?(intent: Record<string, unknown>): string;
+  rankBotIntent?(
+    botPlayerId: string,
+    legalIntents: Array<Record<string, unknown>>,
+    publicState: unknown,
+    privateState: unknown,
+  ): Record<string, unknown> | null;
   recapSignals?(): Record<string, unknown>;
   finish(): { winnerPlayerIds: string[] };
   dispose(): void;

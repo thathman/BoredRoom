@@ -112,9 +112,13 @@ export function HostGameDrawer({
                 <span className={`h-2.5 w-2.5 rounded-full ${member.connected ? 'bg-primary' : 'bg-muted'}`} />
                 <div className="flex-1">
                   <p className="font-medium">{member.displayName}</p>
-                  <p className="text-xs capitalize text-muted-foreground">{member.role.replace('_', ' ')}</p>
+                  <p className="text-xs capitalize text-muted-foreground">
+                    {member.role.replace('_', ' ')}{member.isBot ? ' · bot' : ''}
+                  </p>
                 </div>
-                <span className="text-xs text-muted-foreground">{member.ready ? 'Ready' : 'Waiting'}</span>
+                <span className={`text-xs ${member.isBot ? 'text-secondary' : 'text-muted-foreground'}`}>
+                  {member.isBot ? 'Bot' : member.ready ? 'Ready' : 'Waiting'}
+                </span>
               </div>
             ))}
           </TabsContent>

@@ -36,6 +36,7 @@ export interface SessionMember {
   deviceId: string;
   displayName: string;
   role: 'display' | 'controller' | 'crowd' | 'companion';
+  isBot?: boolean;
   ready: boolean;
   connected: boolean;
   joinedAt: string;

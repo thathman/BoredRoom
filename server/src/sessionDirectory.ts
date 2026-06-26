@@ -7,6 +7,7 @@ export interface SessionMember {
   deviceId: string;
   displayName: string;
   role: SessionRole;
+  isBot?: boolean;
   ready: boolean;
   connected: boolean;
   joinedAt: string;
@@ -216,7 +217,7 @@ export function subscribeToSession(code: string, listener: Listener): () => void
 
 export function upsertSessionMember(
   code: string,
-  input: Pick<SessionMember, 'deviceId' | 'displayName' | 'role'>,
+  input: Pick<SessionMember, 'deviceId' | 'displayName' | 'role'> & Partial<Pick<SessionMember, 'isBot' | 'ready' | 'connected'>>,
 ): SessionMember | null {
   const record = getSessionRecord(code);
   if (!record) return null;
@@ -226,8 +227,9 @@ export function upsertSessionMember(
     deviceId: input.deviceId,
     displayName: input.displayName || previous?.displayName || 'Player',
     role: input.role,
-    ready: previous?.ready ?? input.role !== 'crowd',
-    connected: true,
+    isBot: input.isBot ?? previous?.isBot,
+    ready: input.ready ?? previous?.ready ?? input.role !== 'crowd',
+    connected: input.connected ?? true,
     joinedAt: previous?.joinedAt ?? now,
     lastSeenAt: now,
   };
@@ -240,6 +242,7 @@ export function setSessionMemberConnected(code: string, deviceId: string, connec
   const record = getSessionRecord(code);
   const member = record?.members.get(deviceId);
   if (!record || !member) return;
+  if (member.isBot) return;
   record.members.set(deviceId, {
     ...member,
     connected,
@@ -254,6 +257,19 @@ export function setSessionMemberReady(code: string, deviceId: string, ready: boo
   if (!record || !member) return;
   record.members.set(deviceId, { ...member, ready, lastSeenAt: new Date().toISOString() });
   emit(code, 'member.ready_changed');
+}
+
+export function removeSessionBotMembers(code: string): void {
+  const record = getSessionRecord(code);
+  if (!record) return;
+  let removed = false;
+  for (const [deviceId, member] of record.members.entries()) {
+    if (member.isBot) {
+      record.members.delete(deviceId);
+      removed = true;
+    }
+  }
+  if (removed) emit(code, 'bot.removed');
 }
 
 export function selectSessionGame(code: string, run: GameRun): void {

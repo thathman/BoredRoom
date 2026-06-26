@@ -4,6 +4,7 @@ import {
   createCompanionPairing,
   getPublicSession,
   issueOwnerCredential,
+  removeSessionBotMembers,
   redeemCompanionPairing,
   registerSession,
   selectSessionGame,
@@ -59,5 +60,28 @@ describe('house session authority', () => {
     expect(snapshot?.activeRun?.gameVersion).toBe('1.1.0.0');
     expect(snapshot?.activeRun).not.toHaveProperty('runtimeId');
     expect(snapshot?.activeRun).not.toHaveProperty('roomCode');
+  });
+
+  it('marks server bot seats and does not treat them as disconnected phones', () => {
+    const { session } = createRecord();
+    upsertSessionMember(session.code, {
+      deviceId: 'bot:run-1:1',
+      displayName: 'Bot 1',
+      role: 'controller',
+      isBot: true,
+      ready: true,
+      connected: true,
+    });
+    setSessionMemberConnected(session.code, 'bot:run-1:1', false);
+
+    expect(getPublicSession(session.code)?.members[0]).toMatchObject({
+      deviceId: 'bot:run-1:1',
+      isBot: true,
+      ready: true,
+      connected: true,
+    });
+
+    removeSessionBotMembers(session.code);
+    expect(getPublicSession(session.code)?.members).toHaveLength(0);
   });
 });

@@ -235,6 +235,10 @@ export function getInstalledGameVersion(gameId: string): string | null {
   return installed.get(gameId)?.version ?? null;
 }
 
+export function getInstalledGameManifest(gameId: string): OfficialCatalogGame | null {
+  return installed.get(gameId)?.manifest ?? null;
+}
+
 export function createInstalledGameRuntime(
   gameId: string,
   context: GameRuntimeContext,
