@@ -1,5 +1,209 @@
 # BoredRoom Implementation Progress
 
+Last updated: 2026-06-26 21:00 WAT (Codex continuation)
+
+## Latest pass (2026-06-26 21:00 WAT, user-supplied stronger fork candidates)
+
+### What changed
+
+- User supplied stronger external game sources:
+  - Oga Landlord / Monopoly: `itaylayzer/Monopoly`
+  - Whot: `mykeels/whot-server`, `mykeels/whot`
+  - Faith Feud: `joshzcold/Friendly-Feud`
+  - Connect 4: `joshtom/connect-four-game`
+- Updated `BoredRoom-Games/docs/external-game-reference-plan.md` to make those the preferred candidates where license/architecture allows.
+
+### Candidate audit result
+
+- `itaylayzer/Monopoly`: MIT, TypeScript/React, includes bots, sounds/music, board/property UI and online/PeerJS concepts. This should replace `intrepidcoder/monopoly` as the primary Oga Landlord source.
+- `mykeels/whot` and `mykeels/whot-server`: MIT, direct Nigerian Whot rules/API/server references. Keep as primary Whot source.
+- `joshzcold/Friendly-Feud`: MIT, TypeScript/Next frontend plus Go backend, admin/display/buzzer flows, data import, timers/audio and Playwright E2E. This should replace `yulrizka/fam100` as the primary Faith Feud source.
+- `joshtom/connect-four-game`: `package.json` declares ISC, but no standalone LICENSE file was detected via GitHub metadata. Treat as user-preferred reference; vendor only with explicit attribution/license preservation, otherwise keep `kenrick95/c4` MIT as fallback.
+- `christelbuchanan/Monopoly-Game`: existing Landlord source comments say parts were ported from this repo. GitHub metadata shows no detected public license, but Hendrix states he has permission from the author. Preserve attribution/permission evidence in release notes before shipping.
+
+### Implementation consequence
+
+- Do not continue expanding the current hand-written Oga Landlord runtime until it is compared against `itaylayzer/Monopoly`.
+- Do not build Faith Feud from a blank design; port/adapt Friendly-Feud’s host/display/buzzer/reveal flow into BoredRoom’s HouseSession runtime.
+- Any adapted code still must be converted to server-authoritative `GameRuntime` modules; external rooms, PeerJS rooms, standalone websocket rooms and client-authoritative state cannot survive as production architecture.
+
+## Latest pass (2026-06-26 20:25 WAT, fork-first game implementation correction)
+
+### What changed
+
+- User clarified that standard games should not be rebuilt blind from scratch.
+- Added a fork/adapt-first reference plan in `BoredRoom-Games/docs/external-game-reference-plan.md`.
+- Verified the split local objectives are `GOAL1.md` and `GOAL2.md`.
+- Current worktrees are dirty; do not assume a clean baseline before staging.
+
+### Historical candidates found, now superseded where noted
+
+- Oga Landlord / Monopoly: `intrepidcoder/monopoly` (MIT) — demoted to secondary reference after user supplied `itaylayzer/Monopoly`.
+- Whot: `mykeels/whot` and `mykeels/whot-server` (MIT).
+- Connect 4: `kenrick95/c4` (MIT) — keep as fallback if `joshtom/connect-four-game` package-level ISC license is not sufficient.
+- Ludo: `smokelaboratory/fludo` (Apache-2.0, Dart/Flutter reference).
+- Word Wahala: `rcdexta/react-scrabble` (MIT).
+- Faith Feud: `yulrizka/fam100` (MIT) — demoted to secondary reference after user supplied `joshzcold/Friendly-Feud`.
+- Logo Guesser: `syxanash/logosweeper` and `swapnilrane24/Logo-Quiz` (MIT).
+- Color Wahala: `khrigo/TrueOrFalseColor` (MIT).
+- Market Price: `Amine-Smahi/UPrice` (MIT).
+
+### Tests run during this pass
+
+- `BoredRoom-Games`: `npm test` initially exposed a Landlord contract bug after expanding the test script to include `games/*/tests/*.test.mjs`.
+- Fixed Landlord to block rolling while buy/pass is pending and corrected its mode from `hustle` to `landlord`.
+- `BoredRoom-Games`: `npm test` now passes 126/126 locally.
+- `BoredRoom-Games`: `npm run build` passes when an ephemeral local Ed25519 signing key is supplied.
+- `BoredRoom`: `npm run lint`, `npm run typecheck`, and `npm run build` passed after the current Whot UI edits.
+
+### Remaining caution
+
+- The local signed catalog was regenerated with a temporary key during verification and must not be treated as an official release catalog.
+- Do not deploy or release these game artifacts until the official signing key and release flow are used.
+- Oga Landlord should be revisited against `itaylayzer/Monopoly` before expanding the current runtime. Current `christelbuchanan/Monopoly-Game`-derived code has stated author permission from Hendrix, but the release record should preserve that evidence and attribution.
+
+## Latest pass (2026-06-26 16:53 WAT, Phase 0 — Game Layer Rebuild Foundation — DeepSeek V4 Pro continuation)
+
+### What was done
+
+**Runtime restructure:**
+- Extracted `runtime/game-runtime.js` (876-line monolith) into modular files:
+  - `runtime/helpers.js` — shared: `RuntimeBase`, `makeRng`, `shuffleInPlace`, `clone`, `normalize`, `topPlayers`
+  - `runtime/timer.js` — server-authoritative timer system (see below)
+  - `runtime/games/whot.js` — Whot runtime extracted, with fixes (discard reshuffle, Whot call-shape enforcement, multi-round scoring, bot ranking for all specials)
+  - `runtime/games/ludo.js` — Ludo runtime extracted
+  - `runtime/games/connect4.js` — Connect 4 runtime extracted
+  - `runtime/games/ettt.js` — ETTT runtime extracted
+  - `runtime/games/challenge.js` — ChallengeRuntime + CHALLENGE_DEFINITIONS extracted
+- `runtime/game-runtime.js` now imports from per-game modules and re-exports the same API (backward compat)
+- Each module is independently testable: `node --test runtime/games/whot.test.mjs` (when created)
+
+**Timer system:** Full server-authoritative timer built per GOAL2.md spec:
+- Phases: pre_countdown → accepting_answers → locked → reveal → countdown_to_next → complete
+- Actions: start, pause, resume, extend, lock, skip, forceReveal
+- Submission tracking with server timestamps (speed determined by server time, not client)
+- Scoring modes: correctness_only, correctness_plus_speed_bonus, fastest_correct_wins, ranked_speed_points, closest_answer_plus_speed_bonus
+- Late submission rejection, duplicate rejection, early reveal threshold
+- Snapshot/restore for reconnect safety
+- 14 timer tests all passing
+
+**Build updates:**
+- `scripts/build-catalog.mjs` now copies the full runtime/ directory into artifacts (instead of just game-runtime.js), so per-game module imports resolve correctly
+- `package.json` test script uses `--test-force-exit` to avoid Node.js runner hang on lingering setTimeouts
+- 37 tests pass total: 22 runtime-contract + 14 timer + 1 catalog
+
+### Current build gates
+- BoredRoom-Games: `npm test` — 37/37 pass
+- `npm run build` (catalog) — needs verification
+
+### Carried forward
+Next phases per `docs/game-layer-phases.md`:
+- Phase 1: Whot proper rebuild (round-end screen, multi-round scoring, companion controls, tests)
+- Phase 2: Ludo + Hustle board games
+- Phase 3: Connect 4 + ETTT + Word Wahala grid games
+- Phase 4: Bible Timeline + Color Wahala + Who Sabi Pass content games
+- Phase 5: Faith Feud + Half & Half social games
+- Phase 6: Logo Guesser + Market Price + Pidgin Translator special games
+- Phase 7: Oga Landlord Nigerian board game
+- Phase 8: AI Content System
+- Phase 9: Game-specific UI components
+- Phase 10: Integration, E2E, deploy
+
+### Next recommended prompt
+"Continue Phase 1: Whot rebuild. The foundation (runtime restructure + timer) is done with 37 tests passing. Rebuild Whot with proper game-specific logic per GOAL2.md — round-end scoring, multi-round tracking, discard reshuffle fix, companion controls, full test suite. Then update the Whot render path in InstalledGameSurface."
+
+## Latest pass (2026-06-26 16:10 WAT (Claude continuation)
+
+### Profiles & avatars (#3a)
+- `src/lib/playerProfile.ts`: persistent per-device profile (display name, emoji avatar, accent colour, sound/haptics/language prefs) with legacy-key sync.
+- `PlayerAvatar` (one avatar surface everywhere — emoji or accent-tinted initial, never a broken image) and `ProfileSheet` (create/edit).
+- Create-profile gate before the controller; edit from the waiting view. Avatar + accent colour flow through join options → `SessionMember` (server) and render in the lobby player list with a ready badge.
+- `SessionMember` gained `avatar`/`accentColor` on server + client types; `upsertSessionMember` and room `onJoin` carry them.
+
+### PWA / QR hardening (#3b)
+- Removed the faked `beforeinstallprompt` dispatch. New `initInstallPromptCapture()` stores the real event; landing button calls `promptInstall()` with iOS-Safari and desktop A2HS toast fallbacks and hides when already installed.
+- Manifest: `display_override: [fullscreen, standalone, minimal-ui]`. `index.html`: aligned `theme-color` to brand `#45f36b`, added `viewport-fit=cover` for safe areas.
+- QR scanner: insecure-origin (non-https) warning, friendlier NotAllowed/NotFound permission messages, retains user-gesture stream acquisition + manual-code fallback + track teardown.
+
+Gates (all green): typecheck, lint, test (88 passed / 2 skipped), client build (manifest verified), server build.
+
+Carried forward: favicon/PWA icon redesign to the attached direction (needs the design asset), vote-driven admit/kick/remote_mode, per-game rebuilds (GOAL2.md). Not yet deployed to Dell.
+
+## Latest pass (2026-06-26, party-status migration + admin dashboard)
+
+Two acceptance items landed.
+
+### 1. Party-status vocabulary migration
+`HouseSessionStatus` now uses the spec vocabulary: `draft`, `open_lobby`, `selecting_game`, `configuring_game`, `in_game`, `game_recap`, `intermission`, `ending_confirm`, `ended`, `deleted`. Mapping applied: setup→open_lobby (created state), waiting_for_players→configuring_game (on game select), voting→selecting_game, game_active→in_game, recap→game_recap, next_decision→intermission. Pause is now a game-run concern only (`activeRun.status==='paused'`); the party stays `in_game`. Updated: `foundations.ts` transition map + builder, all `sessionDirectory` setters, the `SessionScreen` recap check, and tests. Live: created session reports `open_lobby`; vote lifecycle smoke still passes.
+
+### 2. Admin dashboard (server back office)
+- Server `GET /admin/overview` (game-admin session + origin guarded): server protocol/uptime/env, AI health, installed/available game counts, active-party list (code, status, player/connected/bot counts, active game+run status, active vote, recent vote count), and recent votes aggregated across all houses. No secrets — codes and counts only.
+- `sessionDirectory.listSessionSummaries()` and `listRecentVotesAcrossSessions()`.
+- New `/admin` route + `AdminDashboard.tsx`: passphrase unlock (reuses game-admin auth), auto-refresh every 5s, stat tiles, active-parties table, recent-votes list.
+- Live smoke: 403 without auth, 200 + live overview after login.
+
+Gates (all green): typecheck, lint, test (88 passed / 2 skipped), client build, server build.
+
+Carried forward: profiles/avatars, PWA/QR hardening, vote-driven admit/kick/remote_mode, per-game rebuilds (via GOAL2.md). Not yet deployed to Dell.
+
+
+## Latest pass (2026-06-26, explicit End Party / Delete Party)
+
+Acceptance criteria #2/#3: party end and party delete are now separate, explicit, confirmed actions, distinct from ending a game.
+
+Completed:
+
+- `HouseSessionStatus` enum gained `ending_confirm` and `deleted` (additive; existing statuses unchanged). `foundations.ts` transition map and `selectResumableSession` updated so ended/deleted parties are not resumable.
+- `sessionDirectory.endSession(code)`: closes the house, clears active runtime/vote, sets status `ended`, keeps the record so resume shows "ended" not an invalid code (history preserved).
+- `sessionDirectory.deleteSession(code)`: emits a final `party.deleted` snapshot, then tears down the in-memory record, that session's pairings, votes, and listeners.
+- `HouseSessionRoom` messages: `session:end_party` (host) and `session:delete_party` (host; requires the house code echoed in `payload.confirm` so it can't fire by accident). Both clear vote/bot timers and persist an audit event.
+- `useHouseSession` exposes `endParty()` and `deleteParty(confirm)`.
+- `SessionScreen`: companion-only "Party controls" danger panel (End party → confirm; Delete party → type code to confirm). All devices get a clean "Party ended" / "Party deleted" screen with a route back to host/join.
+- Tests: `endSession`/`deleteSession` unit tests in `sessionAuthority.test.ts` (88 passed total).
+
+Gates (all green): `npm run typecheck`, `npm run lint`, `npm test -- --run` (86 passed / 2 skipped → 88 incl. new), `npm run build`, `npm --prefix server run build`. Live smoke against a local built server: end party notifies host+player, wrong delete confirm rejected, correct code deletes. PASS.
+
+Follow-up done same pass: `session:call_vote` now accepts any valid `HouseVoteType` (zod-validated), and `applyVoteSideEffects` enacts binary action votes when the winning option is affirmative — `end_party` (ends the party), `end_game`, `pause_game`, `resume_game`. Live smoke: two players vote Yes on an `end_party` vote with autoApply → party ends. PASS.
+
+Also done: public display now shows a cinematic read-only vote overlay (live tally bars, winner/tie/override result) across lobby, active game, and recap.
+
+Carried forward: recap mention of votes, admin dashboard, party-status vocabulary migration for the in-game statuses (`game_active`→`in_game` etc. still legacy), and vote-driven admit/kick/remote_mode/team_change side effects. Not yet deployed to Dell.
+
+## Latest pass (2026-06-26, vote lifecycle round 3)
+
+Continued the vote lifecycle. No version bump (per instruction).
+
+Completed:
+
+- Server-side game start from a resolved `game_selection` vote: `findInstalledGameId` (matches a vote option by game id or display name) in `installedGames.ts`; `applyVoteSideEffects` in `HouseSessionRoom` selects the winning installed game when a `game_selection` vote is applied (auto or manual) and nothing is already running. Other vote types are still applied for the audit trail and acted on by the host.
+- Companion vote-history view: the vote control booth now also renders recent resolved votes (winner, cast/eligible counts, override/auto markers) and stays visible when there is no active vote.
+- `scripts/playwright-vote-lifecycle.mjs` extended with a second scenario: a player-requested vote (`vote:request`) and a host override (`vote:override`), asserting creator + override metadata.
+
+Gates run (all green): `npm run typecheck`, `npm run lint`, `npm test -- --run` (84 passed / 2 skipped), `npm run build`, `npm --prefix server run build`. Live-style smoke run against a local built server: `BOREDROOM_HTTP_URL=http://127.0.0.1:2567 BOREDROOM_WS_URL=ws://127.0.0.1:2567 node scripts/playwright-vote-lifecycle.mjs` → PASS (resolved + player-requested + override).
+
+Carried forward: admin dashboard vote visibility, browser-level (real Playwright page) vote UI smoke, recap mention of major votes, and Dell deploy + live smoke. Not yet deployed.
+
+## Latest pass (2026-06-26, vote lifecycle round 2)
+
+Continued from Codex's first vote slice (`d3d196b`). Version bumped `1.3.1.0 → 1.4.0.0`.
+
+Completed:
+
+- Server `vote:override` message (host-only): resolves the active vote with a host-chosen winner and persists `vote.resolved` with `override: true`.
+- Server `vote:request` message (controller/crowd): players can call a house vote, gated by new `allowPlayerVotes` party setting (+ `allowCrowdVotes` for crowd), `voteCooldownMs` rate limit, and a no-overlapping-open-vote guard.
+- Auto-apply: `maybeAutoApply` applies + archives a resolved vote automatically when the vote's `settings.autoApply` is set and an outright winner exists. Wired into close, cast-resolve, override, and the expiry/resolution timer.
+- New party setting `allowPlayerVotes` (default true) in `shared/src/contracts/session.ts` and frontend `serverApi` settings type.
+- `useHouseSession` now exposes the full documented vote API: `requestVote`, `closeVote`, `cancelVote`, `applyVoteResult`, `overrideVote` (plus existing `callVote`/`castVote`). `callVote` accepts type/question/settings overrides.
+- Companion-only vote control booth panel in `SessionScreen` (close / cancel / apply / per-option override).
+- Controller "Call a house vote" affordance in the waiting view, shown only when `allowPlayerVotes` and no active vote.
+- New engine test: applied result carries `autoApplied` from settings.
+
+Gates run (all green): `npm run typecheck`, `npm run lint`, `npm test -- --run` (84 passed / 2 skipped), `npm run build`, `npm --prefix server run build`.
+
+Not yet done (carried forward): server-side game-start from a resolved `game_selection` vote (currently companion confirms the winner), companion vote-history view, admin dashboard vote visibility, and browser E2E for the new request/override/auto-apply paths (extend `scripts/playwright-vote-lifecycle.mjs`). Not yet deployed to Dell.
+
+## Prior pass
+
 Last updated: 2026-06-26 15:25 WAT
 
 ## Current objective
@@ -21,7 +225,7 @@ Main app: `/Users/hendrix/Playground/boredroom`
 
 - HEAD: `d3d196b Add server-backed vote lifecycle state`
 - Live Dell deployment verified after this commit.
-- `docs/` did not exist before this pass; this file and `docs/CODEX_HANDOFF.md` are now the baseline handoff docs.
+- `docs/` did not exist before this pass; this file and `docs/CODEX_HANDOFF.md` were created as the baseline handoff docs.
 
 Games repo: `/Users/hendrix/Playground/BoredRoom-Games`
 

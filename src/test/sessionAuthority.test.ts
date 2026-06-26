@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { buildGameRun, buildHouseSession } from '../../server/src/foundations';
 import {
   createCompanionPairing,
+  deleteSession,
+  endSession,
   getPublicSession,
+  getSessionRecord,
   issueOwnerCredential,
   openSessionVote,
   removeSessionBotMembers,
@@ -126,5 +129,22 @@ describe('house session authority', () => {
       winnerOption: 'Ludo',
       castCount: 2,
     });
+  });
+
+  it('ends a party without deleting its record', () => {
+    const { session } = createRecord();
+    const ended = endSession(session.code);
+    expect(ended?.session.status).toBe('ended');
+    expect(getSessionRecord(session.code)).not.toBeNull();
+    // ending again is a no-op
+    expect(endSession(session.code)).toBeNull();
+  });
+
+  it('deletes a party and tears down its record', () => {
+    const { session } = createRecord();
+    const snapshot = deleteSession(session.code);
+    expect(snapshot?.session.status).toBe('deleted');
+    expect(getSessionRecord(session.code)).toBeNull();
+    expect(deleteSession(session.code)).toBeNull();
   });
 });

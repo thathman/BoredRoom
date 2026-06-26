@@ -13,7 +13,7 @@ type GameState = {
   name: string;
   emoji: string;
   mode?: string;
-  phase: 'playing' | 'reveal' | 'finished';
+  phase: 'playing' | 'reveal' | 'finished' | 'round_end';
   round?: number;
   totalRounds?: number;
   challenge?: Challenge | null;
@@ -22,6 +22,7 @@ type GameState = {
   topCard?: WhotCard;
   requestedShape?: string | null;
   drawPileCount?: number;
+  pendingPick?: number;
   pendingRoll?: number | null;
   currentPlayerId?: string;
   players: Array<PlayerScore & { disc?: string; mark?: string; handCount?: number }>;
@@ -37,6 +38,7 @@ type PrivateState = {
   isTurn?: boolean;
   tokens?: number[];
   hand?: Array<WhotCard & { id: string }>;
+  pendingPick?: number;
   legalIntents?: Array<Record<string, unknown> & { label?: string }>;
 };
 
@@ -48,6 +50,7 @@ const whotShapeGlyph: Record<string, string> = {
   Star: '★',
   Whot: 'W',
 };
+const WHOT_SHAPES = ['Circle', 'Triangle', 'Cross', 'Square', 'Star'];
 
 function whotCardTone(card?: WhotCard): string {
   if (!card) return 'from-white/10 to-white/5 border-white/20';
@@ -154,6 +157,7 @@ export function InstalledGameSurface({
   const isHost = role === 'display' || role === 'companion';
   const [value, setValue] = useState('');
   const [order, setOrder] = useState<number[]>([]);
+  const [whotCardId, setWhotCardId] = useState<string | null>(null);
 
   useEffect(() => {
     setValue('');
@@ -476,11 +480,16 @@ export function InstalledGameSurface({
                       <div className="absolute inset-x-4 top-4 flex flex-wrap justify-center gap-3">
                         {(state.players ?? []).map((player, index) => {
                           const active = player.id === state.currentPlayerId;
+                          const pending = state.pendingPick !== undefined && state.pendingPick > 0;
                           return (
                             <div
                               key={player.id}
                               className={`whot-seat flex min-w-28 items-center gap-2 rounded-2xl border px-3 py-2 ${
-                                active ? 'border-primary bg-primary/15 shadow-[0_0_20px_rgba(69,243,107,.28)]' : 'border-white/10 bg-black/28'
+                                active && pending
+                                  ? 'border-amber-300/60 bg-amber-300/10 shadow-[0_0_16px_rgba(252,211,77,.28)]'
+                                  : active
+                                    ? 'border-primary bg-primary/15 shadow-[0_0_20px_rgba(69,243,107,.28)]'
+                                    : 'border-white/10 bg-black/28'
                               }`}
                               style={{ animationDelay: `${index * 80}ms` }}
                             >
@@ -489,7 +498,7 @@ export function InstalledGameSurface({
                               </span>
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate text-xs font-bold">{player.name}</span>
-                                <span className="block text-[10px] text-muted-foreground">{player.handCount ?? 0} cards</span>
+                                <span className="block text-[10px] text-muted-foreground">{player.handCount ?? 0} cards{active && pending ? ' · ⚠️' : ''}</span>
                               </span>
                             </div>
                           );
@@ -518,8 +527,13 @@ export function InstalledGameSurface({
                             <WhotCardFace card={state.topCard} />
                           </div>
                           <p className="mt-3 text-xs uppercase tracking-[0.24em] text-white/60">
-                            {state.requestedShape ? `Requested ${state.requestedShape}` : 'Discard'}
+                            Discard
                           </p>
+                          {state.requestedShape && (
+                            <p className="mt-1 text-sm font-bold text-secondary">
+                              Requested: {whotShapeGlyph[state.requestedShape] ?? ''} {state.requestedShape}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -538,6 +552,12 @@ export function InstalledGameSurface({
                           <h2 className="text-sm font-black uppercase tracking-[0.2em] text-muted-foreground">Your hand</h2>
                           <span className="text-xs text-primary">{(mine.hand ?? []).length} cards</span>
                         </div>
+                        {mine.pendingPick && mine.pendingPick > 0 && (
+                          <div className="mb-3 rounded-xl border border-amber-300/60 bg-amber-300/10 px-4 py-2 text-center text-sm text-amber-200">
+                            ⚠️ You need to pick {mine.pendingPick} card{mine.pendingPick > 1 ? 's' : ''}.{' '}
+                            {legalIntents.some((i) => i.type === 'play_card') ? 'Or stack with a matching card.' : ''}
+                          </div>
+                        )}
                         <div className="flex min-h-44 gap-3 overflow-x-auto pb-3">
                           {(mine.hand ?? []).map((card, index) => {
                             const legal = legalIntents.find((intent) => intent.type === 'play_card' && intent.cardId === card.id);
@@ -550,7 +570,11 @@ export function InstalledGameSurface({
                                   if (!legal) return;
                                   sounds.hustleCard();
                                   vibrate(45);
-                                  sendIntent(legal);
+                                  if (card.isWhot) {
+                                    setWhotCardId(card.id);
+                                  } else {
+                                    sendIntent(legal);
+                                  }
                                 }}
                                 className="whot-hand-card shrink-0 disabled:cursor-not-allowed"
                                 style={{ animationDelay: `${index * 45}ms` }}
@@ -570,9 +594,43 @@ export function InstalledGameSurface({
                               sendIntent({ type: 'draw' });
                             }}
                           >
-                            Go to market
+                            {mine.pendingPick && mine.pendingPick > 0 ? `Pick ${mine.pendingPick}` : 'Go to market'}
                           </Button>
                         )}
+                      </div>
+                    )}
+
+                    {whotCardId && (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setWhotCardId(null)}>
+                        <div className="rounded-2xl border border-secondary/40 bg-[#090713] p-6 shadow-[0_0_40px_rgba(179,76,255,.3)]" onClick={(e) => e.stopPropagation()}>
+                          <p className="mb-4 text-center text-lg font-bold text-secondary">Call a shape</p>
+                          <p className="mb-4 text-center text-xs text-muted-foreground">The next player must match the shape you pick.</p>
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            {WHOT_SHAPES.map((shape) => (
+                              <button
+                                key={shape}
+                                type="button"
+                                className="flex flex-col items-center gap-1 rounded-xl border border-white/20 bg-white/[0.035] px-5 py-4 transition hover:border-secondary/70 hover:bg-secondary/10"
+                                onClick={() => {
+                                  sounds.hustleCard();
+                                  vibrate(45);
+                                  sendIntent({ type: 'play_card', cardId: whotCardId, calledShape: shape });
+                                  setWhotCardId(null);
+                                }}
+                              >
+                                <span className="text-3xl">{whotShapeGlyph[shape]}</span>
+                                <span className="text-xs font-bold">{shape}</span>
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            className="mt-4 w-full rounded-xl border border-white/10 bg-white/[0.035] py-2 text-xs text-muted-foreground hover:text-white"
+                            onClick={() => setWhotCardId(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -592,6 +650,15 @@ export function InstalledGameSurface({
                     <p className="mb-3 text-xs text-muted-foreground">{state.submittedCount ?? 0} of {state.players.length} players locked in</p>
                     <Button className="neon-primary min-w-52 rounded-xl" onClick={() => sendIntent({ type: 'advance' })}>
                       <FastForward className="h-4 w-4" /> {state.phase === 'playing' ? 'Reveal answers' : 'Next round'}
+                    </Button>
+                  </>
+                ) : state.mode === 'whot' && state.phase === 'round_end' ? (
+                  <>
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      Round {state.round} complete — {state.players.find((p) => p.id === state.winnerPlayerIds[0])?.name ?? 'Winner'} won this round!
+                    </p>
+                    <Button className="neon-primary min-w-52 rounded-xl" onClick={() => sendIntent({ type: 'advance' })}>
+                      <FastForward className="h-4 w-4" /> Next round
                     </Button>
                   </>
                 ) : (

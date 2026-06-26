@@ -1,6 +1,8 @@
 import { Room, type Client } from '@colyseus/core';
 import {
   clearActiveGame,
+  endSession,
+  deleteSession,
   applySessionVote,
   archiveSessionVote,
   cancelSessionVote,
@@ -39,11 +41,13 @@ import {
 } from '../foundations.js';
 import {
   createInstalledGameRuntime,
+  findInstalledGameId,
   getInstalledGameManifest,
   getInstalledGameVersion,
   isGameInstalled,
 } from '../installedGames.js';
 import type { GameRuntime } from '../../../shared/src/contracts/gameRuntime.js';
+import { HouseVoteType } from '../../../shared/src/contracts/session.js';
 import {
   explainRejectedIntent,
   generateCommentary,
@@ -53,12 +57,22 @@ import {
 } from '../aiService.js';
 import { chooseDeterministicBotIntent } from '../botStrategy.js';
 
+// A binary action vote (end party, pause, etc.) fires only when the winning option reads as a yes.
+const AFFIRMATIVE_OPTIONS = new Set([
+  'yes', 'end party', 'end game', 'pause', 'resume', 'do it', 'agree', 'confirm', 'end',
+]);
+function isAffirmative(option: string): boolean {
+  return AFFIRMATIVE_OPTIONS.has(option.trim().toLowerCase());
+}
+
 interface JoinOptions {
   code?: string;
   deviceId?: string;
   displayName?: string;
   role?: SessionRole;
   ownerCredential?: string;
+  avatar?: string;
+  accentColor?: string;
 }
 
 interface ClientIdentity {
@@ -74,6 +88,7 @@ export class HouseSessionRoom extends Room {
   private identities = new Map<string, ClientIdentity>();
   private gameRuntime: GameRuntime | null = null;
   private voteTimer: NodeJS.Timeout | null = null;
+  private lastVoteRequestAt = 0;
   private botTimer: NodeJS.Timeout | null = null;
   private botTurnNumber = 0;
 
@@ -113,6 +128,34 @@ export class HouseSessionRoom extends Room {
       if (!this.isHostClient(client)) return;
       void this.endCurrentGame('finished');
     });
+    this.onMessage('session:end_party', (client) => {
+      if (!this.isHostClient(client)) return;
+      const identity = this.identities.get(client.sessionId);
+      this.clearVoteTimer();
+      this.clearBotTimer();
+      const snapshot = endSession(this.code);
+      if (!snapshot) return;
+      this.broadcast('session:transition', { type: 'party.ended', at: new Date().toISOString() });
+      this.broadcast('session:state', snapshot);
+      void this.persistVoteEvent('party.ended', identity?.deviceId, {});
+    });
+    this.onMessage('session:delete_party', (client, payload: { confirm?: string }) => {
+      if (!this.isHostClient(client)) return;
+      // Stronger than ending: require the house code echoed back so it cannot fire by accident.
+      if (String(payload?.confirm ?? '').trim().toUpperCase() !== this.code) {
+        client.send('session:error', { code: 'delete_confirmation_required' });
+        return;
+      }
+      const identity = this.identities.get(client.sessionId);
+      this.clearVoteTimer();
+      this.clearBotTimer();
+      void this.persistVoteEvent('party.deleted', identity?.deviceId, {});
+      const snapshot = deleteSession(this.code);
+      if (snapshot) {
+        this.broadcast('session:transition', { type: 'party.deleted', at: new Date().toISOString() });
+        this.broadcast('session:state', snapshot);
+      }
+    });
     this.onMessage('session:pause_game', (client, payload: { reason?: string }) => {
       const identity = this.identities.get(client.sessionId);
       if (!identity) return;
@@ -137,8 +180,9 @@ export class HouseSessionRoom extends Room {
         .slice(0, 8);
       if (options.length < 2) return;
       const identity = this.identities.get(client.sessionId);
+      const parsedType = HouseVoteType.safeParse(payload?.type);
       const vote = openSessionVote(this.code, {
-        type: payload?.type === 'game_selection' ? 'game_selection' : 'custom',
+        type: parsedType.success ? parsedType.data : 'custom',
         question: String(payload?.question ?? 'What should the house choose?').trim().slice(0, 160),
         options,
         createdBy: identity?.deviceId,
@@ -172,6 +216,7 @@ export class HouseSessionRoom extends Room {
         at: new Date().toISOString(),
       });
       void this.persistVoteEvent('vote.resolved', identity?.deviceId, { vote: resolved?.vote ?? vote, result: resolved?.result ?? null });
+      if (resolved) this.maybeAutoApply(resolved);
     });
     this.onMessage('vote:cancel', (client) => {
       if (!this.isHostClient(client)) return;
@@ -195,6 +240,56 @@ export class HouseSessionRoom extends Room {
         at: new Date().toISOString(),
       });
       void this.persistVoteEvent('vote.applied', identity?.deviceId, { vote: applied.vote, result: applied.result });
+      this.applyVoteSideEffects(applied.result);
+    });
+    this.onMessage('vote:override', (client, payload: { option?: string; reason?: string }) => {
+      if (!this.isHostClient(client)) return;
+      const identity = this.identities.get(client.sessionId);
+      const option = String(payload?.option ?? '').trim().slice(0, 80);
+      if (!option || !identity) return;
+      const resolved = resolveSessionVote(this.code, {
+        actorId: identity.deviceId,
+        option,
+        reason: payload?.reason ? String(payload.reason).slice(0, 160) : undefined,
+      });
+      if (!resolved) return;
+      this.clearVoteTimer();
+      this.broadcast('session:transition', {
+        type: 'vote.resolved',
+        vote: resolved.vote,
+        result: resolved.result,
+        at: new Date().toISOString(),
+      });
+      void this.persistVoteEvent('vote.resolved', identity.deviceId, { vote: resolved.vote, result: resolved.result, override: true });
+      this.maybeAutoApply(resolved);
+    });
+    this.onMessage('vote:request', (client, payload: { type?: string; question?: string; options?: string[] }) => {
+      const identity = this.identities.get(client.sessionId);
+      const record = getSessionRecord(this.code);
+      if (!identity || !record) return;
+      if (!['controller', 'crowd'].includes(identity.role)) return;
+      if (!record.session.settings.allowPlayerVotes) return;
+      if (identity.role === 'crowd' && !record.session.settings.allowCrowdVotes) return;
+      if (record.activeVote && ['open', 'locked'].includes(record.activeVote.vote.status)) return;
+      const cooldown = record.session.settings.voteCooldownMs ?? 15_000;
+      const now = Date.now();
+      if (now - this.lastVoteRequestAt < cooldown) return;
+      const options = (payload?.options ?? [])
+        .map((option) => String(option ?? '').trim().slice(0, 80))
+        .filter(Boolean)
+        .slice(0, 8);
+      if (options.length < 2) return;
+      this.lastVoteRequestAt = now;
+      const vote = openSessionVote(this.code, {
+        type: payload?.type === 'game_selection' ? 'game_selection' : 'custom',
+        question: String(payload?.question ?? 'A player called a vote.').trim().slice(0, 160),
+        options,
+        createdBy: identity.deviceId,
+      });
+      if (!vote) return;
+      this.scheduleVoteResolution(vote.closesAt);
+      this.broadcast('session:transition', { type: 'vote.opened', vote, at: new Date().toISOString() });
+      void this.persistVoteEvent('vote.opened', identity.deviceId, { vote, requestedByPlayer: true });
     });
     this.onMessage('session:request_state', (client) => {
       const identity = this.identities.get(client.sessionId);
@@ -290,6 +385,7 @@ export class HouseSessionRoom extends Room {
           at: new Date().toISOString(),
         });
         void this.persistVoteEvent('vote.resolved', undefined, { vote: resolved.vote, result: resolved.result });
+        this.maybeAutoApply(resolved);
       }
     });
     log('info', 'house_session_room_created', { session: this.code });
@@ -313,6 +409,8 @@ export class HouseSessionRoom extends Room {
       deviceId: identity.deviceId,
       displayName: String(options.displayName ?? (identity.role === 'display' ? 'Host display' : 'Player')),
       role: identity.role,
+      avatar: typeof options.avatar === 'string' ? options.avatar.slice(0, 8) : undefined,
+      accentColor: typeof options.accentColor === 'string' ? options.accentColor.slice(0, 16) : undefined,
     });
     this.persistMember(identity.deviceId);
     const record = getSessionRecord(this.code);
@@ -568,10 +666,15 @@ export class HouseSessionRoom extends Room {
     const winnerNames = (run.winnerPlayerIds ?? [])
       .map((id) => record.members.get(id)?.displayName)
       .filter((name): name is string => Boolean(name));
+    // Surface notable house votes so the recap can mention them (spec: recaps mention major votes).
+    const majorVotes = (record.voteHistory ?? [])
+      .filter((vote) => vote.winnerOption && ['game_selection', 'end_game', 'end_party', 'skip_round'].includes(vote.voteType))
+      .slice(0, 3)
+      .map((vote) => ({ type: vote.voteType, winner: vote.winnerOption, overridden: Boolean(vote.hostOverride) }));
     void generateRecap({
       gameName: run.gameType,
       winnerNames,
-      signals: this.gameRuntime?.recapSignals?.() ?? {},
+      signals: { ...(this.gameRuntime?.recapSignals?.() ?? {}), majorVotes },
     }).then((copy) => setRecapCopy(this.code, copy));
     await Promise.all([
       persistGameRun(run),
@@ -639,7 +742,65 @@ export class HouseSessionRoom extends Room {
         vote: resolved.vote,
         result: resolved.result,
       });
+      this.maybeAutoApply(resolved);
     }, delay).unref();
+  }
+
+  // Auto-apply a resolved vote when the vote's settings opted in and an outright winner exists.
+  // The applied event archives the vote; companions can still manually apply when autoApply is off.
+  private maybeAutoApply(resolved: { vote: { settings: { autoApply: boolean }; status: string }; result: { winnerOption: string | null } | null }): void {
+    if (!resolved.result?.winnerOption) return;
+    if (resolved.vote.status !== 'resolved') return;
+    if (!resolved.vote.settings.autoApply) return;
+    const applied = applySessionVote(this.code);
+    if (!applied) return;
+    archiveSessionVote(this.code);
+    this.broadcast('session:transition', {
+      type: 'vote.applied',
+      vote: applied.vote,
+      result: applied.result,
+      at: new Date().toISOString(),
+    });
+    void this.persistVoteEvent('vote.applied', undefined, { vote: applied.vote, result: applied.result, autoApplied: true });
+    this.applyVoteSideEffects(applied.result);
+  }
+
+  // Enact the real-world action behind an applied vote. game_selection starts the winning
+  // installed game; binary action votes (end_party, end_game, pause/resume) fire when the
+  // winning option is affirmative. Other vote types are applied for the audit trail only.
+  private applyVoteSideEffects(result: { voteType: string; winnerOption: string | null } | null): void {
+    if (!result?.winnerOption) return;
+    if (result.voteType === 'game_selection') {
+      if (getSessionRecord(this.code)?.activeRuntime) return;
+      const gameId = findInstalledGameId(result.winnerOption);
+      if (gameId) void this.selectGame(gameId, {}, false);
+      return;
+    }
+    if (!isAffirmative(result.winnerOption)) return;
+    switch (result.voteType) {
+      case 'end_party': {
+        this.clearVoteTimer();
+        this.clearBotTimer();
+        const snapshot = endSession(this.code);
+        if (snapshot) {
+          this.broadcast('session:transition', { type: 'party.ended', at: new Date().toISOString() });
+          this.broadcast('session:state', snapshot);
+          void this.persistVoteEvent('party.ended', undefined, { byVote: true });
+        }
+        break;
+      }
+      case 'end_game':
+        void this.endCurrentGame('finished');
+        break;
+      case 'pause_game':
+        void this.pauseGame('vote_pause');
+        break;
+      case 'resume_game':
+        void this.resumeGame();
+        break;
+      default:
+        break;
+    }
   }
 
   private clearVoteTimer(): void {

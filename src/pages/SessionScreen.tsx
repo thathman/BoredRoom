@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Check, Loader2, Menu, Pause, Play, QrCode, RotateCcw, Trophy, Users } from 'lucide-react';
+import { ArrowRight, Loader2, Menu, Pause, Play, QrCode, RotateCcw, Trophy } from 'lucide-react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
@@ -14,7 +14,10 @@ import { useWakeLock } from '@/hooks/useWakeLock';
 import { useHouseSession, type HouseSessionRole } from '@/hooks/useHouseSession';
 import { canUseSessionScreen, detectDeviceClass } from '@/lib/deviceExperience';
 import { rememberPlayerSession } from '@/lib/playerSessionResume';
-import { ensureHostDisplayId, getPlayerId, getPlayerName } from '@/lib/roomUtils';
+import { ensureHostDisplayId, getPlayerId } from '@/lib/roomUtils';
+import { getPlayerProfile, hasPlayerProfile, type PlayerProfile } from '@/lib/playerProfile';
+import { PlayerAvatar } from '@/components/profile/PlayerAvatar';
+import { ProfileSheet } from '@/components/profile/ProfileSheet';
 import {
   createCompanionPairing,
   fetchGamesCatalog,
@@ -62,7 +65,10 @@ export default function SessionScreen() {
   const compatibleRole = role ? canUseSessionScreen(deviceClass, role) : false;
   const isHost = role === 'display' || role === 'companion';
   const deviceId = isHost ? ensureHostDisplayId() : getPlayerId();
-  const displayName = isHost ? (role === 'companion' ? 'Host companion' : 'Host display') : getPlayerName() || 'Player';
+  const [profile, setProfile] = useState<PlayerProfile>(() => getPlayerProfile());
+  const [profileNeeded, setProfileNeeded] = useState(() => !isHost && (role === 'controller' || role === 'crowd') && !hasPlayerProfile());
+  const [editingProfile, setEditingProfile] = useState(false);
+  const displayName = isHost ? (role === 'companion' ? 'Host companion' : 'Host display') : profile.displayName || 'Player';
   const [companionCredential, setCompanionCredential] = useState(role === 'companion' ? getCompanionCredential(normalizedCode) : '');
   const {
     snapshot,
@@ -71,22 +77,32 @@ export default function SessionScreen() {
     gamePrivateState,
     aiResult,
     votePoll,
+    voteHistory,
     setReady,
     sendGameIntent,
     requestHint,
     castVote,
     callVote,
+    requestVote,
+    closeVote,
+    cancelVote,
+    applyVoteResult,
+    overrideVote,
     startGame,
     switchGame,
     endGame,
     pauseGame,
     resumeGame,
+    endParty,
+    deleteParty,
   } = useHouseSession({
     code: normalizedCode,
     deviceId,
     displayName,
     role: role ?? 'controller',
-    enabled: compatibleRole && (role !== 'companion' || Boolean(companionCredential)),
+    avatar: isHost ? undefined : (profile.avatarType === 'emoji' ? profile.avatarValue : undefined),
+    accentColor: isHost ? undefined : profile.accentColor,
+    enabled: compatibleRole && (role !== 'companion' || Boolean(companionCredential)) && !profileNeeded,
   });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [busyGame, setBusyGame] = useState<string | null>(null);
@@ -95,6 +111,8 @@ export default function SessionScreen() {
   const [pairingBusy, setPairingBusy] = useState(false);
   const [installedGames, setInstalledGames] = useState<LibraryGame[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [partyDanger, setPartyDanger] = useState<null | 'end' | 'delete'>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const wakeLockStatus = useWakeLock(role === 'controller' || role === 'crowd' || role === 'companion');
 
   useEffect(() => {
@@ -138,6 +156,26 @@ export default function SessionScreen() {
 
   if (!role) return <Navigate to={deviceClass === 'desktop_host' ? `/session/${normalizedCode}/display` : `/session/${normalizedCode}/controller`} replace />;
   if (!compatibleRole) return <Navigate to={deviceClass === 'desktop_host' ? '/' : `/join/${normalizedCode}`} replace />;
+
+  if (profileNeeded) {
+    return (
+      <LagosScene>
+        <div className="mx-auto flex min-h-screen max-w-md flex-col px-6 py-8">
+          <BrandLogo className="mx-auto text-2xl" />
+          <div className="flex flex-1 flex-col justify-center">
+            <h1 className="brush-display mb-6 text-center text-4xl">Set up your <span className="text-primary">profile</span></h1>
+            <div className="neon-panel rounded-2xl p-5">
+              <ProfileSheet
+                cta="Join the house"
+                onSave={(next) => { setProfile(next); setProfileNeeded(false); }}
+              />
+            </div>
+          </div>
+          <BuiltByFooter />
+        </div>
+      </LagosScene>
+    );
+  }
 
   if (role === 'companion' && !companionCredential) {
     async function pair() {
@@ -186,6 +224,24 @@ export default function SessionScreen() {
     return <StatusScreen icon={<RotateCcw />} title="Session unavailable" detail="This device does not have the owner credential for that house." />;
   }
 
+  if (snapshot?.session.status === 'ended' || snapshot?.session.status === 'deleted') {
+    const deleted = snapshot.session.status === 'deleted';
+    return (
+      <StatusScreen
+        icon={<span className="text-4xl">{deleted ? '🗑️' : '👋'}</span>}
+        title={deleted ? 'Party deleted' : 'Party ended'}
+        detail={deleted
+          ? 'The host deleted this house. Thanks for playing!'
+          : 'The host ended this game night. Thanks for playing!'}
+        action={(
+          <Button className="neon-primary w-full" onClick={() => navigate(isHost ? '/' : '/join')}>
+            {isHost ? 'Host a new party' : 'Join another house'} <ArrowRight className="ml-auto" />
+          </Button>
+        )}
+      />
+    );
+  }
+
   const controllerMembers = members.filter((member) => member.role === 'controller');
   const readyCount = controllerMembers.filter((member) => member.ready).length;
   const joinUrl = `${window.location.origin}/join/${normalizedCode}`;
@@ -225,6 +281,105 @@ export default function SessionScreen() {
         games={drawerGames}
         sessionCode={normalizedCode}
       />
+      {role === 'companion' && (votePoll || voteHistory.length > 0) && (
+        <div className="fixed left-4 top-20 z-[70] max-h-[80vh] w-72 overflow-y-auto rounded-2xl border border-secondary/40 bg-[#050914]/95 p-4 text-left shadow-[0_0_24px_rgba(168,85,247,.18)] backdrop-blur-xl">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-secondary">Vote control booth</p>
+          {votePoll ? (
+            <>
+              <p className="mt-1 text-sm font-semibold">
+                {votePoll.status === 'open' ? 'Vote open' : votePoll.status === 'locked' ? 'Vote locked' : votePoll.status === 'resolved' ? 'Resolved' : votePoll.status}
+              </p>
+              <div className="mt-3 space-y-1">
+                {votePoll.options.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs hover:border-secondary/60"
+                    onClick={() => overrideVote(option, 'host override')}
+                    title="Override: declare this the winner"
+                  >
+                    <span>{option}</span>
+                    <span className="text-primary">{votePoll.tally[option] ?? 0}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {votePoll.status === 'open' && (
+                  <Button variant="outline" className="h-9 rounded-lg text-xs" onClick={closeVote}>Close now</Button>
+                )}
+                {votePoll.result?.winnerOption && !votePoll.result.applied && (
+                  <Button className="neon-primary h-9 rounded-lg text-xs" onClick={applyVoteResult}>Apply result</Button>
+                )}
+                <Button variant="outline" className="col-span-2 h-9 rounded-lg text-xs text-red-200" onClick={cancelVote}>Cancel vote</Button>
+              </div>
+              <p className="mt-2 text-[10px] text-white/50">Tap an option to override. Apply enacts the winner.</p>
+            </>
+          ) : (
+            <p className="mt-1 text-xs text-white/50">No active vote.</p>
+          )}
+          {voteHistory.length > 0 && (
+            <div className="mt-4 border-t border-white/10 pt-3">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Recent votes</p>
+              <ul className="mt-2 space-y-1.5 text-[11px] text-white/70">
+                {voteHistory.slice(0, 6).map((result) => (
+                  <li key={result.voteId} className="flex items-center justify-between gap-2">
+                    <span className="truncate">
+                      {result.winnerOption ?? (result.tied ? 'Tie' : result.status)}
+                    </span>
+                    <span className="shrink-0 text-white/40">
+                      {result.castCount}/{result.eligibleVoterCount}
+                      {result.hostOverride ? ' · override' : result.autoApplied ? ' · auto' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+      {role === 'companion' && (
+        <div className="fixed bottom-4 right-4 z-[70] w-72 rounded-2xl border border-red-400/30 bg-[#160808]/95 p-4 text-left shadow-[0_0_24px_rgba(248,113,113,.14)] backdrop-blur-xl">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-red-300">Party controls</p>
+          {partyDanger === null && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Button variant="outline" className="h-9 rounded-lg text-xs" onClick={() => setPartyDanger('end')}>End party</Button>
+              <Button variant="outline" className="h-9 rounded-lg text-xs text-red-200" onClick={() => setPartyDanger('delete')}>Delete party</Button>
+            </div>
+          )}
+          {partyDanger === 'end' && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-white/80">End this party for everyone? Recap and history are saved.</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button className="neon-primary h-9 rounded-lg text-xs" onClick={() => { endParty(); setPartyDanger(null); }}>End it</Button>
+                <Button variant="outline" className="h-9 rounded-lg text-xs" onClick={() => setPartyDanger(null)}>Cancel</Button>
+              </div>
+            </div>
+          )}
+          {partyDanger === 'delete' && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-white/80">Delete permanently. Type <span className="font-mono text-red-200">{normalizedCode}</span> to confirm.</p>
+              <Input
+                value={deleteConfirmText}
+                onChange={(event) => setDeleteConfirmText(event.target.value.toUpperCase())}
+                maxLength={4}
+                className="h-9 bg-black/40 text-center font-mono tracking-[0.3em]"
+                placeholder={normalizedCode}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  className="h-9 rounded-lg text-xs text-red-200"
+                  disabled={deleteConfirmText !== normalizedCode}
+                  onClick={() => { deleteParty(deleteConfirmText); setPartyDanger(null); setDeleteConfirmText(''); }}
+                >
+                  Delete
+                </Button>
+                <Button variant="outline" className="h-9 rounded-lg text-xs" onClick={() => { setPartyDanger(null); setDeleteConfirmText(''); }}>Cancel</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </>
   ) : null;
 
@@ -235,6 +390,43 @@ export default function SessionScreen() {
         <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Join house</p>
         <p className="font-mono text-2xl font-black tracking-[0.16em] text-primary">{normalizedCode}</p>
         <p className="text-[10px] text-white/60">{joinUrl.replace(/^https?:\/\//, '')}</p>
+      </div>
+    </div>
+  ) : null;
+
+  // Cinematic vote overlay for the public display (the stage). Read-only: live tally + result.
+  const displayVoteOverlay = role === 'display' && votePoll ? (
+    <div className="pointer-events-none fixed inset-x-0 top-6 z-[75] flex justify-center px-6">
+      <div className="w-full max-w-2xl rounded-3xl border border-secondary/50 bg-[#0b0716]/95 p-6 text-center shadow-[0_0_40px_rgba(168,85,247,.25)] backdrop-blur-xl">
+        <p className="text-xs uppercase tracking-[0.3em] text-secondary">
+          {votePoll.status === 'open' ? '● House vote live' : votePoll.status === 'expired' ? 'Vote expired' : 'Vote result'}
+        </p>
+        <div className="mt-4 space-y-2">
+          {votePoll.options.map((option) => {
+            const count = votePoll.tally[option] ?? 0;
+            const total = Math.max(1, votePoll.options.reduce((sum, opt) => sum + (votePoll.tally[opt] ?? 0), 0));
+            const pct = Math.round((count / total) * 100);
+            const isWinner = votePoll.result?.winnerOption === option;
+            return (
+              <div key={option} className={`relative overflow-hidden rounded-xl border px-4 py-3 text-left ${isWinner ? 'border-primary' : 'border-white/10'}`}>
+                <div className="absolute inset-y-0 left-0 bg-secondary/25" style={{ width: `${pct}%` }} />
+                <div className="relative flex items-center justify-between text-lg font-bold">
+                  <span>{option}</span>
+                  <span className="text-primary">{count}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {votePoll.result && (
+          <p className="mt-4 text-sm text-white/80">
+            {votePoll.result.winnerOption
+              ? `Winner: ${votePoll.result.winnerOption}${votePoll.result.applied ? ' — applied' : ''}${votePoll.result.hostOverride ? ' (host override)' : ''}`
+              : votePoll.result.tied
+                ? `Tie: ${votePoll.result.tiedOptions.join(', ')}`
+                : 'No majority reached.'}
+          </p>
+        )}
       </div>
     </div>
   ) : null;
@@ -276,7 +468,7 @@ export default function SessionScreen() {
     </div>
   ) : null;
 
-  if (snapshot?.session.status === 'recap' && snapshot.lastRecap) {
+  if (snapshot?.session.status === 'game_recap' && snapshot.lastRecap) {
     const winners = controllerMembers.filter((member) => snapshot.lastRecap?.winnerPlayerIds.includes(member.deviceId));
     return (
       <LagosScene>
@@ -318,6 +510,7 @@ export default function SessionScreen() {
       <div className="relative min-h-screen">
         {hostControls}
         {hostJoinStrip}
+        {displayVoteOverlay}
         {controllerPersistenceStrip}
         {pauseOverlay}
         {controllerPauseButton}
@@ -340,9 +533,28 @@ export default function SessionScreen() {
 
   if (role === 'controller' || role === 'crowd') {
     const me = members.find((member) => member.deviceId === deviceId);
+    if (editingProfile) {
+      return (
+        <LagosScene>
+          <div className="mx-auto flex min-h-screen max-w-md flex-col px-6 py-8">
+            <BrandLogo className="mx-auto text-2xl" />
+            <div className="flex flex-1 flex-col justify-center">
+              <div className="neon-panel rounded-2xl p-5">
+                <ProfileSheet
+                  cta="Save"
+                  onSave={(next) => { setProfile(next); setEditingProfile(false); }}
+                  onCancel={() => setEditingProfile(false)}
+                />
+              </div>
+            </div>
+            <BuiltByFooter />
+          </div>
+        </LagosScene>
+      );
+    }
     return (
       <StatusScreen
-        icon={role === 'crowd' ? <Users className="h-9 w-9" /> : <Check className="h-9 w-9" />}
+        icon={<PlayerAvatar displayName={displayName} avatar={profile.avatarType === 'emoji' ? profile.avatarValue : undefined} accentColor={profile.accentColor} size={72} />}
         title="Waiting to play"
         detail="Waiting for the host to start the game. Your controls will switch automatically."
         action={role === 'controller' ? (
@@ -350,6 +562,19 @@ export default function SessionScreen() {
             <Button className={me?.ready ? 'neon-primary w-full' : 'w-full'} variant={me?.ready ? 'default' : 'outline'} onClick={() => setReady(!me?.ready)}>
               {me?.ready ? 'You’re in as a player' : 'Tap when ready'}
             </Button>
+            <Button variant="ghost" className="w-full" onClick={() => setEditingProfile(true)}>Edit profile</Button>
+            {role === 'controller' && !votePoll && snapshot?.session.settings.allowPlayerVotes && (
+              <Button
+                variant="outline"
+                className="w-full rounded-xl"
+                onClick={() => {
+                  requestVote(['Pause the house', 'Skip to next game'], { question: 'A player called a vote.' });
+                  toast.success('Vote requested.');
+                }}
+              >
+                Call a house vote
+              </Button>
+            )}
             {votePoll && (
               <div className="rounded-2xl border border-secondary/40 bg-secondary/10 p-3 text-left">
                 <p className="text-xs uppercase tracking-[0.2em] text-secondary">
@@ -392,6 +617,7 @@ export default function SessionScreen() {
     <LagosScene className="bg-[linear-gradient(180deg,rgba(2,8,23,.4),rgba(2,8,23,.8))]">
       {hostControls}
       {hostJoinStrip}
+      {displayVoteOverlay}
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 pb-6 pt-6">
         <BrandLogo className="text-5xl" />
         <section className="flex flex-1 flex-col items-center justify-center pb-32 text-center">
@@ -421,8 +647,9 @@ export default function SessionScreen() {
           <div className="mt-4 flex gap-5 overflow-x-auto">
             {controllerMembers.map((member) => (
               <div key={member.deviceId} className="min-w-16 text-center">
-                <div className={`mx-auto grid h-12 w-12 place-items-center rounded-full border-2 ${member.isBot ? 'border-secondary bg-secondary/10' : 'border-primary bg-primary/10'}`}>
-                  {member.isBot ? '🤖' : member.displayName.slice(0, 1).toUpperCase()}
+                <div className="relative mx-auto w-12">
+                  <PlayerAvatar displayName={member.displayName} avatar={member.avatar} accentColor={member.accentColor} isBot={member.isBot} size={48} className="mx-auto" />
+                  {member.ready && !member.isBot && <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-primary text-[10px] text-black">✓</span>}
                 </div>
                 <p className="mt-2 text-xs">{member.displayName}</p>
                 {member.isBot && <p className="text-[10px] uppercase tracking-[0.2em] text-secondary">Bot</p>}

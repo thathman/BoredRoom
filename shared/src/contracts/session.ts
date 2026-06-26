@@ -14,21 +14,24 @@ const Id = z.string().min(1);
 const Iso = z.string().datetime({ offset: true });
 
 // --- HouseSession ----------------------------------------------------------
+// Party lifecycle (the container). Distinct from GameRunStatus (one game inside the party).
+// Pause is a game-run concern, so the party stays `in_game` while a run is paused.
 export const HouseSessionStatus = z.enum([
-  'setup',
-  'waiting_for_players',
-  'walkthrough',
-  'voting',
-  'game_active',
-  'recap',
-  'next_decision',
-  'paused',
+  'draft',
+  'open_lobby',
+  'selecting_game',
+  'configuring_game',
+  'in_game',
+  'game_recap',
+  'intermission',
+  'ending_confirm',
   'ended',
-  'recoverable',
+  'deleted',
 ]);
 
 export const HouseSessionSettings = z.object({
   allowCrowdVotes: z.boolean().default(false), // O4 default; see clarifications
+  allowPlayerVotes: z.boolean().default(true), // controllers may request a house vote
   allowBots: z.boolean().default(true),
   hintsEnabled: z.boolean().default(true),
   defaultHintBudget: z.number().int().nonnegative().default(3),

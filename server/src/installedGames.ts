@@ -239,6 +239,19 @@ export function getInstalledGameManifest(gameId: string): OfficialCatalogGame | 
   return installed.get(gameId)?.manifest ?? null;
 }
 
+// Resolve a vote option back to an installed game id. game_selection votes carry display
+// names as options, so match by id first (in case ids are voted on) then by name.
+export function findInstalledGameId(option: string): string | null {
+  const needle = option.trim().toLowerCase();
+  if (!needle) return null;
+  for (const game of installed.values()) {
+    if (game.id.toLowerCase() === needle || game.manifest.name.trim().toLowerCase() === needle) {
+      return game.id;
+    }
+  }
+  return null;
+}
+
 export function createInstalledGameRuntime(
   gameId: string,
   context: GameRuntimeContext,

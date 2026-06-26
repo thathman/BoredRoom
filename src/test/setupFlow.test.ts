@@ -33,6 +33,6 @@ describe('room setup flow', () => {
     const session = buildHouseSession(input);
     expect(session.hostDeviceId).toBe('host-9');
     expect(session.settings.allowBots).toBe(false);
-    expect(session.status).toBe('setup');
+    expect(session.status).toBe('open_lobby');
   });
 });

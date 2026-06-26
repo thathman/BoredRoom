@@ -38,16 +38,16 @@ export function makeSessionCode(len = 4): string {
 // Allowed status transitions for a house session. Keeps state moves explicit
 // instead of letting any code set any status.
 const STATUS_TRANSITIONS: Record<HouseSessionStatus, HouseSessionStatus[]> = {
-  setup: ['waiting_for_players', 'walkthrough', 'ended'],
-  waiting_for_players: ['walkthrough', 'voting', 'game_active', 'paused', 'ended'],
-  walkthrough: ['voting', 'game_active', 'paused', 'ended'],
-  voting: ['game_active', 'next_decision', 'paused', 'ended'],
-  game_active: ['recap', 'paused', 'recoverable', 'ended'],
-  recap: ['next_decision', 'voting', 'ended'],
-  next_decision: ['voting', 'game_active', 'walkthrough', 'ended'],
-  paused: ['game_active', 'voting', 'recoverable', 'ended'],
-  recoverable: ['game_active', 'paused', 'ended'],
-  ended: [],
+  draft: ['open_lobby', 'selecting_game', 'ending_confirm', 'ended', 'deleted'],
+  open_lobby: ['selecting_game', 'configuring_game', 'in_game', 'ending_confirm', 'ended', 'deleted'],
+  selecting_game: ['configuring_game', 'in_game', 'open_lobby', 'intermission', 'ending_confirm', 'ended', 'deleted'],
+  configuring_game: ['in_game', 'selecting_game', 'open_lobby', 'ending_confirm', 'ended', 'deleted'],
+  in_game: ['game_recap', 'intermission', 'ending_confirm', 'ended', 'deleted'],
+  game_recap: ['intermission', 'selecting_game', 'ending_confirm', 'ended', 'deleted'],
+  intermission: ['selecting_game', 'configuring_game', 'in_game', 'open_lobby', 'ending_confirm', 'ended', 'deleted'],
+  ending_confirm: ['ended', 'deleted', 'intermission', 'game_recap'],
+  ended: ['deleted'],
+  deleted: [],
 };
 
 export function canTransition(from: HouseSessionStatus, to: HouseSessionStatus): boolean {
@@ -60,7 +60,7 @@ export function selectResumableSession(
   hostDeviceId: string,
 ): HouseSession | null {
   const candidates = sessions
-    .filter((s) => s.hostDeviceId === hostDeviceId && s.status !== 'ended')
+    .filter((s) => s.hostDeviceId === hostDeviceId && s.status !== 'ended' && s.status !== 'deleted')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return candidates[0] ?? null;
 }
@@ -78,7 +78,7 @@ export function buildHouseSession(input: {
   return HouseSessionSchema.parse({
     id: randId('hs'),
     code: makeSessionCode(),
-    status: 'setup',
+    status: 'open_lobby',
     currentStage: 'landing',
     hostDeviceId: input.hostDeviceId,
     walkthroughCompleted: false,

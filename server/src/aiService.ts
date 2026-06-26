@@ -386,11 +386,15 @@ export async function generateRecap(input: {
   winnerNames: string[];
   signals: Record<string, unknown>;
 }): Promise<{ headline: string; paragraph: string }> {
+  const votes = Array.isArray(input.signals.majorVotes) ? input.signals.majorVotes as Array<{ winner?: string; overridden?: boolean }> : [];
+  const voteLine = votes.length
+    ? ` The house voted along the way${votes[0]?.winner ? ` — ${votes[0].winner} carried the room${votes[0].overridden ? ' after a host override' : ''}.` : '.'}`
+    : '';
   const fallback = {
     headline: `${input.gameName} complete`,
-    paragraph: input.winnerNames.length
+    paragraph: (input.winnerNames.length
       ? `${input.winnerNames.join(', ')} finished on top. Everyone stays connected for the next game.`
-      : 'The run is complete. Everyone stays connected for the next game.',
+      : 'The run is complete. Everyone stays connected for the next game.') + voteLine,
   };
   const response = await completeStructured(
     recapSchema,

@@ -17,6 +17,8 @@ export interface SessionMember {
   displayName: string;
   role: SessionRole;
   isBot?: boolean;
+  avatar?: string; // emoji glyph or empty for initial
+  accentColor?: string; // hex
   ready: boolean;
   connected: boolean;
   joinedAt: string;
@@ -207,6 +209,56 @@ export function getPublicSession(code: string): PublicSessionSnapshot | null {
   return record ? publicSnapshot(record) : null;
 }
 
+export interface SessionSummary {
+  code: string;
+  status: string;
+  members: number;
+  connected: number;
+  bots: number;
+  activeGame: string | null;
+  gameStatus: string | null;
+  activeVote: string | null;
+  recentVotes: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Back-office listing of every live house in this server process. No secrets — codes and
+// counts only, never credentials or private runtime state.
+export function listSessionSummaries(): SessionSummary[] {
+  return Array.from(sessions.values())
+    .map((record) => {
+      const members = Array.from(record.members.values());
+      return {
+        code: record.session.code,
+        status: record.session.status,
+        members: members.length,
+        connected: members.filter((m) => m.connected).length,
+        bots: members.filter((m) => m.isBot).length,
+        activeGame: record.activeRuntime?.run.gameType ?? null,
+        gameStatus: record.activeRuntime?.run.status ?? null,
+        activeVote: record.activeVote ? record.activeVote.vote.status : null,
+        recentVotes: record.voteHistory.length,
+        createdAt: record.session.createdAt,
+        updatedAt: record.session.updatedAt,
+      };
+    })
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+// Aggregate recent resolved votes across all houses for the admin vote-history view.
+export function listRecentVotesAcrossSessions(limit = 25): Array<HouseVoteResult & { sessionCode: string }> {
+  const all: Array<HouseVoteResult & { sessionCode: string }> = [];
+  for (const record of sessions.values()) {
+    for (const result of record.voteHistory) {
+      all.push({ ...structuredClone(result), sessionCode: record.session.code });
+    }
+  }
+  return all
+    .sort((a, b) => (b.resolvedAt ?? '').localeCompare(a.resolvedAt ?? ''))
+    .slice(0, limit);
+}
+
 export function verifyOwnerCredential(code: string, credential: string | undefined): boolean {
   if (!credential) return false;
   const record = getSessionRecord(code);
@@ -236,7 +288,7 @@ export function subscribeToSession(code: string, listener: Listener): () => void
 
 export function upsertSessionMember(
   code: string,
-  input: Pick<SessionMember, 'deviceId' | 'displayName' | 'role'> & Partial<Pick<SessionMember, 'isBot' | 'ready' | 'connected'>>,
+  input: Pick<SessionMember, 'deviceId' | 'displayName' | 'role'> & Partial<Pick<SessionMember, 'isBot' | 'ready' | 'connected' | 'avatar' | 'accentColor'>>,
 ): SessionMember | null {
   const record = getSessionRecord(code);
   if (!record) return null;
@@ -247,6 +299,8 @@ export function upsertSessionMember(
     displayName: input.displayName || previous?.displayName || 'Player',
     role: input.role,
     isBot: input.isBot ?? previous?.isBot,
+    avatar: input.avatar ?? previous?.avatar,
+    accentColor: input.accentColor ?? previous?.accentColor,
     ready: input.ready ?? previous?.ready ?? input.role !== 'crowd',
     connected: input.connected ?? true,
     joinedAt: previous?.joinedAt ?? now,
@@ -319,7 +373,7 @@ export function openSessionVote(
     now,
   });
   record.activeVote = round;
-  record.session.status = record.session.status === 'game_active' ? record.session.status : 'voting';
+  record.session.status = record.session.status === 'in_game' ? record.session.status : 'selecting_game';
   record.session.updatedAt = new Date(now).toISOString();
   emit(code, 'vote.opened');
   return structuredClone(round.vote);
@@ -414,7 +468,7 @@ export function selectSessionGame(code: string, run: GameRun): void {
   const now = new Date().toISOString();
   record.activeRuntime = { run, selectedAt: now };
   record.session.currentGameRunId = run.id;
-  record.session.status = 'waiting_for_players';
+  record.session.status = 'configuring_game';
   record.session.currentStage = 'game_setup';
   record.session.updatedAt = now;
   emit(code, 'game.selected');
@@ -426,7 +480,7 @@ export function startSelectedGame(code: string): SessionRuntime | null {
   const now = new Date().toISOString();
   record.activeRuntime.run.status = 'active';
   record.activeRuntime.run.startedAt = now;
-  record.session.status = 'game_active';
+  record.session.status = 'in_game';
   record.session.currentStage = 'game';
   record.session.updatedAt = now;
   emit(code, 'game.started');
@@ -450,7 +504,7 @@ export function finishActiveGame(
     winnerPlayerIds,
     endedAt: now,
   };
-  record.session.status = 'recap';
+  record.session.status = 'game_recap';
   record.session.currentStage = 'recap';
   record.session.updatedAt = now;
   emit(code, status === 'finished' ? 'game.finished' : 'game.abandoned');
@@ -462,7 +516,8 @@ export function pauseActiveGame(code: string, reason = 'controller_disconnected'
   if (!record?.activeRuntime || record.activeRuntime.run.status !== 'active') return null;
   const now = new Date().toISOString();
   record.activeRuntime.run.status = 'paused';
-  record.session.status = 'paused';
+  // Party stays in_game; pause is a game-run state surfaced via activeRun.status.
+  record.session.status = 'in_game';
   record.session.currentStage = 'game';
   record.session.updatedAt = now;
   emit(code, reason);
@@ -474,7 +529,7 @@ export function resumeActiveGame(code: string): SessionRuntime | null {
   if (!record?.activeRuntime || record.activeRuntime.run.status !== 'paused') return null;
   const now = new Date().toISOString();
   record.activeRuntime.run.status = 'active';
-  record.session.status = 'game_active';
+  record.session.status = 'in_game';
   record.session.currentStage = 'game';
   record.session.updatedAt = now;
   emit(code, 'game.resumed');
@@ -487,10 +542,47 @@ export function clearActiveGame(code: string): void {
   const now = new Date().toISOString();
   record.activeRuntime = null;
   record.session.currentGameRunId = undefined;
-  record.session.status = 'next_decision';
+  record.session.status = 'intermission';
   record.session.currentStage = 'game_picker';
   record.session.updatedAt = now;
   emit(code, 'game.cleared');
+}
+
+// End the whole party. Distinct from finishing a game: this closes the house for everyone,
+// clears any active runtime, and leaves the record in place so resume shows "ended" rather
+// than an invalid code. Historical run metadata is preserved.
+export function endSession(code: string): PublicSessionSnapshot | null {
+  const record = getSessionRecord(code);
+  if (!record || record.session.status === 'ended' || record.session.status === 'deleted') return null;
+  const now = new Date().toISOString();
+  record.activeRuntime = null;
+  record.activeVote = null;
+  record.session.currentGameRunId = undefined;
+  record.session.currentStage = 'ended';
+  record.session.status = 'ended';
+  record.session.updatedAt = now;
+  emit(code, 'party.ended');
+  return getPublicSession(code);
+}
+
+// Delete the party: stronger than ending. Emits a final deleted snapshot, then tears down the
+// in-memory record, pending pairings, and votes. Owner-only — authority is checked at the room.
+export function deleteSession(code: string): PublicSessionSnapshot | null {
+  const key = normalizeCode(code);
+  const record = sessions.get(key);
+  if (!record) return null;
+  record.activeRuntime = null;
+  record.activeVote = null;
+  record.session.status = 'deleted';
+  record.session.updatedAt = new Date().toISOString();
+  const finalSnapshot = getPublicSession(code);
+  emit(code, 'party.deleted');
+  for (const pairKey of pairings.keys()) {
+    if (pairKey.startsWith(`${key}:`)) pairings.delete(pairKey);
+  }
+  sessions.delete(key);
+  listeners.delete(key);
+  return finalSnapshot;
 }
 
 export function setRecapCopy(code: string, copy: { headline: string; paragraph: string }): void {

@@ -2,13 +2,19 @@
 
 Last updated: 2026-06-26 15:25 WAT
 
+> **DeepSeek V4 Pro continuation (2026-06-26 16:53 WAT):** I'm the current LLM handling this build. Codex started the vote lifecycle, Claude continued through rounds 2–3, party-status migration, admin dashboard, profiles/avatars, PWA/QR, and End/Delete Party. Profiles/avatars and PWA/QR are not yet deployed to Dell. The active goal is now GOAL2.md — the full game-layer rebuild across all 15 games.
+
+> **Codex continuation (2026-06-26 20:25 WAT):** User corrected the game-layer strategy: do not invent Monopoly/Oga Landlord or other standard game logic from scratch when forkable open-source implementations exist. `GOAL1.md` and `GOAL2.md` are the split local objectives. Current worktrees are not clean; inspect all three repos before editing or staging.
+
+> **Codex continuation (2026-06-26 21:00 WAT):** User supplied stronger external sources. Use `itaylayzer/Monopoly` as the primary Oga Landlord source, `mykeels/whot` + `mykeels/whot-server` for Whot, `joshzcold/Friendly-Feud` for Faith Feud, and `joshtom/connect-four-game` as the user-preferred Connect 4 reference. Licenses found: MIT for Monopoly/Whot/Friendly-Feud; Connect 4 declares ISC in `package.json` but no standalone LICENSE file was detected, so preserve explicit attribution before vendoring code.
+
 ## Mission
 
 BoredRoom must become a production-ready Nigerian party-game platform:
 
 `Create once → join once → play all night → choose installed game → devices switch in place → recap → next game`
 
-The current product/source of truth is in `/Users/hendrix/Playground/BoredRoom-Spec/15-current-product/` and the goal objective file at `/Users/hendrix/.codex/attachments/5ce9a566-12f1-4063-bfc2-26da944c4695/goal-objective.md`.
+The current product/source of truth is in `/Users/hendrix/Playground/BoredRoom-Spec/15-current-product/` and the goal objective file at `/Users/hendrix/Playground/GOAL2.md`.
 
 Do not mark the long-running goal complete until every requirement in those files is proven by current evidence.
 
@@ -21,9 +27,9 @@ Do not mark the long-running goal complete until every requirement in those file
 
 ## Required session start
 
-- Run `AI_AGENT=codex ~/ai-spine/scripts/ai-bus read`.
-- Read this file and `docs/IMPLEMENTATION_PROGRESS.md`.
+- Read this file (`docs/CODEX_HANDOFF.md`) first, then `docs/IMPLEMENTATION_PROGRESS.md`.
 - Check the worktree in all repos before assuming prior state.
+- Add your own continuation marker to both docs when you pick up the build — keep the lineage visible: `AgentName (timestamp): what you found and what you did`.
 - Commit as `Hendrix Nwaokolo <n.hendrix.e@gmail.com>` with no AI/tool attribution.
 
 ## Current architecture summary
@@ -150,15 +156,18 @@ npm run build
 4. Signing material:
    - `.signing/private.pem` exists locally in BoredRoom-Games. Do not print it. Check whether tracked; move secrets out of repo tree if necessary.
 
-5. Vote lifecycle incomplete:
-   - First server-authoritative vote lifecycle slice is implemented and live: spec-style statuses, active vote state, vote history, quorum/majority/tie/expiry results, close/cancel/apply messages, timed resolution, session snapshot restoration, and controller result display.
-   - Still missing full companion vote-management UI, controller-requested votes/support threshold flow, auto-application for all vote types, admin visibility, and browser E2E.
+5. Vote lifecycle — round 2 done (`1.4.0.0`, not yet deployed):
+   - Added `vote:override` (host) and `vote:request` (player) server messages, `allowPlayerVotes` party setting + cooldown/overlap guards, and `maybeAutoApply` (auto-apply+archive when `settings.autoApply` and an outright winner).
+   - `useHouseSession` exposes `requestVote`/`closeVote`/`cancelVote`/`applyVoteResult`/`overrideVote`. Companion vote control-booth panel + controller "Call a house vote" button added.
+   - Round 3 (no version bump): resolved `game_selection` votes now start the winning installed game server-side (`findInstalledGameId` + `applyVoteSideEffects`); companion vote-history view added; `scripts/playwright-vote-lifecycle.mjs` now also covers player-requested votes and host override (passes against a local built server).
+   - Still missing: admin dashboard vote visibility, real-browser (Playwright page) vote UI smoke, recap mention of major votes. Deploy to Dell and rerun live smoke.
 
 6. Companion control incomplete:
    - Companion pairing exists. Full producer/control-booth flow is not complete.
 
-7. Party lifecycle incomplete:
-   - Current statuses do not match the goal objective’s party lifecycle vocabulary.
+7. Party lifecycle:
+   - Explicit End Party / Delete Party landed: `endSession`/`deleteSession` in sessionDirectory, `session:end_party`/`session:delete_party` room messages (delete requires the house code echoed back), `endParty`/`deleteParty` hook methods, companion danger panel, and an ended/deleted screen for all devices. Enum gained `ending_confirm`/`deleted`.
+   - Still legacy: in-game status vocabulary (`game_active`, `next_decision`, `walkthrough`, `voting`) hasn't been renamed to the spec's `in_game`/`selecting_game`/`configuring_game`/`intermission`. That rename is a larger migration touching server + frontend; do it as a dedicated pass.
 
 8. Visual regression incomplete:
    - No screenshot comparison ledger or native-size fixture gate.
@@ -173,7 +182,7 @@ npm run build
 
 ### Immediate next tasks
 
-1. Continue vote lifecycle: companion vote management UI, player-requested support flow, auto-apply actions, admin visibility, and browser E2E.
+1. Vote + party lifecycle are now broad: companion UI, player requests, auto-apply, game-selection start-from-vote, action votes (end_party/end_game/pause/resume), public-display vote overlay, recap vote mentions, and explicit End/Delete Party. Remaining vote/party work: admin dashboard vote/session visibility, vote-driven admit/kick/remote_mode/team_change, browser-page (not just socket) vote UI smoke, and the in-game **party-status vocabulary migration** (`game_active`→`in_game`, `next_decision`→`intermission`, `voting`→`selecting_game`, add `configuring_game`/`game_recap`). Deploy to Dell and rerun live smoke. Next biggest non-vote tracks: admin dashboard, profiles/avatars, PWA/QR hardening, and the per-game rebuilds (Whot/Ludo/Connect4/etc.).
 2. Keep `scripts/playwright-vote-lifecycle.mjs` in the live smoke set when changing votes/session messages.
 3. Update both docs after each change.
 4. Commit/push/deploy and rerun live smoke/matrix.

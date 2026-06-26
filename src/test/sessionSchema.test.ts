@@ -13,7 +13,7 @@ describe('session schemas', () => {
     const parsed = HouseSession.parse({
       id: 's1',
       code: 'ABCD',
-      status: 'setup',
+      status: 'draft',
       currentStage: 'landing',
       hostDeviceId: 'host-1',
       settings: {}, // defaults fill in
@@ -42,7 +42,7 @@ describe('session schemas', () => {
 
   it('rejects a too-short session code', () => {
     expect(() => HouseSession.parse({
-      id: 's1', code: 'AB', status: 'setup', currentStage: 'x',
+      id: 's1', code: 'AB', status: 'draft', currentStage: 'x',
       hostDeviceId: 'h', settings: {}, createdAt: now, updatedAt: now,
     })).toThrow();
   });
@@ -61,7 +61,7 @@ describe('session schemas', () => {
 
   it('accepts Postgres timestamptz offset timestamps (read path)', () => {
     const parsed = HouseSession.parse({
-      id: 's1', code: 'ABCD', status: 'setup', currentStage: 'landing',
+      id: 's1', code: 'ABCD', status: 'draft', currentStage: 'landing',
       hostDeviceId: 'h', settings: {},
       createdAt: '2026-06-23T16:26:29.752+00:00',
       updatedAt: '2026-06-23T16:26:29.752+00:00',

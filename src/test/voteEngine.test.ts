@@ -134,6 +134,15 @@ describe('vote engine', () => {
     expect(r.vote.result?.applied).toBe(true);
   });
 
+  it('marks autoApplied from settings when applied', () => {
+    let r = newRound(['c1'], { autoApply: true });
+    r = castVote(r, 'c1', 'Whot', T0 + 1);
+    r = resolveVote(r, T0 + 2);
+    r = applyVote(r, T0 + 3);
+    expect(r.vote.result?.applied).toBe(true);
+    expect(r.vote.result?.autoApplied).toBe(true);
+  });
+
   it('cancels open or locked votes', () => {
     const r = cancelVote(newRound(['c1']), T0 + 1);
     expect(r.vote.status).toBe('cancelled');

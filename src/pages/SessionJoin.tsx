@@ -55,8 +55,13 @@ export default function SessionJoin() {
     setCameraError(null);
     setScannerOpen(true);
     try {
+      // Camera APIs require a secure context (https or localhost). Warn clearly instead of a
+      // cryptic getUserMedia failure so players know to use the https link or enter the code.
+      if (typeof window !== 'undefined' && !window.isSecureContext) {
+        throw new Error('Camera needs a secure (https) connection. Open the https link or enter the code by hand.');
+      }
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error('Camera access is not available in this browser.');
+        throw new Error('Camera access is not available in this browser. Enter the 4-letter code instead.');
       }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -69,7 +74,13 @@ export default function SessionJoin() {
       setCameraStream(stream);
     } catch (error) {
       setCameraStream(null);
-      setCameraError(error instanceof Error ? error.message : 'Could not start camera.');
+      const name = error instanceof DOMException ? error.name : '';
+      const message = name === 'NotAllowedError'
+        ? 'Camera permission was blocked. Allow the camera in your browser, or enter the code by hand.'
+        : name === 'NotFoundError'
+          ? 'No camera was found. Enter the 4-letter code instead.'
+          : error instanceof Error ? error.message : 'Could not start camera.';
+      setCameraError(message);
     }
   }
 

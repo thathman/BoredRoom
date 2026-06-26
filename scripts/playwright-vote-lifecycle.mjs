@@ -100,8 +100,27 @@ assert(hostBucket.errors.length === 0, `host_errors_${JSON.stringify(hostBucket.
 assert(adaBucket.errors.length === 0, `ada_errors_${JSON.stringify(adaBucket.errors)}`);
 assert(tobiBucket.errors.length === 0, `tobi_errors_${JSON.stringify(tobiBucket.errors)}`);
 
+// Scenario 2: a player requests a vote, then the host overrides the winner.
+ada.send('vote:request', { type: 'custom', question: 'Short break?', options: ['Yes', 'No'] });
+const requested = await waitFor('player-requested vote opened', () => {
+  const activeVote = hostBucket.session?.activeVote;
+  return activeVote?.status === 'open' && activeVote.question === 'Short break?' ? activeVote : null;
+});
+assert(requested.createdBy === `vote-ada-${code}`, `request_creator_${requested.createdBy}`);
+
+host.send('vote:override', { option: 'No', reason: 'host call' });
+const overridden = await waitFor('host override resolved', () => {
+  const activeVote = hostBucket.session?.activeVote;
+  return activeVote?.status === 'resolved' && activeVote.result?.hostOverride ? activeVote.result : null;
+});
+assert(overridden.winnerOption === 'No', `override_winner_${overridden.winnerOption}`);
+assert(overridden.hostOverride?.option === 'No', 'override_metadata_missing');
+
+assert(hostBucket.errors.length === 0, `host_errors_2_${JSON.stringify(hostBucket.errors)}`);
+assert(adaBucket.errors.length === 0, `ada_errors_2_${JSON.stringify(adaBucket.errors)}`);
+
 await host.leave();
 await ada.leave();
 await tobi.leave();
 
-console.log(`[pw-votes] PASS vote ${result.voteId} resolved through ${code}`);
+console.log(`[pw-votes] PASS vote ${result.voteId} resolved, request ${requested.id} overridden through ${code}`);

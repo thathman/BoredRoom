@@ -13,6 +13,14 @@ import {
   type DeviceClass,
 } from '@/lib/deviceExperience';
 import { fetchGamesCatalog, type LibraryGame } from '@/lib/serverApi';
+import {
+  isInstallPromptAvailable,
+  isIosSafari,
+  isStandalonePWA,
+  onInstallAvailabilityChange,
+  promptInstall,
+} from '@/lib/pwa';
+import { toast } from 'sonner';
 
 function DeviceCorrection({ device }: { device: DeviceClass }) {
   const alternative = allowedCorrections().find((item) => item !== device);
@@ -108,6 +116,20 @@ export default function Index() {
   const lastHouse = getLastHouseSession();
   const resumableHouse = lastHouse?.code?.length === 4 ? lastHouse : null;
   const [games, setGames] = useState<LibraryGame[]>([]);
+  const [installAvailable, setInstallAvailable] = useState(isInstallPromptAvailable());
+  const installed = isStandalonePWA();
+
+  useEffect(() => onInstallAvailabilityChange(setInstallAvailable), []);
+
+  async function handleInstall() {
+    const accepted = await promptInstall();
+    if (accepted) return;
+    if (isIosSafari()) {
+      toast('Add to Home Screen', { description: 'Tap the Share button, then “Add to Home Screen”.', duration: 12000 });
+    } else if (!installAvailable) {
+      toast('Install from your browser menu', { description: 'Open your browser menu and choose “Install app” or “Add to Home screen”.', duration: 12000 });
+    }
+  }
 
   useEffect(() => {
     void fetchGamesCatalog()
@@ -134,9 +156,11 @@ export default function Index() {
       <div className="mx-auto flex min-h-screen max-w-[1536px] flex-col px-8 pb-6 pt-7 lg:px-14">
         <header className="flex items-center justify-between">
           <BrandLogo className="text-4xl" />
-          <Button variant="outline" className="rounded-xl bg-black/25 text-xs" onClick={() => window.dispatchEvent(new Event('beforeinstallprompt'))}>
-            <Download className="h-4 w-4" /> Add to Home screen
-          </Button>
+          {!installed && (
+            <Button variant="outline" className="rounded-xl bg-black/25 text-xs" onClick={() => void handleInstall()}>
+              <Download className="h-4 w-4" /> {installAvailable ? 'Install app' : 'Add to Home screen'}
+            </Button>
+          )}
         </header>
 
         <section className="flex flex-1 flex-col items-center justify-start pb-[21rem] pt-[7vh] text-center lg:pt-[8vh]">

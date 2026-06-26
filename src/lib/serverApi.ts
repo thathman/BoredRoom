@@ -26,6 +26,7 @@ export interface CreatedSession {
   currentStage?: string;
   settings: {
     allowCrowdVotes: boolean;
+    allowPlayerVotes?: boolean;
     allowBots: boolean;
     hintsEnabled: boolean;
     maxControllers: number;
@@ -37,6 +38,8 @@ export interface SessionMember {
   displayName: string;
   role: 'display' | 'controller' | 'crowd' | 'companion';
   isBot?: boolean;
+  avatar?: string;
+  accentColor?: string;
   ready: boolean;
   connected: boolean;
   joinedAt: string;
@@ -65,6 +68,7 @@ export interface HouseVoteResult {
   applied: boolean;
   autoApplied: boolean;
   status: string;
+  hostOverride?: { actorId: string; option: string; reason?: string; at: string };
   resolvedAt: string;
 }
 
@@ -164,6 +168,36 @@ export async function logoutGameAdmin(): Promise<void> {
   const base = serverHttpBase();
   if (!base) return;
   await fetch(`${base}/games/auth`, { method: 'DELETE', credentials: 'include' });
+}
+
+export interface AdminSessionSummary {
+  code: string;
+  status: string;
+  members: number;
+  connected: number;
+  bots: number;
+  activeGame: string | null;
+  gameStatus: string | null;
+  activeVote: string | null;
+  recentVotes: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminOverview {
+  server: { protocolVersion: number; uptimeSeconds: number; nodeEnv: string };
+  ai: AiHealth;
+  games: { installed: number; available: number };
+  parties: { total: number; inGame: number; list: AdminSessionSummary[] };
+  recentVotes: Array<HouseVoteResult & { sessionCode: string }>;
+}
+
+export async function fetchAdminOverview(): Promise<AdminOverview | null> {
+  const base = serverHttpBase();
+  if (!base) return null;
+  const res = await fetch(`${base}/admin/overview`, { credentials: 'include' });
+  if (!res.ok) return null;
+  return (await res.json()) as AdminOverview;
 }
 
 export type GameUpdateOverride = 'inherit' | 'enabled' | 'disabled';

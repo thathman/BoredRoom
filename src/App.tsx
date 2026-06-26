@@ -14,6 +14,7 @@ const SessionScreenPage = lazy(() => import("./pages/SessionScreen"));
 const SessionSetupPage = lazy(() => import("./pages/SessionSetup"));
 const SessionJoinPage = lazy(() => import("./pages/SessionJoin"));
 const GamesPage = lazy(() => import("./pages/Games"));
+const AdminDashboardPage = lazy(() => import("./pages/AdminDashboard"));
 
 const RouteFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
@@ -37,6 +38,7 @@ const App = () => (
                   {/* Unified house-session routing. Games never leave these session routes. */}
                   <Route path="/start" element={<SessionSetupPage />} />
                   <Route path="/games" element={<GamesPage />} />
+                  <Route path="/admin" element={<AdminDashboardPage />} />
                   <Route path="/packs" element={<Navigate to="/games" replace />} />
                   <Route path="/join" element={<SessionJoinPage />} />
                   <Route path="/join/:sessionCode" element={<SessionJoinPage />} />

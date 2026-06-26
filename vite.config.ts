@@ -53,6 +53,9 @@ export default defineConfig(() => ({
         theme_color: "#45f36b",
         background_color: "#020817",
         display: "standalone",
+        // Prefer an immersive fullscreen shell when the platform supports it, falling back to
+        // standalone, then minimal-ui, then the browser tab.
+        display_override: ["fullscreen", "standalone", "minimal-ui"],
         orientation: "any",
         start_url: "/",
         scope: "/",

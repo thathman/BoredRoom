@@ -13,10 +13,10 @@ import { HouseSession, GameRun } from '../../shared/src/contracts/session';
 // Phase 1 flow coverage (AC-1.3 … AC-1.9). DB writes are env-gated and skip locally;
 // these assert the pure spine logic that the persistence layer serializes.
 describe('foundations flow', () => {
-  it('AC-1.3: creates a valid house session in setup', () => {
+  it('AC-1.3: creates a valid house session in open lobby', () => {
     const s = buildHouseSession({ hostDeviceId: 'host-1' });
     expect(() => HouseSession.parse(s)).not.toThrow();
-    expect(s.status).toBe('setup');
+    expect(s.status).toBe('open_lobby');
     expect(s.code).toHaveLength(4);
     expect(s.settings.maxControllers).toBe(12);
   });
@@ -53,9 +53,9 @@ describe('foundations flow', () => {
   });
 
   it('enforces status transitions', () => {
-    expect(canTransition('setup', 'waiting_for_players')).toBe(true);
-    expect(canTransition('ended', 'game_active')).toBe(false);
-    expect(canTransition('game_active', 'recap')).toBe(true);
+    expect(canTransition('open_lobby', 'selecting_game')).toBe(true);
+    expect(canTransition('ended', 'in_game')).toBe(false);
+    expect(canTransition('in_game', 'game_recap')).toBe(true);
   });
 
   it('session codes use unambiguous alphabet', () => {

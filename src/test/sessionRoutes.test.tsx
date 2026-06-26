@@ -83,6 +83,8 @@ describe('session routing', () => {
   });
 
   it('controller waits in the same session for automatic game switching', () => {
+    // Players reach the controller after creating a profile (via the join flow).
+    localStorage.setItem('boredroom_player_profile', JSON.stringify({ displayName: 'Ada', avatarType: 'emoji', avatarValue: '🦁', accentColor: '#45f36b' }));
     renderAt('/session/ABCD/controller');
     expect(screen.getByText(/controls will switch automatically/i)).toBeInTheDocument();
   });

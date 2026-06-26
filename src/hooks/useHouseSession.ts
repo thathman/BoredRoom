@@ -27,6 +27,8 @@ interface UseHouseSessionInput {
   deviceId: string;
   displayName: string;
   role: HouseSessionRole;
+  avatar?: string;
+  accentColor?: string;
   enabled?: boolean;
 }
 
@@ -37,6 +39,8 @@ export function useHouseSession({
   deviceId,
   displayName,
   role,
+  avatar,
+  accentColor,
   enabled = true,
 }: UseHouseSessionInput) {
   const [snapshot, setSnapshot] = useState<HouseSessionSnapshot | null>(null);
@@ -84,6 +88,8 @@ export function useHouseSession({
           deviceId,
           displayName,
           role,
+          avatar,
+          accentColor,
           ownerCredential:
             role === 'display' || role === 'companion'
               ? getControlCredential(normalizedCode)
@@ -154,7 +160,7 @@ export function useHouseSession({
       roomRef.current?.leave();
       roomRef.current = null;
     };
-  }, [code, deviceId, displayName, enabled, role]);
+  }, [code, deviceId, displayName, enabled, role, avatar, accentColor]);
 
   const setReady = useCallback((ready: boolean) => {
     roomRef.current?.send('session:ready', { ready });
@@ -180,8 +186,33 @@ export function useHouseSession({
     roomRef.current?.send('vote:cast', { option });
   }, []);
 
-  const callVote = useCallback((options: string[]) => {
-    roomRef.current?.send('session:call_vote', { type: 'game_selection', question: 'Which game should we play next?', options });
+  const callVote = useCallback((options: string[], opts?: { type?: string; question?: string; settings?: Record<string, unknown> }) => {
+    roomRef.current?.send('session:call_vote', {
+      type: opts?.type ?? 'game_selection',
+      question: opts?.question ?? 'Which game should we play next?',
+      options,
+      settings: opts?.settings,
+    });
+  }, []);
+
+  const requestVote = useCallback((options: string[], opts?: { type?: string; question?: string }) => {
+    roomRef.current?.send('vote:request', { type: opts?.type, question: opts?.question, options });
+  }, []);
+
+  const closeVote = useCallback(() => {
+    roomRef.current?.send('vote:close');
+  }, []);
+
+  const cancelVote = useCallback(() => {
+    roomRef.current?.send('vote:cancel');
+  }, []);
+
+  const applyVoteResult = useCallback(() => {
+    roomRef.current?.send('vote:apply');
+  }, []);
+
+  const overrideVote = useCallback((option: string, reason?: string) => {
+    roomRef.current?.send('vote:override', { option, reason });
   }, []);
 
   const selectGame = useCallback((gameId: string, settings: Record<string, unknown> = {}) => {
@@ -208,6 +239,14 @@ export function useHouseSession({
     roomRef.current?.send('session:resume_game');
   }, []);
 
+  const endParty = useCallback(() => {
+    roomRef.current?.send('session:end_party');
+  }, []);
+
+  const deleteParty = useCallback((confirm: string) => {
+    roomRef.current?.send('session:delete_party', { confirm });
+  }, []);
+
   return {
     snapshot,
     status,
@@ -225,12 +264,19 @@ export function useHouseSession({
     requestHint,
     castVote,
     callVote,
+    requestVote,
+    closeVote,
+    cancelVote,
+    applyVoteResult,
+    overrideVote,
     selectGame,
     startGame,
     switchGame,
     endGame,
     pauseGame,
     resumeGame,
+    endParty,
+    deleteParty,
     refresh,
   };
 }

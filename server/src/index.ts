@@ -34,6 +34,8 @@ import {
   hydrateActiveRun,
   hydrateSessionMember,
   issueOwnerCredential,
+  listSessionSummaries,
+  listRecentVotesAcrossSessions,
   redeemCompanionPairing,
   registerSession,
   verifyOwnerCredential,
@@ -282,6 +284,34 @@ app.patch('/games/update-policy', async (req, res) => {
 app.get('/sessions/:code/ai/health', (req, res) => {
   if (!requireSessionController(req, res)) return;
   res.json(getAiHealth());
+});
+
+// Admin back office: server-level overview. Guarded by the game-admin session + origin so it
+// never leaks to the public display or controllers. Returns counts and codes only — no secrets.
+const SERVER_STARTED_AT = Date.now();
+app.get('/admin/overview', async (req, res) => {
+  if (!requireGameAdminOrigin(req, res)) return;
+  if (!requireGameAdmin(req, res)) return;
+  const catalog = await listGamesCatalog().catch(() => ({ games: [] as Array<{ installed: boolean }> }));
+  const parties = listSessionSummaries();
+  res.json({
+    server: {
+      protocolVersion: PROTOCOL_VERSION,
+      uptimeSeconds: Math.round((Date.now() - SERVER_STARTED_AT) / 1000),
+      nodeEnv: process.env.NODE_ENV ?? 'development',
+    },
+    ai: getAiHealth(),
+    games: {
+      installed: catalog.games.filter((g) => g.installed).length,
+      available: catalog.games.length,
+    },
+    parties: {
+      total: parties.length,
+      inGame: parties.filter((p) => p.status === 'in_game').length,
+      list: parties,
+    },
+    recentVotes: listRecentVotesAcrossSessions(25),
+  });
 });
 
 app.post('/sessions/:code/ai/moderate', async (req, res) => {
