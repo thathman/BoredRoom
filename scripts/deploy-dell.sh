@@ -18,7 +18,7 @@ git -C "$ROOT_DIR" push origin main
 
 echo "[deploy] syncing repository archive to ${TARGET_HOST}:${TARGET_DIR}"
 git -C "$ROOT_DIR" archive --format=tar HEAD \
-  | ssh "$TARGET_HOST" "rm -rf '$TARGET_DIR' && mkdir -p '$TARGET_DIR' && tar -xf - -C '$TARGET_DIR'"
+  | ssh "$TARGET_HOST" "ENV_BACKUP=\$(mktemp); if [ -f '$TARGET_DIR/.env' ]; then cp '$TARGET_DIR/.env' \"\$ENV_BACKUP\"; elif [ -f /opt/boredroom/.env ]; then cp /opt/boredroom/.env \"\$ENV_BACKUP\"; fi; rm -rf '$TARGET_DIR' && mkdir -p '$TARGET_DIR' && tar -xf - -C '$TARGET_DIR'; if [ -s \"\$ENV_BACKUP\" ]; then cp \"\$ENV_BACKUP\" '$TARGET_DIR/.env'; fi; rm -f \"\$ENV_BACKUP\""
 
 echo "[deploy] building + restarting stack on ${TARGET_HOST}"
 ssh "$TARGET_HOST" "cd '$TARGET_DIR' && docker compose build && docker rm -f boredroom-server boredroom-web >/dev/null 2>&1 || true && docker compose up -d"
