@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { InstalledGameSurface } from '@/components/session/InstalledGameSurface';
 
 const feudState = {
-  gameType: 'faith-feud', name: 'Faith Feud', emoji: '📣', mode: 'feud', phase: 'playing',
+  gameType: 'faith-feud', name: 'Faith Feud', emoji: '📣', mode: 'feud', phase: 'play',
   round: 1, totalRounds: 3,
   challenge: { kind: 'text', prompt: 'Name something you find in a Nigerian kitchen' },
   totalSlots: 5, maxStrikes: 3, strikes: 2,
@@ -27,7 +27,18 @@ describe('Faith Feud answer board', () => {
   });
 
   it('gives a seated controller an answer input', () => {
-    render(<InstalledGameSurface publicState={feudState} privateState={{ seated: true, submitted: false }} role="controller" sendIntent={() => {}} />);
+    render(<InstalledGameSurface publicState={feudState} privateState={{ seated: true, submitted: false, legalIntents: [{ type: 'answer_text', label: 'Answer' }] }} role="controller" sendIntent={() => {}} />);
     expect(screen.getByPlaceholderText('Your answer')).toBeInTheDocument();
+  });
+
+  it('renders the faceoff buzzer only for an eligible representative', () => {
+    render(<InstalledGameSurface publicState={{ ...feudState, phase: 'faceoff_buzz' }} privateState={{ seated: true, legalIntents: [{ type: 'buzz', label: 'BUZZ!' }] }} role="controller" sendIntent={() => {}} />);
+    expect(screen.getByRole('button', { name: 'BUZZ!' })).toBeInTheDocument();
+  });
+
+  it('renders survey collection input separately from gameplay answers', () => {
+    render(<InstalledGameSurface publicState={{ ...feudState, phase: 'survey_collection', totalSlots: 0, collectionIndex: 0, collectionTotal: 2 }} privateState={{ seated: true, legalIntents: [{ type: 'survey_answer', label: 'Survey' }] }} role="controller" sendIntent={() => {}} />);
+    expect(screen.getByPlaceholderText('Your answers, separated by commas')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit survey' })).toBeInTheDocument();
   });
 });

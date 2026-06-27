@@ -4,6 +4,8 @@ import { BrandLogo } from '@/components/brand/BrandLogo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { sounds, vibrate } from '@/lib/sounds';
+import { PidginVoiceSurface } from '@/components/session/PidginVoiceSurface';
+import { WordWahalaSurface } from '@/components/session/WordWahalaSurface';
 
 type PlayerScore = { id: string; name: string; score: number };
 type Challenge = { kind: 'choice' | 'number' | 'text' | 'order'; prompt: string; options?: string[] };
@@ -13,7 +15,7 @@ type GameState = {
   name: string;
   emoji: string;
   mode?: string;
-  phase: 'playing' | 'reveal' | 'finished' | 'round_end';
+  phase: string;
   round?: number;
   totalRounds?: number;
   challenge?: Challenge | null;
@@ -138,6 +140,14 @@ interface LandlordState {
   diceValue?: number | null;
   currentPlayerId?: string;
   cellProps?: { price: number; owned: boolean } | null;
+  auction?: {
+    propertyPosition: number; propertyName: string; currentBid: number; highestBidderId?: string | null;
+    minimumNextBid: number; passedPlayerIds: string[];
+  } | null;
+  pendingTrade?: {
+    id: string; proposerId: string; targetPlayerId: string; offeredProperties: number[];
+    requestedProperties: number[]; offeredCash: number; requestedCash: number;
+  } | null;
   wahalaCard?: { text: string } | null;
   lastAction?: string;
   phase?: string;
@@ -157,6 +167,15 @@ function LandlordSurface({
   const legalIntents = mine.legalIntents ?? [];
   const diceRef = useRef<HTMLDivElement | null>(null);
   const prevDice = useRef<number | null>(null);
+  const [auctionBid, setAuctionBid] = useState('');
+  const [showTrade, setShowTrade] = useState(false);
+  const [tradeTarget, setTradeTarget] = useState('');
+  const [offeredProperties, setOfferedProperties] = useState<number[]>([]);
+  const [requestedProperties, setRequestedProperties] = useState<number[]>([]);
+  const [offeredCash, setOfferedCash] = useState('0');
+  const [requestedCash, setRequestedCash] = useState('0');
+  const auctionMinimumNextBid = state.auction?.minimumNextBid;
+  const pendingTradeId = state.pendingTrade?.id;
 
   // Re-trigger the 3D roll animation whenever the dice value changes.
   useEffect(() => {
@@ -169,6 +188,17 @@ function LandlordSurface({
     sounds.landlordRoll();
   }, [state.diceValue]);
 
+  useEffect(() => {
+    setAuctionBid(auctionMinimumNextBid == null ? '' : String(auctionMinimumNextBid));
+  }, [auctionMinimumNextBid]);
+
+  useEffect(() => {
+    if (!pendingTradeId) return;
+    setShowTrade(false);
+    setOfferedProperties([]);
+    setRequestedProperties([]);
+  }, [pendingTradeId]);
+
   const ownerOf = (idx: number) => players.find((p) => (state.properties?.[p.id] ?? []).includes(idx));
   const indexOf = (id: string) => players.findIndex((p) => p.id === id);
 
@@ -179,6 +209,24 @@ function LandlordSurface({
   }
 
   const cell = mine.position != null ? board[mine.position] : null;
+  const tradeIntent = legalIntents.find((intent) => intent.type === 'propose_trade');
+  const targetPlayers = players.filter((player) => player.id !== state.currentPlayerId);
+  const selectedTarget = targetPlayers.find((player) => player.id === tradeTarget) ?? targetPlayers[0];
+  const targetPropertyIds = selectedTarget ? (state.properties?.[selectedTarget.id] ?? []) : [];
+  const propertyNames = (positions: number[]) => positions.map((position) => board[position]?.name ?? `Space ${position}`).join(', ') || 'none';
+
+  function toggleProperty(list: number[], position: number, setter: (value: number[]) => void) {
+    setter(list.includes(position) ? list.filter((value) => value !== position) : [...list, position]);
+  }
+
+  function proposeTrade() {
+    if (!selectedTarget) return;
+    sendIntent({
+      type: 'propose_trade', targetPlayerId: selectedTarget.id,
+      offeredProperties, requestedProperties,
+      offeredCash: Number(offeredCash) || 0, requestedCash: Number(requestedCash) || 0,
+    });
+  }
 
   return (
     <main className="star-field min-h-screen bg-[#020817] px-4 pb-6 pt-4 text-white sm:px-6">
@@ -234,6 +282,22 @@ function LandlordSurface({
               {state.wahalaCard && <div className="landlord-card max-w-xs rounded-xl border border-secondary/50 bg-secondary/10 p-3 text-xs">{state.wahalaCard.text}</div>}
             </div>
           )}
+
+          {state.auction && (
+            <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-amber-300/50 bg-amber-300/10 p-4 text-center shadow-[0_0_24px_rgba(252,211,77,.2)]">
+              <p className="text-xs uppercase tracking-[0.24em] text-amber-200">Bank auction</p>
+              <h2 className="mt-1 text-xl font-black">{state.auction.propertyName}</h2>
+              <p className="mt-2 text-sm">Highest bid: <strong className="text-amber-200">₦{state.auction.currentBid.toLocaleString()}</strong>{state.auction.highestBidderId ? ` · ${players.find((player) => player.id === state.auction?.highestBidderId)?.name ?? 'Bidder'}` : ''}</p>
+            </div>
+          )}
+
+          {state.pendingTrade && (
+            <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-secondary/50 bg-secondary/10 p-4">
+              <p className="text-xs uppercase tracking-[0.24em] text-secondary">Trade offer</p>
+              <p className="mt-2 text-sm"><strong>{players.find((player) => player.id === state.pendingTrade?.proposerId)?.name}</strong> offers {propertyNames(state.pendingTrade.offeredProperties)}{state.pendingTrade.offeredCash ? ` + ₦${state.pendingTrade.offeredCash.toLocaleString()}` : ''}</p>
+              <p className="mt-1 text-sm">For {propertyNames(state.pendingTrade.requestedProperties)}{state.pendingTrade.requestedCash ? ` + ₦${state.pendingTrade.requestedCash.toLocaleString()}` : ''} from <strong>{players.find((player) => player.id === state.pendingTrade?.targetPlayerId)?.name}</strong>.</p>
+            </div>
+          )}
         </section>
 
         <aside className="space-y-3">
@@ -259,16 +323,42 @@ function LandlordSurface({
               </p>
               {cell && <p className="mt-1 text-xs text-white/60">On: {cell.name}</p>}
               <div className="mt-3 grid gap-2">
-                {legalIntents.map((intent, i) => (
+                {legalIntents.some((intent) => intent.type === 'auction_bid') && (
+                  <div className="grid grid-cols-[1fr_auto] gap-2">
+                    <Input value={auctionBid} onChange={(event) => setAuctionBid(event.target.value)} inputMode="numeric" aria-label="Auction bid amount" className="h-11 bg-black/30" />
+                    <Button className="h-11 bg-amber-300 text-black hover:bg-amber-200" onClick={() => sendIntent({ type: 'auction_bid', amount: Number(auctionBid) })}>Bid</Button>
+                  </div>
+                )}
+                {legalIntents.filter((intent) => intent.type !== 'auction_bid' && intent.type !== 'propose_trade').map((intent, i) => (
                   <Button key={i} variant={intent.type === 'roll' || intent.type === 'buy' ? 'default' : 'outline'}
                     className={intent.type === 'roll' || intent.type === 'buy' ? 'neon-primary h-11 rounded-xl' : 'h-10 rounded-xl text-xs'}
-                    disabled={!mine.isTurn}
+                    disabled={!mine.isTurn && !['auction_pass', 'accept_trade', 'reject_trade', 'cancel_trade'].includes(String(intent.type))}
                     onClick={() => act(intent)}>
                     {String(intent.label ?? intent.type)}
                   </Button>
                 ))}
+                {tradeIntent && !showTrade && <Button variant="outline" className="h-10 rounded-xl text-xs" onClick={() => { setShowTrade(true); setTradeTarget(targetPlayers[0]?.id ?? ''); }}>Propose a trade</Button>}
                 {legalIntents.length === 0 && <p className="text-xs text-muted-foreground">Wait for your turn.</p>}
               </div>
+
+              {showTrade && tradeIntent && selectedTarget && (
+                <div className="mt-4 space-y-3 rounded-xl border border-secondary/35 bg-secondary/5 p-3 text-xs">
+                  <label className="block">Trade with
+                    <select value={selectedTarget.id} onChange={(event) => { setTradeTarget(event.target.value); setRequestedProperties([]); }} className="mt-1 h-10 w-full rounded-lg border border-white/15 bg-[#080b15] px-2">
+                      {targetPlayers.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+                    </select>
+                  </label>
+                  <fieldset><legend className="mb-1 text-muted-foreground">You offer</legend>
+                    <div className="grid gap-1">{(mine.properties ?? []).map((position) => <label key={position} className="flex items-center gap-2"><input type="checkbox" checked={offeredProperties.includes(position)} onChange={() => toggleProperty(offeredProperties, position, setOfferedProperties)} /> {board[position]?.name}</label>)}</div>
+                    <Input value={offeredCash} onChange={(event) => setOfferedCash(event.target.value)} inputMode="numeric" placeholder="Cash offered" className="mt-2 h-9 bg-black/30" />
+                  </fieldset>
+                  <fieldset><legend className="mb-1 text-muted-foreground">You request</legend>
+                    <div className="grid gap-1">{targetPropertyIds.map((position) => <label key={position} className="flex items-center gap-2"><input type="checkbox" checked={requestedProperties.includes(position)} onChange={() => toggleProperty(requestedProperties, position, setRequestedProperties)} /> {board[position]?.name}</label>)}</div>
+                    <Input value={requestedCash} onChange={(event) => setRequestedCash(event.target.value)} inputMode="numeric" placeholder="Cash requested" className="mt-2 h-9 bg-black/30" />
+                  </fieldset>
+                  <div className="grid grid-cols-2 gap-2"><Button variant="ghost" onClick={() => setShowTrade(false)}>Cancel</Button><Button className="neon-primary" onClick={proposeTrade}>Send offer</Button></div>
+                </div>
+              )}
             </div>
           )}
         </aside>
@@ -288,6 +378,12 @@ interface FeudState {
   activeTeam?: number;
   team1Ids?: string[];
   team2Ids?: string[];
+  teamScores?: number[];
+  roundBank?: number;
+  faceoffPlayerIds?: string[];
+  buzzedPlayerId?: string | null;
+  collectionIndex?: number;
+  collectionTotal?: number;
   players?: Array<{ id: string; name: string; score?: number }>;
   phase?: string;
   lastAction?: string;
@@ -309,7 +405,21 @@ function FaithFeudSurface({
   const totalSlots = Math.max(state.totalSlots ?? 0, revealed.length || 5);
   const maxStrikes = state.maxStrikes ?? 3;
   const strikes = state.strikes ?? 0;
-  const teamScore = (ids?: string[]) => (state.players ?? []).filter((p) => ids?.includes(p.id)).reduce((s, p) => s + (p.score ?? 0), 0);
+  const teamScore = (team: number, ids?: string[]) => state.teamScores?.[team]
+    ?? (state.players ?? []).filter((p) => ids?.includes(p.id)).reduce((s, p) => s + (p.score ?? 0), 0);
+  const legalTypes = new Set((mine.legalIntents ?? []).map((intent) => intent.type));
+  const canSurvey = legalTypes.has('survey_answer');
+  const canBuzz = legalTypes.has('buzz');
+  const canAnswer = legalTypes.has('answer_text');
+  const phaseLabel: Record<string, string> = {
+    survey_collection: `Survey ${Number(state.collectionIndex ?? 0) + 1} / ${state.collectionTotal ?? 1}`,
+    faceoff_buzz: 'Faceoff · buzz now',
+    faceoff_answer: 'Faceoff answer',
+    play: `Team ${Number(state.activeTeam ?? 0) + 1} has control`,
+    steal: `Team ${2 - Number(state.activeTeam ?? 0)} can steal`,
+    round_reveal: 'Round board',
+    finished: 'Final result',
+  };
 
   return (
     <main className="star-field min-h-screen bg-[#020817] px-4 pb-6 pt-4 text-white sm:px-6">
@@ -326,19 +436,21 @@ function FaithFeudSurface({
         <div className="flex items-center justify-between gap-3">
           <div className={`flex-1 rounded-2xl border p-3 text-center ${state.activeTeam === 0 ? 'border-primary bg-primary/10' : 'border-white/10'}`}>
             <p className="text-[10px] uppercase tracking-[0.2em] text-secondary">Team 1</p>
-            <p className="text-2xl font-black">{teamScore(state.team1Ids)}</p>
+            <p className="text-2xl font-black">{teamScore(0, state.team1Ids)}</p>
           </div>
           {state.stealActive && <div className="px-2 text-xs uppercase tracking-[0.2em] text-amber-300">Steal!</div>}
           <div className={`flex-1 rounded-2xl border p-3 text-center ${state.activeTeam === 1 ? 'border-primary bg-primary/10' : 'border-white/10'}`}>
             <p className="text-[10px] uppercase tracking-[0.2em] text-secondary">Team 2</p>
-            <p className="text-2xl font-black">{teamScore(state.team2Ids)}</p>
+            <p className="text-2xl font-black">{teamScore(1, state.team2Ids)}</p>
           </div>
         </div>
 
-        <h1 className="mt-5 text-center text-xl font-bold sm:text-3xl">{state.challenge?.prompt ?? 'Faith Feud'}</h1>
+        <p className="mt-5 text-center text-xs uppercase tracking-[0.25em] text-secondary">{phaseLabel[state.phase ?? ''] ?? 'Faith Feud'}</p>
+        <h1 className="mt-2 text-center text-xl font-bold sm:text-3xl">{state.challenge?.prompt ?? 'Faith Feud'}</h1>
+        {(state.roundBank ?? 0) > 0 && <p className="mt-2 text-center text-sm text-primary">Round bank: {state.roundBank} points</p>}
 
         {/* Answer board — revealed answers show; the rest stay covered. */}
-        <div className="mx-auto mt-5 grid max-w-2xl gap-2">
+        {totalSlots > 0 && <div className="mx-auto mt-5 grid max-w-2xl gap-2">
           {Array.from({ length: totalSlots }).map((_, slot) => {
             const ans = revealedByIndex.get(slot) ?? revealed[slot];
             return (
@@ -354,25 +466,29 @@ function FaithFeudSurface({
               </div>
             );
           })}
-        </div>
+        </div>}
 
         {isController && mine.seated !== false && (
           <div className="mx-auto mt-6 max-w-md">
-            {mine.submitted ? (
-              <p className="text-center text-sm text-muted-foreground">Answer locked in. Waiting…</p>
-            ) : (
+            {canBuzz ? (
+              <button type="button" className="mx-auto grid h-32 w-32 place-items-center rounded-full border-4 border-red-200 bg-red-500 text-xl font-black text-white shadow-[0_0_36px_rgba(239,68,68,.6)] active:scale-95"
+                onClick={() => { sounds.feudBuzz(); vibrate([60, 30, 60]); sendIntent({ type: 'buzz' }); }}>BUZZ!</button>
+            ) : canSurvey || canAnswer ? (
               <div className="flex gap-2">
                 <input
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && value.trim()) { sounds.feudBuzz(); sendIntent({ type: 'answer_text', text: value.trim() }); setValue(''); } }}
-                  placeholder="Your answer"
+                  onKeyDown={(e) => { if (e.key === 'Enter' && value.trim()) { sendIntent(canSurvey ? { type: 'survey_answer', answers: value.split(',').map((item) => item.trim()).filter(Boolean) } : { type: 'answer_text', text: value.trim() }); setValue(''); } }}
+                  placeholder={canSurvey ? 'Your answers, separated by commas' : 'Your answer'}
                   className="h-12 flex-1 rounded-xl border border-white/15 bg-black/35 px-4 text-center"
                 />
-                <Button className="neon-primary h-12 rounded-xl" disabled={!value.trim()} onClick={() => { sounds.feudBuzz(); sendIntent({ type: 'answer_text', text: value.trim() }); setValue(''); }}>Answer</Button>
+                <Button className="neon-primary h-12 rounded-xl" disabled={!value.trim()} onClick={() => { sendIntent(canSurvey ? { type: 'survey_answer', answers: value.split(',').map((item) => item.trim()).filter(Boolean) } : { type: 'answer_text', text: value.trim() }); setValue(''); }}>{canSurvey ? 'Submit survey' : 'Answer'}</Button>
               </div>
-            )}
+            ) : <p className="text-center text-sm text-muted-foreground">Waiting for the active player or team…</p>}
           </div>
+        )}
+        {(role === 'display' || role === 'companion') && state.phase === 'round_reveal' && (
+          <div className="mx-auto mt-6 max-w-md"><Button className="neon-primary h-12 w-full rounded-xl" onClick={() => sendIntent({ type: 'advance' })}>Next round</Button></div>
         )}
         <p className="mt-5 text-center text-xs text-muted-foreground">{state.lastAction}</p>
       </div>
@@ -486,6 +602,14 @@ export function InstalledGameSurface({
 
   if (state.mode === 'feud') {
     return <FaithFeudSurface state={state as unknown as FeudState} mine={mine} role={role} sendIntent={sendIntent} value={value} setValue={setValue} />;
+  }
+
+  if (state.mode === 'word-board') {
+    return <WordWahalaSurface state={state as never} mine={mine as never} role={role} sendIntent={sendIntent} />;
+  }
+
+  if (state.mode === 'pidgin') {
+    return <PidginVoiceSurface state={state as never} mine={mine as never} role={role} sendIntent={sendIntent} />;
   }
 
   return (

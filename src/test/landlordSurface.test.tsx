@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { InstalledGameSurface } from '@/components/session/InstalledGameSurface';
 
 // A minimal Oga Landlord public state mirroring the runtime's publicState shape.
@@ -63,5 +63,39 @@ describe('Landlord board surface', () => {
     );
     expect(screen.getByRole('button', { name: 'Roll dice' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mortgage Mile 12 Market/ })).toBeInTheDocument();
+  });
+
+  it('renders auction bidding for every eligible controller, even off turn', () => {
+    render(
+      <InstalledGameSurface
+        publicState={{ ...landlordState, auction: { propertyPosition: 1, propertyName: 'Mile 12 Market', currentBid: 1000, highestBidderId: 'p1', minimumNextBid: 1500, passedPlayerIds: [] } }}
+        privateState={{ seated: true, isTurn: false, cash: 50000, legalIntents: [{ type: 'auction_bid', amount: 1500, label: 'Bid ₦1,500' }, { type: 'auction_pass', label: 'Leave auction' }] }}
+        role="controller"
+        sendIntent={() => {}}
+      />,
+    );
+    expect(screen.getByText('Bank auction')).toBeInTheDocument();
+    expect(screen.getByLabelText('Auction bid amount')).toHaveValue('1500');
+    expect(screen.getByRole('button', { name: 'Leave auction' })).toBeEnabled();
+  });
+
+  it('builds a validated multi-asset trade proposal from controller choices', () => {
+    const sendIntent = vi.fn();
+    render(
+      <InstalledGameSurface
+        publicState={{ ...landlordState, properties: { p1: [1], p2: [3] } }}
+        privateState={{ seated: true, isTurn: true, cash: 50000, position: 1, properties: [1], legalIntents: [{ type: 'propose_trade', label: 'Propose a trade', targets: ['p2'] }] }}
+        role="controller"
+        sendIntent={sendIntent}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Propose a trade' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mile 12 Market' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Alaba Intl' }));
+    fireEvent.change(screen.getByPlaceholderText('Cash offered'), { target: { value: '1000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send offer' }));
+    expect(sendIntent).toHaveBeenCalledWith({
+      type: 'propose_trade', targetPlayerId: 'p2', offeredProperties: [1], requestedProperties: [3], offeredCash: 1000, requestedCash: 0,
+    });
   });
 });

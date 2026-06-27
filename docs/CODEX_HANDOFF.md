@@ -1,6 +1,8 @@
 # Codex Handoff — BoredRoom
 
-Last updated: 2026-06-26 22:05 WAT
+Last updated: 2026-06-27 09:25 WAT
+
+> **Codex continuation (four-game completion checkpoint):** The user required Landlord auctions/trades, real Word Wahala board placement, Pidgin microphone/transcription, and Faith Feud survey/buzzer flow before release work. All four are now implemented in the working trees with dedicated runtime/UI tests. Games suite: 220/220. Main suite: 116 passed, 2 skipped; lint/typecheck/PWA build/server build pass. BoredRoom source is `1.5.0.0`; all game source manifests and the games package are prepared at `1.3.0.0`. Nothing from this checkpoint is pushed or deployed. Dell still runs BoredRoom application commit `70a099d` and signed games `1.2.0.0`. Next phase: final diff review, commit/push the main and games changes, repair the tag workflow so its generated `catalog.json` reaches `main`, publish signed `v1.3.0.0` using the existing GitHub Actions secret, update Dell, then run the expanded live matrix and physical voice/QR checks. Do not use local `.signing/private.pem`; it is ignored, mode 600, and does not match the production public key.
 
 > **DeepSeek V4 Pro continuation (2026-06-26 16:53 WAT):** I'm the current LLM handling this build. Codex started the vote lifecycle, Claude continued through rounds 2–3, party-status migration, admin dashboard, profiles/avatars, PWA/QR, and End/Delete Party. Profiles/avatars and PWA/QR are not yet deployed to Dell. The active goal is now GOAL2.md — the full game-layer rebuild across all 15 games.
 
@@ -50,7 +52,7 @@ Do not mark the long-running goal complete until every requirement in those file
 - Game display/controller surface in current main app: `src/components/session/InstalledGameSurface.tsx`.
 - AI orchestration: `server/src/aiService.ts`.
 - Deterministic bot strategy: `server/src/botStrategy.ts`.
-- Latest main-app deployed commit: `d3d196b Add server-backed vote lifecycle state`.
+- Latest main-app deployed commit: `70a099d Fix profile gate re-prompting returning players; relax E2E error check`.
 
 ### Runtime flow
 
@@ -64,10 +66,11 @@ Do not mark the long-running goal complete until every requirement in those file
 
 ### Games repo
 
-- `catalog.json` points to 15 release artifacts at `1.2.0.0`.
-- Each `games/<id>/manifest.json` currently says `1.0.0.0`, which is a mismatch.
+- `catalog.json` points to the currently live 15 release artifacts at `1.2.0.0`.
+- `package.json` and all `games/<id>/manifest.json` files are prepared at `1.3.0.0`; this deliberate source/catalog difference closes only when signed artifacts are published.
 - `scripts/build-catalog.mjs` builds artifacts/catalog.
-- `scripts/runtime-contract.test.mjs` performs current runtime contract checks.
+- `scripts/runtime-contract.test.mjs` plus dedicated game suites currently pass 218/218 checks.
+- `scripts/sync-word-dictionary.mjs` generates the installable 1,637-entry Word Wahala dictionary from the richer TypeScript source before tests/builds.
 
 ## How to run locally
 

@@ -161,6 +161,73 @@ async function verifyWhot(buckets, displayBucket) {
   assert(JSON.stringify(displayBucket.public.state) === before, 'whot illegal card changed public state');
 }
 
+async function verifyWordWahala(buckets, displayBucket) {
+  const activeId = displayBucket.public.state.currentPlayerId;
+  const active = buckets.find((bucket) => bucket.deviceId === activeId);
+  assert(active, 'word-wahala active controller missing');
+  assert(Array.isArray(active.private.state.rack) && active.private.state.rack.length > 0, 'word-wahala private rack missing');
+  const secretTileId = active.private.state.rack[0].id;
+  assert(!JSON.stringify(displayBucket.public.state).includes(secretTileId), 'word-wahala leaked a rack tile id');
+  await sendAndWait(active.room, displayBucket, { type: 'pass' }, 'word-wahala pass', (state) => state.currentPlayerId !== activeId);
+  assert(Array.isArray(displayBucket.public.state.board) && displayBucket.public.state.board.length === 15, 'word-wahala board missing');
+}
+
+async function verifyFaithFeud(buckets, displayBucket) {
+  if (displayBucket.public.state.phase === 'survey_collection') {
+    for (const [index, bucket] of buckets.entries()) {
+      bucket.room.send('game:intent', { type: 'survey_answer', answers: [`Party answer ${index + 1}`, 'Music', 'Food'] });
+    }
+    await waitFor('faith-feud survey collection', () => displayBucket.public?.state?.phase === 'faceoff_buzz');
+  }
+  const representatives = displayBucket.public.state.faceoffPlayerIds ?? [];
+  assert(representatives.length === 2, 'faith-feud faceoff representatives missing');
+  const first = buckets.find((bucket) => bucket.deviceId === representatives[0]);
+  const second = buckets.find((bucket) => bucket.deviceId === representatives[1]);
+  assert(first && second, 'faith-feud representative controller missing');
+  await sendAndWait(first.room, displayBucket, { type: 'buzz' }, 'faith-feud buzz', (state) => state.phase === 'faceoff_answer' && state.buzzedPlayerId === first.deviceId);
+  await sendAndWait(first.room, displayBucket, { type: 'answer_text', text: 'not on the board one' }, 'faith-feud first faceoff answer', (state) => state.buzzedPlayerId === second.deviceId);
+  await sendAndWait(second.room, displayBucket, { type: 'answer_text', text: 'not on the board two' }, 'faith-feud second faceoff answer', (state) => state.phase === 'play');
+  assert([0, 1].includes(displayBucket.public.state.activeTeam), 'faith-feud did not award team control');
+}
+
+async function verifyPidgin(buckets, displayBucket) {
+  const first = buckets[0];
+  first.room.send('game:intent', { type: 'answer_text', text: 'private transcript sentinel' });
+  await waitFor('pidgin first submission', () => displayBucket.public?.state?.submittedCount === 1);
+  assert(!JSON.stringify(displayBucket.public.state).includes('private transcript sentinel'), 'pidgin leaked a live transcript publicly');
+  for (const bucket of buckets.slice(1)) bucket.room.send('game:intent', { type: 'answer_text', text: 'typed fallback' });
+  await waitFor('pidgin reveal', () => displayBucket.public?.state?.phase === 'reveal');
+  assert((displayBucket.public.state.lastResults ?? []).length === buckets.length, 'pidgin reveal results missing');
+}
+
+async function verifyLandlord(buckets, displayBucket) {
+  for (let attempt = 0; attempt < 20 && !displayBucket.public.state.auction; attempt += 1) {
+    const activeId = displayBucket.public.state.currentPlayerId;
+    const active = buckets.find((bucket) => bucket.deviceId === activeId);
+    assert(active, 'landlord active controller missing');
+    const roll = firstLegal(active.private, 'roll');
+    if (!roll) {
+      const pass = firstLegal(active.private, 'pass');
+      if (pass) await sendAndWait(active.room, displayBucket, pass, 'landlord start auction', (state) => state.auction != null);
+      continue;
+    }
+    await sendAndWait(active.room, displayBucket, roll, `landlord roll ${attempt + 1}`);
+    const pass = firstLegal(active.private, 'pass');
+    if (pass) await sendAndWait(active.room, displayBucket, pass, 'landlord start auction', (state) => state.auction != null);
+  }
+  assert(displayBucket.public.state.auction, 'landlord did not reach an auctionable property');
+  const bidder = buckets.find((bucket) => firstLegal(bucket.private, 'auction_bid'));
+  assert(bidder, 'landlord auction has no eligible bidder');
+  await sendAndWait(bidder.room, displayBucket, firstLegal(bidder.private, 'auction_bid'), 'landlord auction bid', (state) => state.auction?.highestBidderId === bidder.deviceId || state.auction == null);
+  for (const bucket of buckets) {
+    if (bucket === bidder) continue;
+    const pass = firstLegal(bucket.private, 'auction_pass');
+    if (pass) bucket.room.send('game:intent', pass);
+  }
+  await waitFor('landlord auction resolution', () => displayBucket.public?.state?.auction == null);
+  assert((displayBucket.public.state.properties?.[bidder.deviceId] ?? []).length > 0, 'landlord auction winner did not receive property');
+}
+
 async function runBrowserSmoke(code, ownerCredential) {
   let chromium;
   try {
@@ -243,6 +310,10 @@ for (const gameId of GAME_IDS) {
   else if (gameId === 'ettt') await verifyEttt(controllerBuckets, displayBucket);
   else if (gameId === 'ludo') await verifyLudo(controllerBuckets, displayBucket);
   else if (gameId === 'whot') await verifyWhot(controllerBuckets, displayBucket);
+  else if (gameId === 'word-wahala') await verifyWordWahala(controllerBuckets, displayBucket);
+  else if (gameId === 'faith-feud') await verifyFaithFeud(controllerBuckets, displayBucket);
+  else if (gameId === 'pidgin-translator') await verifyPidgin(controllerBuckets, displayBucket);
+  else if (gameId === 'landlord') await verifyLandlord(controllerBuckets, displayBucket);
   else await advanceChallenge(display, displayBucket, controllerBuckets, gameId);
   assert(displayBucket.public.state.gameType === gameId, `${gameId}: game type changed unexpectedly`);
   assert(mode === displayBucket.public.state.mode, `${gameId}: mode changed unexpectedly`);
