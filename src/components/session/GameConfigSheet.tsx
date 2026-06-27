@@ -23,6 +23,66 @@ export function defaultConfig(): GameConfig {
   return { rounds: 5, pace: 'normal', timerMs: PACE_MS.normal, revealCountdownMs: 5000, botCount: 0, hintsEnabled: true };
 }
 
+// Game-specific knobs — ONLY keys the deployed runtimes actually read (no placeholder UI).
+// `toggle` carries a boolean; `select` carries the chosen option value verbatim into run settings.
+type ExtraField =
+  | { key: string; label: string; type: 'toggle'; default: boolean }
+  | { key: string; label: string; type: 'select'; default: string | number; options: Array<{ value: string | number; label: string }> };
+
+const GAME_EXTRAS: Record<string, ExtraField[]> = {
+  whot: [
+    { key: 'specialCards', label: 'Special cards (pick-2, hold-on, general market, WHOT)', type: 'toggle', default: true },
+    { key: 'enableDirection', label: 'Card 11 reverses play direction', type: 'toggle', default: false },
+  ],
+  ettt: [
+    { key: 'teamMode', label: 'Team mode', type: 'toggle', default: false },
+    { key: 'activeMarkLimit', label: 'Marks before rolling', type: 'select', default: 3, options: [{ value: 3, label: '3' }, { value: 4, label: '4' }, { value: 5, label: '5' }] },
+    { key: 'targetScore', label: 'Wins to take the round', type: 'select', default: 3, options: [{ value: 1, label: '1' }, { value: 3, label: '3' }, { value: 5, label: '5' }] },
+  ],
+  'connect-4': [
+    { key: 'teamMode', label: 'Team mode', type: 'toggle', default: false },
+    { key: 'bestOf', label: 'Best of', type: 'select', default: 1, options: [{ value: 1, label: '1' }, { value: 3, label: '3' }, { value: 5, label: '5' }] },
+  ],
+  'faith-feud': [
+    { key: 'steals', label: 'Allow steals', type: 'toggle', default: true },
+    { key: 'aiSurveys', label: 'AI-generated surveys', type: 'toggle', default: true },
+  ],
+  hustle: [
+    { key: 'quickMode', label: 'Quick mode (shorter board)', type: 'toggle', default: false },
+    { key: 'diceMode', label: 'Dice', type: 'select', default: 'single', options: [{ value: 'single', label: 'Single' }, { value: 'double', label: 'Double' }] },
+    { key: 'eventDensity', label: 'Wahala/opportunity density', type: 'select', default: 0.15, options: [{ value: 0.1, label: 'Low' }, { value: 0.15, label: 'Medium' }, { value: 0.25, label: 'High' }] },
+  ],
+  landlord: [
+    { key: 'quickMode', label: 'Quick mode', type: 'toggle', default: false },
+    { key: 'startingCash', label: 'Starting cash', type: 'select', default: 50000, options: [{ value: 30000, label: '₦30k' }, { value: 50000, label: '₦50k' }, { value: 80000, label: '₦80k' }] },
+  ],
+  logo: [
+    { key: 'revealStages', label: 'Reveal stages', type: 'select', default: 5, options: [{ value: 3, label: '3' }, { value: 5, label: '5' }, { value: 7, label: '7' }] },
+  ],
+  'market-price': [
+    { key: 'tolerance', label: 'Accepted tolerance', type: 'select', default: 15, options: [{ value: 10, label: '±10%' }, { value: 15, label: '±15%' }, { value: 20, label: '±20%' }] },
+  ],
+  'pidgin-translator': [
+    { key: 'mode', label: 'Input mode', type: 'select', default: 'speed_voice', options: [{ value: 'speed_voice', label: 'Voice' }, { value: 'text', label: 'Text' }] },
+    { key: 'direction', label: 'Direction', type: 'select', default: 'pidgin_to_english', options: [{ value: 'pidgin_to_english', label: 'Pidgin → English' }, { value: 'english_to_pidgin', label: 'English → Pidgin' }] },
+  ],
+  'color-wahala': [
+    { key: 'difficulty', label: 'Difficulty', type: 'select', default: 'medium', options: [{ value: 'easy', label: 'Easy' }, { value: 'medium', label: 'Medium' }, { value: 'hard', label: 'Hard' }] },
+  ],
+  'word-wahala': [
+    { key: 'rackSize', label: 'Rack size', type: 'select', default: 7, options: [{ value: 5, label: '5' }, { value: 6, label: '6' }, { value: 7, label: '7' }] },
+  ],
+  'half-half': [
+    { key: 'mode', label: 'Mode', type: 'select', default: 'split_vote', options: [{ value: 'split_vote', label: 'Split vote' }, { value: 'midpoint', label: 'Midpoint' }] },
+  ],
+  trivia: [
+    { key: 'aiQuestions', label: 'AI-generated questions', type: 'toggle', default: true },
+  ],
+  'bible-timeline': [
+    { key: 'aiEvents', label: 'AI-generated events', type: 'toggle', default: true },
+  ],
+};
+
 export function GameConfigSheet({
   game,
   readyPlayers,
@@ -39,6 +99,10 @@ export function GameConfigSheet({
   const [pace, setPace] = useState<GamePace>('normal');
   const [botCount, setBotCount] = useState(Math.max(0, Math.min(maxBots, Math.max(0, game.minPlayers - readyPlayers))));
   const [hintsEnabled, setHintsEnabled] = useState(true);
+  const extraFields = GAME_EXTRAS[game.id] ?? [];
+  const [extras, setExtras] = useState<Record<string, string | number | boolean>>(
+    () => Object.fromEntries(extraFields.map((f) => [f.key, f.default])),
+  );
 
   function start() {
     const timerMs = PACE_MS[pace];
@@ -51,6 +115,7 @@ export function GameConfigSheet({
       botCount,
       bots: botCount, // legacy alias
       hintsEnabled,
+      ...extras,
     });
   }
 
@@ -98,6 +163,37 @@ export function GameConfigSheet({
               💡 Hints enabled
               <input type="checkbox" checked={hintsEnabled} onChange={(e) => setHintsEnabled(e.target.checked)} />
             </label>
+          )}
+
+          {extraFields.length > 0 && (
+            <div className="space-y-3 border-t border-white/10 pt-4">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{game.name} rules</p>
+              {extraFields.map((f) => (
+                <div key={f.key} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="flex-1">{f.label}</span>
+                  {f.type === 'toggle' ? (
+                    <input
+                      type="checkbox"
+                      checked={Boolean(extras[f.key])}
+                      onChange={(e) => setExtras((s) => ({ ...s, [f.key]: e.target.checked }))}
+                    />
+                  ) : (
+                    <div className="flex gap-1">
+                      {f.options.map((o) => (
+                        <Button
+                          key={String(o.value)}
+                          variant={extras[f.key] === o.value ? 'default' : 'outline'}
+                          className={`h-9 rounded-lg px-3 text-xs ${extras[f.key] === o.value ? 'neon-primary' : ''}`}
+                          onClick={() => setExtras((s) => ({ ...s, [f.key]: o.value }))}
+                        >
+                          {o.label}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
