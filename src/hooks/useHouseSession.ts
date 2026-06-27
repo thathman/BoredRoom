@@ -56,8 +56,9 @@ export function useHouseSession({
   const [gamePrivateState, setGamePrivateState] = useState<{
     gameType: string;
     state: unknown;
+    hintBudget?: number;
   } | null>(null);
-  const [aiResult, setAiResult] = useState<{ kind: 'commentary' | 'hint' | 'pacing'; text: string | null } | null>(null);
+  const [aiResult, setAiResult] = useState<{ kind: 'commentary' | 'hint' | 'pacing' | 'rules'; text: string | null } | null>(null);
   const roomRef = useRef<Room | null>(null);
   const reconnectRef = useRef(0);
 
@@ -126,10 +127,10 @@ export function useHouseSession({
         room.onMessage('game:public_state', (payload: { gameType: string; state: unknown }) => {
           setGamePublicState(payload);
         });
-        room.onMessage('game:private_state', (payload: { gameType: string; state: unknown }) => {
+        room.onMessage('game:private_state', (payload: { gameType: string; state: unknown; hintBudget?: number }) => {
           setGamePrivateState(payload);
         });
-        room.onMessage('ai:result', (payload: { kind: 'commentary' | 'hint' | 'pacing'; text: string | null }) => {
+        room.onMessage('ai:result', (payload: { kind: 'commentary' | 'hint' | 'pacing' | 'rules'; text: string | null }) => {
           setAiResult(payload);
         });
         room.onMessage('session:kicked', (payload: { reason?: string }) => {
@@ -184,6 +185,10 @@ export function useHouseSession({
 
   const requestHint = useCallback(() => {
     roomRef.current?.send('ai:request_hint');
+  }, []);
+
+  const requestRules = useCallback(() => {
+    roomRef.current?.send('ai:request_rules');
   }, []);
 
   const castVote = useCallback((option: string) => {
@@ -290,6 +295,7 @@ export function useHouseSession({
     setReady,
     sendGameIntent,
     requestHint,
+    requestRules,
     castVote,
     callVote,
     requestVote,

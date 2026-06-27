@@ -1,8 +1,20 @@
 import type { GameRuntime } from '../../shared/src/contracts/gameRuntime.js';
 
 const MODEL = process.env.AI_MODEL?.trim() || 'google/gemini-2.5-flash-lite';
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS ?? 6000);
+
+// Provider-agnostic config: any OpenAI-compatible chat endpoint. Defaults to OpenRouter so the
+// game works zero-config, but a custom/self-hosted model can be used via AI_BASE_URL/AI_API_KEY
+// with no code change. Read at call-time so deployment/tests can override without a restart.
+function aiBaseUrl(): string {
+  return (process.env.AI_BASE_URL?.trim() || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
+}
+function aiApiKey(): string {
+  return process.env.AI_API_KEY?.trim() || process.env.OPENROUTER_API_KEY?.trim() || '';
+}
+function aiCompletionsUrl(): string {
+  return `${aiBaseUrl()}/chat/completions`;
+}
 
 type JsonSchema = {
   type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean';
@@ -60,14 +72,14 @@ export interface AiHealth {
 }
 
 let health: AiHealth = {
-  enabled: Boolean(process.env.OPENROUTER_API_KEY),
+  enabled: Boolean(aiApiKey()),
   model: MODEL,
-  status: process.env.OPENROUTER_API_KEY ? 'active' : 'offline',
+  status: aiApiKey() ? 'active' : 'offline',
   lastLatencyMs: null,
-  lastError: process.env.OPENROUTER_API_KEY ? null : 'AI provider credential is not configured',
+  lastError: aiApiKey() ? null : 'AI provider credential is not configured',
   rateLimitRemaining: null,
   creditStatus: 'unknown',
-  fallbackActive: !process.env.OPENROUTER_API_KEY,
+  fallbackActive: !aiApiKey(),
 };
 
 const banned = /\b(fuck(?:ing|ed|er|s)?|shit(?:ty|s)?|bitch(?:es)?|asshole(?:s)?|cunt(?:s)?|nigger(?:s)?|faggot(?:s)?|retard(?:ed|s)?)\b/i;
@@ -81,13 +93,13 @@ function sanitize(value: unknown, maxLength = 240): string {
 }
 
 export function getAiHealth(): AiHealth {
-  return { ...health, enabled: Boolean(process.env.OPENROUTER_API_KEY), model: MODEL };
+  return { ...health, enabled: Boolean(aiApiKey()), model: MODEL };
 }
 
 function markUnavailable(error: string, started?: number, status: AiHealth['status'] = 'offline'): void {
   health = {
     ...health,
-    enabled: Boolean(process.env.OPENROUTER_API_KEY),
+    enabled: Boolean(aiApiKey()),
     model: MODEL,
     status,
     lastLatencyMs: started ? Date.now() - started : health.lastLatencyMs,
@@ -237,14 +249,14 @@ async function completeStructured<T>(
   user: string,
   maxTokens = 180,
 ): Promise<T | null> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = aiApiKey();
   if (!apiKey) {
     markUnavailable('AI provider credential is not configured');
     return null;
   }
   const started = Date.now();
   try {
-    const response = await fetch(OPENROUTER_URL, {
+    const response = await fetch(aiCompletionsUrl(), {
       method: 'POST',
       signal: AbortSignal.timeout(AI_TIMEOUT_MS),
       headers: {
@@ -281,7 +293,7 @@ async function completeStructured<T>(
         model: MODEL,
         status: response.status === 402 || response.status === 429 ? 'degraded' : 'offline',
         lastLatencyMs: latency,
-        lastError: `openrouter_${response.status}`,
+        lastError: `ai_provider_${response.status}`,
         rateLimitRemaining: Number(response.headers.get('x-ratelimit-remaining')) || null,
         creditStatus: response.status === 402 ? 'exhausted' : health.creditStatus,
         fallbackActive: true,
@@ -381,6 +393,22 @@ export async function explainRejectedIntent(input: {
     100,
   );
   return response?.text ?? deterministic;
+}
+
+// Private rules explanation for the in-controller assistant. Returns a short, friendly
+// how-to-play for this game; fails soft to the game's static rule summary so it always works.
+export async function generateRulesExplanation(input: {
+  gameName: string;
+  rules: string;
+}): Promise<string> {
+  const fallback = input.rules || `Have fun playing ${input.gameName}! Follow the prompts on your screen.`;
+  const response = await completeStructured(
+    recapSchema,
+    'You are a friendly Nigerian game-night assistant. Explain how to play a game in 2-3 short, fun sentences for a first-time player. Use only the supplied rule summary; do not invent rules.',
+    `Game: ${input.gameName}\nRules summary: ${input.rules}`,
+    180,
+  );
+  return response ? `${response.headline}. ${response.paragraph}` : fallback;
 }
 
 // AI trivia-question content generation. Returns validated multiple-choice questions for a game

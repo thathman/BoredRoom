@@ -4,6 +4,7 @@ import {
   getAiHealth,
   generateGameContent,
   generateTriviaQuestions,
+  generateRulesExplanation,
   moderateOwnerContent,
   recommendGames,
 } from '../../server/src/aiService';
@@ -49,6 +50,26 @@ describe('server-side AI fallback and isolation', () => {
     if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY;
     else process.env.OPENROUTER_API_KEY = previousKey;
     if (previousFetch) globalThis.fetch = previousFetch;
+    delete process.env.AI_BASE_URL;
+    delete process.env.AI_API_KEY;
+  });
+
+  it('uses a custom AI_BASE_URL/AI_API_KEY when configured (not locked to OpenRouter)', async () => {
+    process.env.AI_BASE_URL = 'https://my-llm.example/v1';
+    process.env.AI_API_KEY = 'custom-key';
+    let calledUrl = '';
+    let authHeader = '';
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calledUrl = String(input);
+      const h = (init?.headers ?? {}) as Record<string, string>;
+      authHeader = String(h.authorization ?? h.Authorization ?? '');
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ allowed: true }) } }] }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof globalThis.fetch;
+    await moderateOwnerContent('a clean custom phrase');
+    expect(calledUrl).toBe('https://my-llm.example/v1/chat/completions');
+    expect(authHeader).toContain('custom-key');
   });
 
   it('reports offline without exposing a credential', () => {
@@ -203,6 +224,20 @@ describe('server-side AI fallback and isolation', () => {
     const out = await generateTriviaQuestions({ topic: 'Nigeria', count: 5 });
     expect(out).toHaveLength(1);
     expect(out[0].prompt).toBe('Capital of Nigeria?');
+  });
+
+  it('rules explanation falls soft to the static summary with no AI key', async () => {
+    delete process.env.OPENROUTER_API_KEY;
+    const text = await generateRulesExplanation({ gameName: 'Whot', rules: 'Match shape or number; special cards bite.' });
+    expect(text).toBe('Match shape or number; special cards bite.');
+  });
+
+  it('rules explanation uses the AI line when available', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    mockOpenRouter({ headline: 'Whot is easy', paragraph: 'Match the top card by shape or number.' });
+    const text = await generateRulesExplanation({ gameName: 'Whot', rules: 'rules' });
+    expect(text).toContain('Whot is easy');
+    expect(text).toContain('Match the top card');
   });
 
   it('routes faith-feud to survey generation and trivia to questions', async () => {

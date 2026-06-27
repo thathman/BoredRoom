@@ -548,6 +548,7 @@ export function InstalledGameSurface({
   aiHint,
   requestHint,
   aiCommentary,
+  hintBudget,
 }: {
   publicState: unknown;
   privateState: unknown;
@@ -556,6 +557,7 @@ export function InstalledGameSurface({
   aiHint?: string | null;
   requestHint?: () => void;
   aiCommentary?: string | null;
+  hintBudget?: number;
 }) {
   const state = publicState as GameState;
   const mine = (privateState ?? {}) as PrivateState;
@@ -699,6 +701,16 @@ export function InstalledGameSurface({
           >
             {mine.pendingPick && mine.pendingPick > 0 ? `Pick ${mine.pendingPick}` : 'Go to market'}
           </Button>
+          {/* Earned hint — spend one of your won hints for a private tip. */}
+          {requestHint && (
+            <div>
+              <Button variant="ghost" className="w-full text-secondary disabled:opacity-40" disabled={(hintBudget ?? 0) <= 0} onClick={requestHint}>
+                💡 Hint {typeof hintBudget === 'number' ? `(${hintBudget})` : ''}
+              </Button>
+              {aiHint && <p className="mt-1 rounded-xl border border-secondary/40 bg-secondary/10 p-3 text-sm">{aiHint}</p>}
+              {(hintBudget ?? 0) <= 0 && <p className="mt-1 text-center text-[11px] text-muted-foreground">Earn hints by scoring or winning a round.</p>}
+            </div>
+          )}
         </section>
         {whotCardId ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm">
@@ -785,7 +797,9 @@ export function InstalledGameSurface({
                   {mine.submitted ? <><Check /> Locked in</> : 'Submit answer'}
                 </Button>
                 {requestHint && !mine.submitted && (
-                  <Button variant="ghost" className="mt-2 w-full text-secondary" onClick={requestHint}>Ask for a private hint</Button>
+                  <Button variant="ghost" className="mt-2 w-full text-secondary disabled:opacity-40" disabled={(hintBudget ?? 0) <= 0} onClick={requestHint}>
+                    💡 Hint {typeof hintBudget === 'number' ? `(${hintBudget})` : ''}
+                  </Button>
                 )}
                 {aiHint && <p className="mt-3 rounded-xl border border-secondary/40 bg-secondary/10 p-3 text-sm">{aiHint}</p>}
               </div>

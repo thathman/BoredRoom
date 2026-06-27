@@ -85,6 +85,7 @@ export default function SessionScreen() {
     setReady,
     sendGameIntent,
     requestHint,
+    requestRules,
     castVote,
     callVote,
     requestVote,
@@ -466,12 +467,19 @@ export default function SessionScreen() {
 
   // Controller chip + flyout (player name/avatar, edit, achievements, pause) — replaces the old
   // floating top-right pause button so it never covers the in-game round/turn header.
+  const rulesText = aiResult?.kind === 'rules' ? aiResult.text : null;
   const controllerMenu = (role === 'controller' || role === 'crowd') ? (
     <ControllerMenu
       profile={profile}
       onSaveProfile={setProfile}
       onPause={() => pauseGame('player_pause')}
       canPause={activeRun?.status === 'active'}
+      extraSlot={activeRun ? (
+        <div className="space-y-2">
+          <Button variant="outline" className="h-10 w-full rounded-xl text-xs" onClick={() => requestRules()}>🤖 How to play</Button>
+          {rulesText && <p className="rounded-xl border border-secondary/30 bg-secondary/10 p-2 text-[11px] leading-relaxed text-white/85">{rulesText}</p>}
+        </div>
+      ) : undefined}
     />
   ) : null;
 
@@ -560,6 +568,7 @@ export default function SessionScreen() {
           aiHint={aiResult?.kind === 'hint' ? aiResult.text : null}
           aiCommentary={aiResult?.kind === 'commentary' || aiResult?.kind === 'pacing' ? aiResult.text : null}
           requestHint={role === 'controller' && snapshot?.session.settings.hintsEnabled ? requestHint : undefined}
+          hintBudget={gamePrivateState?.gameType === activeRun.gameType ? gamePrivateState.hintBudget : undefined}
         />
       </div>
     );

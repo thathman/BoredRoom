@@ -59,6 +59,7 @@ import {
   generateCommentary,
   generatePacingSuggestion,
   generatePrivateHint,
+  generateRulesExplanation,
   generateRecap,
   generateGameContent,
 } from '../aiService.js';
@@ -97,6 +98,11 @@ export class HouseSessionRoom extends Room {
   private gameRuntime: GameRuntime | null = null;
   private voteTimer: NodeJS.Timeout | null = null;
   private lastVoteRequestAt = 0;
+  // Earned hints: each player starts a game with 1 and earns +1 (cap 3) whenever their score
+  // rises — so hints are won by playing well, not handed out for free.
+  private hintBudgets = new Map<string, number>();
+  private lastScores = new Map<string, number>();
+  private static readonly HINT_CAP = 3;
   private botTimer: NodeJS.Timeout | null = null;
   private botTurnNumber = 0;
 
@@ -388,6 +394,13 @@ export class HouseSessionRoom extends Room {
     this.onMessage('ai:request_hint', (client) => {
       const identity = this.identities.get(client.sessionId);
       if (!identity || identity.role !== 'controller' || !this.gameRuntime) return;
+      // Hints are earned — spend one from the budget, or tell the player to earn more.
+      const budget = this.hintBudgets.get(identity.deviceId) ?? 0;
+      if (budget <= 0) {
+        client.send('ai:result', { kind: 'hint', text: 'No hints left — earn one by scoring or winning a round.' });
+        return;
+      }
+      this.hintBudgets.set(identity.deviceId, budget - 1);
       const legalIntents = this.gameRuntime.legalIntents?.(identity.deviceId) ?? [];
       void generatePrivateHint({
         gameName: this.gameRuntime.gameType,
@@ -397,6 +410,19 @@ export class HouseSessionRoom extends Room {
         legalIntents,
       }).then((hint) => {
         client.send('ai:result', { kind: 'hint', text: hint });
+      });
+      // Refresh the controller's budget display.
+      this.sendGameState(client, identity);
+    });
+    this.onMessage('ai:request_rules', (client) => {
+      const identity = this.identities.get(client.sessionId);
+      if (!identity || identity.role !== 'controller' || !this.gameRuntime) return;
+      // Private to this device only — never broadcast.
+      void generateRulesExplanation({
+        gameName: this.gameRuntime.gameType,
+        rules: this.gameRuntime.metadata.rules?.summary ?? `Have fun playing ${this.gameRuntime.gameType}!`,
+      }).then((text) => {
+        client.send('ai:result', { kind: 'rules', text });
       });
     });
     this.onMessage('vote:cast', (client, payload: { option?: string }) => {
@@ -546,15 +572,31 @@ export class HouseSessionRoom extends Room {
       state: projectedState,
     });
     if (identity.role === 'controller') {
+      if (!this.hintBudgets.has(identity.deviceId)) this.hintBudgets.set(identity.deviceId, 1);
       client.send('game:private_state', {
         gameType: this.gameRuntime.gameType,
         state: this.gameRuntime.privateState(identity.deviceId),
+        hintBudget: this.hintBudgets.get(identity.deviceId) ?? 0,
       });
+    }
+  }
+
+  // Award +1 hint to any player whose score rose since the last broadcast (generic across games).
+  private awardHintsFromScores(): void {
+    const players = (this.gameRuntime?.publicState() as { players?: Array<{ id: string; score?: number }> })?.players ?? [];
+    for (const p of players) {
+      const score = Number(p.score ?? 0);
+      const prev = this.lastScores.get(p.id);
+      if (prev !== undefined && score > prev) {
+        this.hintBudgets.set(p.id, Math.min(HouseSessionRoom.HINT_CAP, (this.hintBudgets.get(p.id) ?? 1) + 1));
+      }
+      this.lastScores.set(p.id, score);
     }
   }
 
   private broadcastGameState(): void {
     if (!this.gameRuntime) return;
+    this.awardHintsFromScores();
     for (const client of this.clients) {
       const identity = this.identities.get(client.sessionId);
       if (identity) this.sendGameState(client, identity);
@@ -657,6 +699,9 @@ export class HouseSessionRoom extends Room {
 
   private async startGame(): Promise<void> {
     this.prepareBotSeats();
+    // Fresh earned-hint budgets each game (everyone starts with one).
+    this.hintBudgets.clear();
+    this.lastScores.clear();
     const runtime = startSelectedGame(this.code);
     if (!runtime) {
       this.broadcast('session:error', { code: 'run_not_found' });
