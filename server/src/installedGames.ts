@@ -28,6 +28,23 @@ const PUBLIC_KEY = process.env.BOREDROOM_GAMES_PUBLIC_KEY?.trim() || `-----BEGIN
 MCowBQYDK2VwAyEA3GPtGkub/09AvQgAL4a4hmBPnolthU+p3TbytYFC0PU=
 -----END PUBLIC KEY-----`;
 const MAX_ARTIFACT_BYTES = 25_000_000;
+
+// Pure, side-effect-free byte-level artifact gate. Rejects an oversized/short/tampered/forged
+// artifact before anything touches disk. Throws a stable error code; returns the sha256 on pass.
+export function verifyArtifactBytes(
+  bytes: Buffer,
+  expected: { size: number; sha256: string; signature: string },
+  publicKeyPem: string = PUBLIC_KEY,
+): string {
+  if (bytes.length > MAX_ARTIFACT_BYTES) throw new Error('artifact_too_large');
+  if (bytes.length !== expected.size) throw new Error('artifact_size_mismatch');
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  if (digest !== expected.sha256) throw new Error('artifact_digest_invalid');
+  if (!verify(null, Buffer.from(digest, 'utf8'), createPublicKey(publicKeyPem), Buffer.from(expected.signature, 'base64'))) {
+    throw new Error('artifact_signature_invalid');
+  }
+  return digest;
+}
 const installed = new Map<string, InstalledGame>();
 interface LoadedGamePlugin {
   id: string;
@@ -301,12 +318,7 @@ export async function installOfficialGame(gameId: string): Promise<InstalledGame
   const contentLength = Number(response.headers.get('content-length') ?? 0);
   if (contentLength > MAX_ARTIFACT_BYTES) throw new Error('artifact_too_large');
   const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length > MAX_ARTIFACT_BYTES || bytes.length !== game.artifact.size) throw new Error('artifact_size_mismatch');
-  const digest = createHash('sha256').update(bytes).digest('hex');
-  if (digest !== game.artifact.sha256) throw new Error('artifact_digest_invalid');
-  if (!verify(null, Buffer.from(digest, 'utf8'), createPublicKey(PUBLIC_KEY), Buffer.from(game.artifact.signature, 'base64'))) {
-    throw new Error('artifact_signature_invalid');
-  }
+  verifyArtifactBytes(bytes, game.artifact);
 
   const stagingRoot = path.join(GAMES_ROOT, '.staging');
   const staging = path.join(stagingRoot, `${game.id}-${Date.now()}`);
