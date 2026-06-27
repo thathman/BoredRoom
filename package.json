@@ -18,6 +18,7 @@
     "smoke:e2e": "node scripts/smoke-unified-session.mjs",
     "smoke:ui-entry": "node scripts/playwright-entry-flows.mjs",
     "smoke:votes": "node scripts/playwright-vote-lifecycle.mjs",
+    "smoke:host-controls": "node scripts/playwright-host-controls.mjs",
     "smoke:gameplay": "node scripts/playwright-gameplay-matrix.mjs",
     "smoke:all": "npm run smoke:server-start && npm run smoke:e2e"
   },
