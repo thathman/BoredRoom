@@ -270,6 +270,109 @@ function LandlordSurface({
   );
 }
 
+// ── Faith Feud answer board ──────────────────────────────────────────────────
+interface FeudState {
+  challenge?: { prompt?: string } | null;
+  totalSlots?: number;
+  maxStrikes?: number;
+  revealedAnswers?: Array<{ index: number; text: string; points: number }>;
+  strikes?: number;
+  stealActive?: boolean;
+  activeTeam?: number;
+  team1Ids?: string[];
+  team2Ids?: string[];
+  players?: Array<{ id: string; name: string; score?: number }>;
+  phase?: string;
+  lastAction?: string;
+}
+
+function FaithFeudSurface({
+  state, mine, role, sendIntent, value, setValue,
+}: {
+  state: FeudState;
+  mine: { seated?: boolean; team?: number; submitted?: boolean; legalIntents?: Array<Record<string, unknown>> };
+  role: 'display' | 'controller' | 'crowd' | 'companion';
+  sendIntent: (intent: Record<string, unknown>) => void;
+  value: string;
+  setValue: (v: string) => void;
+}) {
+  const isController = role === 'controller';
+  const revealed = state.revealedAnswers ?? [];
+  const revealedByIndex = new Map(revealed.map((r) => [r.index, r]));
+  const totalSlots = Math.max(state.totalSlots ?? 0, revealed.length || 5);
+  const maxStrikes = state.maxStrikes ?? 3;
+  const strikes = state.strikes ?? 0;
+  const teamScore = (ids?: string[]) => (state.players ?? []).filter((p) => ids?.includes(p.id)).reduce((s, p) => s + (p.score ?? 0), 0);
+
+  return (
+    <main className="star-field min-h-screen bg-[#020817] px-4 pb-6 pt-4 text-white sm:px-6">
+      <header className="mx-auto flex max-w-5xl items-center justify-between border-b border-white/10 pb-3">
+        <div className="flex items-center gap-3"><BrandLogo className="text-2xl" /><span className="text-sm font-semibold">📣 Faith Feud</span></div>
+        <div className="flex gap-1">
+          {Array.from({ length: maxStrikes }).map((_, i) => (
+            <span key={i} className={`text-xl ${i < strikes ? 'text-red-400' : 'text-white/15'}`}>✘</span>
+          ))}
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-5xl py-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className={`flex-1 rounded-2xl border p-3 text-center ${state.activeTeam === 0 ? 'border-primary bg-primary/10' : 'border-white/10'}`}>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-secondary">Team 1</p>
+            <p className="text-2xl font-black">{teamScore(state.team1Ids)}</p>
+          </div>
+          {state.stealActive && <div className="px-2 text-xs uppercase tracking-[0.2em] text-amber-300">Steal!</div>}
+          <div className={`flex-1 rounded-2xl border p-3 text-center ${state.activeTeam === 1 ? 'border-primary bg-primary/10' : 'border-white/10'}`}>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-secondary">Team 2</p>
+            <p className="text-2xl font-black">{teamScore(state.team2Ids)}</p>
+          </div>
+        </div>
+
+        <h1 className="mt-5 text-center text-xl font-bold sm:text-3xl">{state.challenge?.prompt ?? 'Faith Feud'}</h1>
+
+        {/* Answer board — revealed answers show; the rest stay covered. */}
+        <div className="mx-auto mt-5 grid max-w-2xl gap-2">
+          {Array.from({ length: totalSlots }).map((_, slot) => {
+            const ans = revealedByIndex.get(slot) ?? revealed[slot];
+            return (
+              <div key={slot} className={`landlord-card flex items-center justify-between rounded-xl border px-4 py-3 ${ans ? 'border-primary bg-primary/10' : 'border-white/10 bg-white/[0.03]'}`}>
+                {ans ? (
+                  <>
+                    <span className="font-semibold">{ans.text}</span>
+                    <span className="font-mono text-primary">{ans.points}</span>
+                  </>
+                ) : (
+                  <span className="mx-auto text-lg font-black text-white/30">{slot + 1}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {isController && mine.seated !== false && (
+          <div className="mx-auto mt-6 max-w-md">
+            {mine.submitted ? (
+              <p className="text-center text-sm text-muted-foreground">Answer locked in. Waiting…</p>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && value.trim()) { sounds.feudBuzz(); sendIntent({ type: 'answer_text', text: value.trim() }); setValue(''); } }}
+                  placeholder="Your answer"
+                  className="h-12 flex-1 rounded-xl border border-white/15 bg-black/35 px-4 text-center"
+                />
+                <Button className="neon-primary h-12 rounded-xl" disabled={!value.trim()} onClick={() => { sounds.feudBuzz(); sendIntent({ type: 'answer_text', text: value.trim() }); setValue(''); }}>Answer</Button>
+              </div>
+            )}
+          </div>
+        )}
+        <p className="mt-5 text-center text-xs text-muted-foreground">{state.lastAction}</p>
+      </div>
+    </main>
+  );
+}
+
 const ludoPalette = [
   { name: 'Emerald', token: 'bg-primary text-[#031008]', glow: 'shadow-[0_0_18px_rgba(69,243,107,.65)]', border: 'border-primary/80', area: 'bg-primary/10' },
   { name: 'Violet', token: 'bg-secondary text-white', glow: 'shadow-[0_0_18px_rgba(179,76,255,.65)]', border: 'border-secondary/80', area: 'bg-secondary/10' },
@@ -372,6 +475,10 @@ export function InstalledGameSurface({
 
   if (state.mode === 'landlord') {
     return <LandlordSurface state={state as unknown as LandlordState} mine={mine} role={role} sendIntent={sendIntent} />;
+  }
+
+  if (state.mode === 'feud') {
+    return <FaithFeudSurface state={state as unknown as FeudState} mine={mine} role={role} sendIntent={sendIntent} value={value} setValue={setValue} />;
   }
 
   return (
