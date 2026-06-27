@@ -516,6 +516,105 @@ export async function generateFeudSurveys(input: { count: number; avoid?: string
   return (response?.surveys ?? []).filter((s) => !avoidSet.has(s.question.toLowerCase().trim())).slice(0, count);
 }
 
+// --- Logo Guesser AI items (brand + hint + category) --------------------------------------
+interface AiLogoItem { name: string; hint: string; category: string }
+
+function validateLogoBatch(value: unknown): { logos: AiLogoItem[] } | null {
+  if (!isRecord(value) || !Array.isArray(value.logos)) return null;
+  const logos: AiLogoItem[] = [];
+  for (const l of value.logos) {
+    if (!isRecord(l)) continue;
+    const name = typeof l.name === 'string' ? sanitize(l.name, 60) : '';
+    const hint = typeof l.hint === 'string' ? sanitize(l.hint, 80) : '';
+    const category = typeof l.category === 'string' ? sanitize(l.category, 40) : 'Brands';
+    if (name && hint) logos.push({ name, hint, category });
+  }
+  return logos.length ? { logos } : null;
+}
+
+const logoBatchSchema: StructuredSchema<{ logos: AiLogoItem[] }> = {
+  name: 'boredroom_logo_batch',
+  validate: validateLogoBatch,
+  schema: {
+    type: 'object', additionalProperties: false, required: ['logos'],
+    properties: {
+      logos: {
+        type: 'array', maxItems: 12,
+        items: {
+          type: 'object', additionalProperties: false, required: ['name', 'hint', 'category'],
+          properties: {
+            name: { type: 'string', maxLength: 60 },
+            hint: { type: 'string', maxLength: 80 },
+            category: { type: 'string', maxLength: 40 },
+          },
+        },
+      },
+    },
+  },
+};
+
+export async function generateLogoItems(input: { count: number; avoid?: string[] }): Promise<AiLogoItem[]> {
+  const count = Math.min(12, Math.max(1, input.count));
+  const avoid = (input.avoid ?? []).slice(0, 40).join('; ');
+  const response = await completeStructured(
+    logoBatchSchema,
+    'You list well-known brands (Nigerian and global) for a "guess the brand" party-game. Each item has the brand name, a one-line slogan/hint, and a category. Family-friendly, real brands only. Never reuse an avoided brand.',
+    `Count: ${count}\nAvoid: ${avoid || '(none)'}`,
+    600,
+  );
+  const avoidSet = new Set((input.avoid ?? []).map((p) => p.toLowerCase().trim()));
+  return (response?.logos ?? []).filter((l) => !avoidSet.has(l.name.toLowerCase().trim())).slice(0, count);
+}
+
+// --- Bible Timeline AI events (event + chronological position) ----------------------------
+interface AiBibleEvent { event: string; position: number }
+
+function validateBibleBatch(value: unknown): { events: AiBibleEvent[] } | null {
+  if (!isRecord(value) || !Array.isArray(value.events)) return null;
+  const events: AiBibleEvent[] = [];
+  for (const e of value.events) {
+    if (!isRecord(e)) continue;
+    const event = typeof e.event === 'string' ? sanitize(e.event, 80) : '';
+    const position = Number(e.position);
+    if (event && Number.isFinite(position)) events.push({ event, position });
+  }
+  // Need at least 3 to make an ordering round.
+  return events.length >= 3 ? { events } : null;
+}
+
+const bibleBatchSchema: StructuredSchema<{ events: AiBibleEvent[] }> = {
+  name: 'boredroom_bible_batch',
+  validate: validateBibleBatch,
+  schema: {
+    type: 'object', additionalProperties: false, required: ['events'],
+    properties: {
+      events: {
+        type: 'array', maxItems: 12,
+        items: {
+          type: 'object', additionalProperties: false, required: ['event', 'position'],
+          properties: {
+            event: { type: 'string', maxLength: 80 },
+            position: { type: 'integer', minimum: 0, maximum: 10000 },
+          },
+        },
+      },
+    },
+  },
+};
+
+export async function generateBibleEvents(input: { count: number; avoid?: string[] }): Promise<AiBibleEvent[]> {
+  const count = Math.min(12, Math.max(3, input.count));
+  const avoid = (input.avoid ?? []).slice(0, 40).join('; ');
+  const response = await completeStructured(
+    bibleBatchSchema,
+    'You list Bible events for a chronological-ordering game. Each event has a short label and a "position" integer that is its chronological order (smaller = earlier). Accurate canonical order. Never reuse an avoided event.',
+    `Count: ${count}\nAvoid: ${avoid || '(none)'}`,
+    600,
+  );
+  const avoidSet = new Set((input.avoid ?? []).map((p) => p.toLowerCase().trim()));
+  return (response?.events ?? []).filter((e) => !avoidSet.has(e.event.toLowerCase().trim()));
+}
+
 // Only games that consume the multiple-choice question shape are routed to trivia generation.
 // market-price (real Naira prices) and color-wahala (procedural Stroop + curated flag facts)
 // stay on curated/procedural data on purpose — AI-invented prices/flags would be wrong.
@@ -523,21 +622,33 @@ const GAME_TRIVIA_TOPICS: Record<string, string> = {
   trivia: 'Nigerian general knowledge, culture, history, music, sports and food',
 };
 
-// One entry point the server uses for any AI-capable content game. Returns plain question/survey
-// arrays the runtimes merge ahead of their local banks; always [] on failure (fail-soft).
+// One entry point the server uses for any AI-capable content game. Returns plain content arrays
+// the runtimes merge ahead of their local banks; always empty on failure (fail-soft).
+export interface GameContent {
+  questions: AiTriviaQuestion[];
+  surveys: AiSurvey[];
+  logos: AiLogoItem[];
+  events: AiBibleEvent[];
+}
+const EMPTY_CONTENT: GameContent = { questions: [], surveys: [], logos: [], events: [] };
+
 export async function generateGameContent(input: {
   gameId: string;
   count: number;
   avoid?: string[];
-}): Promise<{ questions: AiTriviaQuestion[]; surveys: AiSurvey[] }> {
+}): Promise<GameContent> {
   if (input.gameId === 'faith-feud') {
-    const surveys = await generateFeudSurveys({ count: input.count, avoid: input.avoid });
-    return { questions: [], surveys };
+    return { ...EMPTY_CONTENT, surveys: await generateFeudSurveys({ count: input.count, avoid: input.avoid }) };
+  }
+  if (input.gameId === 'logo') {
+    return { ...EMPTY_CONTENT, logos: await generateLogoItems({ count: input.count, avoid: input.avoid }) };
+  }
+  if (input.gameId === 'bible-timeline') {
+    return { ...EMPTY_CONTENT, events: await generateBibleEvents({ count: input.count, avoid: input.avoid }) };
   }
   const topic = GAME_TRIVIA_TOPICS[input.gameId];
-  if (!topic) return { questions: [], surveys: [] };
-  const questions = await generateTriviaQuestions({ topic, count: input.count, avoid: input.avoid });
-  return { questions, surveys: [] };
+  if (!topic) return EMPTY_CONTENT;
+  return { ...EMPTY_CONTENT, questions: await generateTriviaQuestions({ topic, count: input.count, avoid: input.avoid }) };
 }
 
 export async function generateRecap(input: {

@@ -224,6 +224,23 @@ describe('server-side AI fallback and isolation', () => {
     const out = await generateGameContent({ gameId: 'trivia', count: 5 });
     expect(out.questions).toEqual([]);
     expect(out.surveys).toEqual([]);
+    expect(out.logos).toEqual([]);
+    expect(out.events).toEqual([]);
+  });
+
+  it('routes logo to brand generation and bible-timeline to event generation', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    mockOpenRouter({ logos: [{ name: 'Jumia', hint: 'Online shopping', category: 'Ecommerce' }] });
+    const logo = await generateGameContent({ gameId: 'logo', count: 4 });
+    expect(logo.logos).toEqual([{ name: 'Jumia', hint: 'Online shopping', category: 'Ecommerce' }]);
+    expect(logo.questions).toEqual([]);
+
+    mockOpenRouter({ events: [
+      { event: 'Creation', position: 1 }, { event: 'The Flood', position: 2 }, { event: 'Exodus', position: 3 },
+    ] });
+    const bible = await generateGameContent({ gameId: 'bible-timeline', count: 5 });
+    expect(bible.events.length).toBe(3);
+    expect(bible.questions).toEqual([]);
   });
 
   it('anti-repeat memory accumulates and de-dupes recent prompts per session', () => {

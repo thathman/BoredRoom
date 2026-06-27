@@ -582,13 +582,20 @@ export class HouseSessionRoom extends Room {
     if (settings.aiContent === false) return next;
     const count = Math.min(12, Math.max(3, Number(settings.questionCount ?? settings.rounds ?? 8)));
     try {
-      const { questions, surveys } = await generateGameContent({ gameId, count, avoid });
-      if (questions.length === 0 && surveys.length === 0) return next;
-      rememberPrompts(sessionId, gameId, [...questions.map((q) => q.prompt), ...surveys.map((s) => s.question)]);
+      const { questions, surveys, logos, events } = await generateGameContent({ gameId, count, avoid });
+      if (questions.length === 0 && surveys.length === 0 && logos.length === 0 && events.length === 0) return next;
+      rememberPrompts(sessionId, gameId, [
+        ...questions.map((q) => q.prompt),
+        ...surveys.map((s) => s.question),
+        ...logos.map((l) => l.name),
+        ...events.map((e) => e.event),
+      ]);
       next = {
         ...next,
         ...(questions.length ? { aiQuestions: questions } : {}),
         ...(surveys.length ? { aiSurveys: surveys } : {}),
+        ...(logos.length ? { aiLogos: logos } : {}),
+        ...(events.length ? { aiEvents: events } : {}),
       };
       return next;
     } catch (error) {
