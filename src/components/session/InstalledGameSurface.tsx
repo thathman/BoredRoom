@@ -189,8 +189,15 @@ function LandlordSurface({
 
       <div className="mx-auto grid max-w-7xl gap-5 py-5 lg:grid-cols-[1fr_280px]">
         <section>
-          {/* Board ring as a wrapping track; each cell tinted by its colour set. */}
-          <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
+          {/* Board ring as a wrapping track; each cell tinted by its colour set, over a Lagos
+              landmark backdrop dimmed so tiles stay readable. */}
+          <div
+            className="relative grid grid-cols-5 gap-1.5 rounded-2xl border border-white/10 p-2 sm:grid-cols-10"
+            style={{
+              backgroundImage: 'linear-gradient(rgba(2,8,23,.82), rgba(2,8,23,.92)), url(/tokens/lagos-board-bg.jpg)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}>
             {board.map((bcell, idx) => {
               const owner = ownerOf(idx);
               const here = players.filter((p) => (state.positions?.[p.id] ?? 0) === idx);
