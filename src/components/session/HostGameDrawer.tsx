@@ -3,6 +3,7 @@ import { Bot, CircleStop, Gamepad2, Pause, Play, Settings, Users } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { QRCodeSVG } from 'qrcode.react';
 import { fetchAiHealth, type AiHealth, type SessionMember } from '@/lib/serverApi';
 
 interface DrawerGame {
@@ -155,15 +156,20 @@ export function HostGameDrawer({
               <p>Game-specific settings appear in the selected game before play. House-wide settings remain attached to this session.</p>
               <div className="border-t border-border pt-3">
                 <p className="font-medium text-foreground">Pair a host companion</p>
-                <p className="mt-1 text-xs">Open this session’s companion URL on another device, then enter a one-time code.</p>
+                <p className="mt-1 text-xs">Scan this QR on the companion device — it pairs in one step. Or enter the code manually.</p>
                 {pairingCode ? (
                   <div className="mt-3 rounded-xl bg-primary/10 p-3 text-center">
-                    <p className="font-mono text-3xl font-bold tracking-[0.3em] text-primary">{pairingCode}</p>
+                    {/* One-scan pairing: QR embeds the room code + one-time approval token. */}
+                    <div className="mx-auto w-fit rounded-lg bg-white p-2">
+                      <QRCodeSVG value={`${window.location.origin}/pair/${sessionCode}?t=${pairingCode}`} size={132} />
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">Scan to pair · or enter code</p>
+                    <p className="font-mono text-2xl font-bold tracking-[0.3em] text-primary">{pairingCode}</p>
                     <p className="mt-1 text-xs">Expires in 5 minutes</p>
                   </div>
                 ) : (
                   <Button className="mt-3 w-full" variant="outline" disabled={pairingBusy} onClick={onCreatePairing}>
-                    {pairingBusy ? 'Creating code…' : 'Create pairing code'}
+                    {pairingBusy ? 'Creating code…' : 'Show pairing QR'}
                   </Button>
                 )}
               </div>

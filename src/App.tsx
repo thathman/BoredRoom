@@ -15,6 +15,7 @@ const SessionSetupPage = lazy(() => import("./pages/SessionSetup"));
 const SessionJoinPage = lazy(() => import("./pages/SessionJoin"));
 const GamesPage = lazy(() => import("./pages/Games"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboard"));
+const CompanionPairPage = lazy(() => import("./pages/CompanionPair"));
 
 const RouteFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
@@ -42,6 +43,7 @@ const App = () => (
                   <Route path="/packs" element={<Navigate to="/games" replace />} />
                   <Route path="/join" element={<SessionJoinPage />} />
                   <Route path="/join/:sessionCode" element={<SessionJoinPage />} />
+                  <Route path="/pair/:code" element={<CompanionPairPage />} />
                   <Route path="/session/:code/:screen" element={<SessionScreenPage />} />
 
                   <Route path="*" element={<NotFound />} />
