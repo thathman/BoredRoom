@@ -7,6 +7,7 @@ import { BrandLogo } from '@/components/brand/BrandLogo';
 import { LagosScene } from '@/components/brand/LagosScene';
 import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
 import { HostGameDrawer } from '@/components/session/HostGameDrawer';
+import { CompanionConsole } from '@/components/session/CompanionConsole';
 import { InstalledGameSurface } from '@/components/session/InstalledGameSurface';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -116,8 +117,6 @@ export default function SessionScreen() {
   const [pairingBusy, setPairingBusy] = useState(false);
   const [installedGames, setInstalledGames] = useState<LibraryGame[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [partyDanger, setPartyDanger] = useState<null | 'end' | 'delete'>(null);
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const wakeLockStatus = useWakeLock(role === 'controller' || role === 'crowd' || role === 'companion');
 
   useEffect(() => {
@@ -282,144 +281,54 @@ export default function SessionScreen() {
 
   const hostControls = isHost ? (
     <>
-      <Button className="fixed right-4 top-4 z-[70] rounded-xl bg-black/70" variant="outline" onClick={() => setDrawerOpen(true)}>
-        <Menu className="h-4 w-4" /> Games & controls
-      </Button>
-      <HostGameDrawer
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        activeGameType={activeRun?.gameType}
-        members={members}
-        busyGame={busyGame}
-        onSelectGame={(game) => void chooseGame(game)}
-        pairingCode={pairingCode}
-        onCreatePairing={() => void createCompanionPairing(normalizedCode).then((pairing) => setPairingCode(pairing.pairingCode))}
-        games={drawerGames}
-        sessionCode={normalizedCode}
-      />
-      {role === 'companion' && members.some((m) => m.pending) && (
-        <div className="fixed left-4 top-4 z-[71] w-72 rounded-2xl border border-amber-300/40 bg-[#16110a]/95 p-4 text-left shadow-[0_0_24px_rgba(251,191,36,.18)] backdrop-blur-xl">
-          <p className="text-[10px] uppercase tracking-[0.22em] text-amber-200">Admission queue</p>
-          <ul className="mt-3 space-y-2">
-            {members.filter((m) => m.pending).map((m) => (
-              <li key={m.deviceId} className="flex items-center justify-between gap-2 text-sm">
-                <span className="truncate">{m.avatar ?? '🙋'} {m.displayName}</span>
-                <span className="flex shrink-0 gap-1">
-                  <button type="button" className="rounded-md bg-primary/20 px-2 py-1 text-[11px] text-primary" onClick={() => admitPlayer(m.deviceId)}>Admit</button>
-                  <button type="button" className="rounded-md bg-red-500/20 px-2 py-1 text-[11px] text-red-200" onClick={() => rejectPlayer(m.deviceId)}>Reject</button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {role === 'companion' && (votePoll || voteHistory.length > 0) && (
-        <div className="fixed left-4 top-20 z-[70] max-h-[80vh] w-72 overflow-y-auto rounded-2xl border border-secondary/40 bg-[#050914]/95 p-4 text-left shadow-[0_0_24px_rgba(168,85,247,.18)] backdrop-blur-xl">
-          <p className="text-[10px] uppercase tracking-[0.22em] text-secondary">Vote control booth</p>
-          {votePoll ? (
-            <>
-              <p className="mt-1 text-sm font-semibold">
-                {votePoll.status === 'open' ? 'Vote open' : votePoll.status === 'locked' ? 'Vote locked' : votePoll.status === 'resolved' ? 'Resolved' : votePoll.status}
-              </p>
-              <div className="mt-3 space-y-1">
-                {votePoll.options.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className="flex w-full items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs hover:border-secondary/60"
-                    onClick={() => overrideVote(option, 'host override')}
-                    title="Override: declare this the winner"
-                  >
-                    <span>{option}</span>
-                    <span className="text-primary">{votePoll.tally[option] ?? 0}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {votePoll.status === 'open' && (
-                  <Button variant="outline" className="h-9 rounded-lg text-xs" onClick={closeVote}>Close now</Button>
-                )}
-                {votePoll.result?.winnerOption && !votePoll.result.applied && (
-                  <Button className="neon-primary h-9 rounded-lg text-xs" onClick={applyVoteResult}>Apply result</Button>
-                )}
-                <Button variant="outline" className="col-span-2 h-9 rounded-lg text-xs text-red-200" onClick={cancelVote}>Cancel vote</Button>
-              </div>
-              <p className="mt-2 text-[10px] text-white/50">Tap an option to override. Apply enacts the winner.</p>
-            </>
-          ) : (
-            <p className="mt-1 text-xs text-white/50">No active vote.</p>
-          )}
-          {voteHistory.length > 0 && (
-            <div className="mt-4 border-t border-white/10 pt-3">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Recent votes</p>
-              <ul className="mt-2 space-y-1.5 text-[11px] text-white/70">
-                {voteHistory.slice(0, 6).map((result) => (
-                  <li key={result.voteId} className="flex items-center justify-between gap-2">
-                    <span className="truncate">
-                      {result.winnerOption ?? (result.tied ? 'Tie' : result.status)}
-                    </span>
-                    <span className="shrink-0 text-white/40">
-                      {result.castCount}/{result.eligibleVoterCount}
-                      {result.hostOverride ? ' · override' : result.autoApplied ? ' · auto' : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+      {/* Public display keeps the lightweight Games & controls drawer (emergency surface).
+          The companion gets the full tabbed control booth instead. */}
+      {role === 'display' && (
+        <>
+          <Button className="fixed right-4 top-4 z-[70] rounded-xl bg-black/70" variant="outline" onClick={() => setDrawerOpen(true)}>
+            <Menu className="h-4 w-4" /> Games & controls
+          </Button>
+          <HostGameDrawer
+            open={drawerOpen}
+            onOpenChange={setDrawerOpen}
+            activeGameType={activeRun?.gameType}
+            members={members}
+            busyGame={busyGame}
+            onSelectGame={(game) => void chooseGame(game)}
+            pairingCode={pairingCode}
+            onCreatePairing={() => void createCompanionPairing(normalizedCode).then((pairing) => setPairingCode(pairing.pairingCode))}
+            games={drawerGames}
+            sessionCode={normalizedCode}
+          />
+        </>
       )}
       {role === 'companion' && (
-        <div className="fixed bottom-4 right-4 z-[70] w-72 rounded-2xl border border-red-400/30 bg-[#160808]/95 p-4 text-left shadow-[0_0_24px_rgba(248,113,113,.14)] backdrop-blur-xl">
-          <p className="text-[10px] uppercase tracking-[0.22em] text-red-300">Party controls</p>
-          {partyDanger === null && (
-            <div className="mt-3 space-y-2">
-              <Button
-                variant="outline"
-                className="h-9 w-full rounded-lg text-xs"
-                onClick={() => setRemoteMode(!(snapshot?.session.settings.allowRemote ?? true))}
-              >
-                Remote mode: {(snapshot?.session.settings.allowRemote ?? true) ? 'On' : 'Off'} — tap to toggle
-              </Button>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" className="h-9 rounded-lg text-xs" onClick={() => setPartyDanger('end')}>End party</Button>
-                <Button variant="outline" className="h-9 rounded-lg text-xs text-red-200" onClick={() => setPartyDanger('delete')}>Delete party</Button>
-              </div>
-            </div>
-          )}
-          {partyDanger === 'end' && (
-            <div className="mt-3 space-y-2">
-              <p className="text-xs text-white/80">End this party for everyone? Recap and history are saved.</p>
-              <div className="grid grid-cols-2 gap-2">
-                <Button className="neon-primary h-9 rounded-lg text-xs" onClick={() => { endParty(); setPartyDanger(null); }}>End it</Button>
-                <Button variant="outline" className="h-9 rounded-lg text-xs" onClick={() => setPartyDanger(null)}>Cancel</Button>
-              </div>
-            </div>
-          )}
-          {partyDanger === 'delete' && (
-            <div className="mt-3 space-y-2">
-              <p className="text-xs text-white/80">Delete permanently. Type <span className="font-mono text-red-200">{normalizedCode}</span> to confirm.</p>
-              <Input
-                value={deleteConfirmText}
-                onChange={(event) => setDeleteConfirmText(event.target.value.toUpperCase())}
-                maxLength={4}
-                className="h-9 bg-black/40 text-center font-mono tracking-[0.3em]"
-                placeholder={normalizedCode}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  className="h-9 rounded-lg text-xs text-red-200"
-                  disabled={deleteConfirmText !== normalizedCode}
-                  onClick={() => { deleteParty(deleteConfirmText); setPartyDanger(null); setDeleteConfirmText(''); }}
-                >
-                  Delete
-                </Button>
-                <Button variant="outline" className="h-9 rounded-lg text-xs" onClick={() => { setPartyDanger(null); setDeleteConfirmText(''); }}>Cancel</Button>
-              </div>
-            </div>
-          )}
-        </div>
+        <CompanionConsole
+          code={normalizedCode}
+          joinUrl={joinUrl}
+          members={members}
+          remoteOn={snapshot?.session.settings.allowRemote ?? true}
+          activeGame={activeRun ? { gameType: activeRun.gameType, status: activeRun.status } : null}
+          votePoll={votePoll}
+          voteHistory={voteHistory}
+          pairingCode={pairingCode}
+          onOpenGames={() => setPickerOpen(true)}
+          admitPlayer={admitPlayer}
+          rejectPlayer={rejectPlayer}
+          kickPlayer={kickPlayer}
+          setRemoteMode={setRemoteMode}
+          pauseGame={() => pauseGame('host_pause')}
+          resumeGame={resumeGame}
+          endGame={endGame}
+          callVote={(options, opts) => callVote(options, opts)}
+          closeVote={closeVote}
+          cancelVote={cancelVote}
+          applyVoteResult={applyVoteResult}
+          overrideVote={overrideVote}
+          endParty={endParty}
+          deleteParty={deleteParty}
+          createPairing={() => void createCompanionPairing(normalizedCode).then((pairing) => setPairingCode(pairing.pairingCode))}
+        />
       )}
     </>
   ) : null;
