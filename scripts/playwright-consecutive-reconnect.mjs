@@ -39,7 +39,7 @@ function firstLegal(priv) {
 
 // Drive a challenge game to completion (works for trivia/color-wahala/etc).
 async function playChallenge(display, displayBucket, buckets, gameId) {
-  display.send('session:start_game', { gameId });
+  display.send('session:start_game', { gameId, settings: { questionCount: 3, rounds: 3 } });
   await waitFor(`${gameId} started`, () =>
     displayBucket.public?.state?.gameType === gameId && buckets.every((b) => b.private?.gameType === gameId), 12_000);
 
@@ -55,7 +55,10 @@ async function playChallenge(display, displayBucket, buckets, gameId) {
     }
     await sleep(250);
     const phase = displayBucket.public?.state?.phase;
-    if (phase === 'reveal') { display.send('game:intent', { type: 'advance' }); await sleep(250); }
+    if (phase === 'reveal') {
+      display.send('game:intent', { type: 'advance' });
+      await waitFor('challenge advanced', () => ['playing', 'finished'].includes(displayBucket.public?.state?.phase), 4_000);
+    }
     if (displayBucket.public?.state?.phase === 'finished') break;
   }
 }
@@ -91,7 +94,16 @@ await sleep(300);
 
 // --- 1) consecutive games in one session --------------------------------------
 await playChallenge(display, displayBucket, [adaBucket, tobiBucket], 'trivia');
-assert(displayBucket.public?.state?.phase === 'finished', 'game A (trivia) did not finish');
+assert(
+  displayBucket.public?.state?.phase === 'finished',
+  `game A (trivia) did not finish: ${JSON.stringify({
+    phase: displayBucket.public?.state?.phase,
+    round: displayBucket.public?.state?.round,
+    totalRounds: displayBucket.public?.state?.totalRounds,
+    submittedCount: displayBucket.public?.state?.submittedCount,
+    lastAction: displayBucket.public?.state?.lastAction,
+  })}`,
+);
 await waitFor('game A recap', () => displayBucket.session?.session?.status === 'game_recap' || displayBucket.session?.lastRecap);
 
 // Party must NOT be ended after a game finishes, and the code is unchanged.

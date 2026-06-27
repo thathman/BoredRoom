@@ -86,7 +86,18 @@ async function finishRun(display, displayBucket) {
 }
 
 async function startGame(display, displayBucket, buckets, gameId) {
-  display.send('session:start_game', { gameId });
+  const settings = gameId === 'ettt'
+    ? { teamMode: true, targetScore: 1 }
+    : gameId === 'faith-feud'
+      ? { surveyCollection: true, rounds: 1 }
+      : gameId === 'pidgin-translator'
+        ? { mode: 'speed_voice', questionCount: 1 }
+        : gameId === 'landlord'
+          ? { seed: 1 }
+          : gameId === 'ludo'
+            ? { seed: 9 }
+          : {};
+  display.send('session:start_game', { gameId, settings });
   await waitFor(`${gameId} public state`, () => {
     const ready = displayBucket.public?.gameType === gameId && displayBucket.public?.state?.gameType === gameId;
     const privates = buckets.every((bucket) => bucket.private?.gameType === gameId);
@@ -128,7 +139,8 @@ async function verifyConnect4(buckets, displayBucket) {
 
 async function verifyEttt(buckets, displayBucket) {
   const [p1, p2, p3, p4] = buckets;
-  for (const [bucket, cell] of [[p1, 0], [p2, 1], [p3, 2], [p4, 3], [p1, 4], [p2, 5], [p3, 6], [p4, 7], [p1, 8]]) {
+  // Team 1 is p1+p3; Team 2 is p2+p4. Team 1 completes 0-4-8.
+  for (const [bucket, cell] of [[p1, 0], [p2, 1], [p3, 4], [p4, 2], [p1, 8]]) {
     await sendAndWait(bucket.room, displayBucket, { type: 'place', cell }, `ettt cell ${cell}`);
   }
   assert(displayBucket.public.state.phase === 'finished', 'ettt did not finish on diagonal');
@@ -173,11 +185,14 @@ async function verifyWordWahala(buckets, displayBucket) {
 }
 
 async function verifyFaithFeud(buckets, displayBucket) {
-  if (displayBucket.public.state.phase === 'survey_collection') {
+  while (displayBucket.public.state.phase === 'survey_collection') {
+    const collectionIndex = displayBucket.public.state.collectionIndex ?? 0;
     for (const [index, bucket] of buckets.entries()) {
-      bucket.room.send('game:intent', { type: 'survey_answer', answers: [`Party answer ${index + 1}`, 'Music', 'Food'] });
+      bucket.room.send('game:intent', { type: 'survey_answer', answers: [`Party answer ${collectionIndex + 1}-${index + 1}`, 'Music', 'Food'] });
     }
-    await waitFor('faith-feud survey collection', () => displayBucket.public?.state?.phase === 'faceoff_buzz');
+    await waitFor('faith-feud survey question', () =>
+      displayBucket.public?.state?.phase === 'faceoff_buzz'
+      || (displayBucket.public?.state?.collectionIndex ?? 0) > collectionIndex);
   }
   const representatives = displayBucket.public.state.faceoffPlayerIds ?? [];
   assert(representatives.length === 2, 'faith-feud faceoff representatives missing');
@@ -226,6 +241,16 @@ async function verifyLandlord(buckets, displayBucket) {
   }
   await waitFor('landlord auction resolution', () => displayBucket.public?.state?.auction == null);
   assert((displayBucket.public.state.properties?.[bidder.deviceId] ?? []).length > 0, 'landlord auction winner did not receive property');
+}
+
+async function verifyHustle(buckets, displayBucket) {
+  const activeId = displayBucket.public.state.currentPlayerId;
+  const active = buckets.find((bucket) => bucket.deviceId === activeId);
+  assert(active, 'hustle active controller missing');
+  const before = displayBucket.public.state.positions?.[activeId] ?? 0;
+  const roll = firstLegal(active.private, 'roll');
+  assert(roll, 'hustle roll intent missing');
+  await sendAndWait(active.room, displayBucket, roll, 'hustle roll', (state) => (state.positions?.[activeId] ?? 0) !== before);
 }
 
 async function runBrowserSmoke(code, ownerCredential) {
@@ -314,6 +339,7 @@ for (const gameId of GAME_IDS) {
   else if (gameId === 'faith-feud') await verifyFaithFeud(controllerBuckets, displayBucket);
   else if (gameId === 'pidgin-translator') await verifyPidgin(controllerBuckets, displayBucket);
   else if (gameId === 'landlord') await verifyLandlord(controllerBuckets, displayBucket);
+  else if (gameId === 'hustle') await verifyHustle(controllerBuckets, displayBucket);
   else await advanceChallenge(display, displayBucket, controllerBuckets, gameId);
   assert(displayBucket.public.state.gameType === gameId, `${gameId}: game type changed unexpectedly`);
   assert(mode === displayBucket.public.state.mode, `${gameId}: mode changed unexpectedly`);
