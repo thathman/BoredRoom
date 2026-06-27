@@ -96,10 +96,15 @@ function WhotCardFace({
 }
 
 function WhotCardBack({ compact = false }: { compact?: boolean }) {
+  // Neon "BoredRoom" branded back matching the app theme.
   return (
-    <div className={`relative grid ${compact ? 'h-24 w-16' : 'h-32 w-24'} place-items-center overflow-hidden rounded-2xl border border-primary/50 bg-[#031209] shadow-[0_0_22px_rgba(69,243,107,.22)]`}>
-      <div className="absolute inset-2 rounded-xl border border-primary/70" />
-      <span className="brush-display text-3xl text-primary">B</span>
+    <div className={`whot-card-back relative grid ${compact ? 'h-24 w-16' : 'h-32 w-24'} place-items-center overflow-hidden rounded-2xl border border-primary/50 bg-[#03130b] shadow-[0_0_22px_rgba(69,243,107,.28)]`}>
+      <div className="absolute inset-1.5 rounded-xl border border-primary/40" />
+      <div className="absolute inset-0 opacity-[0.18] [background:repeating-linear-gradient(45deg,rgba(69,243,107,.5)_0,rgba(69,243,107,.5)_2px,transparent_2px,transparent_8px)]" />
+      <div className="relative text-center leading-none">
+        <span className={`block brush-display ${compact ? 'text-base' : 'text-xl'} text-primary drop-shadow-[0_0_10px_rgba(69,243,107,.7)]`}>Bored</span>
+        <span className={`block brush-display ${compact ? 'text-base' : 'text-xl'} text-secondary drop-shadow-[0_0_10px_rgba(168,85,247,.7)]`}>Room</span>
+      </div>
     </div>
   );
 }
@@ -673,18 +678,27 @@ export function InstalledGameSurface({
           {mine.pendingPick && mine.pendingPick > 0 ? <p className="rounded-xl border border-amber-300/50 bg-amber-300/10 p-3 text-center text-sm text-amber-100">Pick {mine.pendingPick}, or stack a matching penalty card.</p> : null}
           <div>
             <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-black uppercase tracking-[0.2em]">Your hand</h2><span className="text-xs text-primary">{(mine.hand ?? []).length} cards</span></div>
-            <div className="flex min-h-44 gap-3 overflow-x-auto pb-3">
+            {/* All cards laid out in a wrapping grid (scrolls down) — no dead horizontal space. */}
+            <div className="flex flex-wrap justify-center gap-2 pb-3">
               {(mine.hand ?? []).map((card) => {
                 const legal = legalIntents.find((intent) => intent.type === 'play_card' && intent.cardId === card.id);
                 return <button key={card.id} type="button" disabled={!legal || state.phase !== 'playing'} onClick={() => {
                   if (!legal) return;
                   sounds.hustleCard(); vibrate(45);
                   if (card.isWhot) setWhotCardId(card.id); else sendIntent(legal);
-                }} className="shrink-0 disabled:cursor-not-allowed" aria-label={legal ? `Play ${card.label}` : `${card.label} cannot be played now`}><WhotCardFace card={card} disabled={!legal} playable={Boolean(legal)} /></button>;
+                }} className="disabled:cursor-not-allowed" aria-label={legal ? `Play ${card.label}` : `${card.label} cannot be played now`}><WhotCardFace card={card} disabled={!legal} playable={Boolean(legal)} /></button>;
               })}
+              {(mine.hand ?? []).length === 0 && <p className="py-6 text-sm text-muted-foreground">No cards.</p>}
             </div>
           </div>
-          {legalIntents.some((intent) => intent.type === 'draw') ? <Button className="neon-primary h-14 w-full rounded-xl" onClick={() => sendIntent({ type: 'draw' })}>{mine.pendingPick ? `Pick ${mine.pendingPick}` : 'Go to market'}</Button> : null}
+          {/* Persistent market button — always visible, disabled when not a legal draw. */}
+          <Button
+            className="neon-primary h-14 w-full rounded-xl disabled:opacity-40"
+            disabled={!legalIntents.some((intent) => intent.type === 'draw')}
+            onClick={() => sendIntent({ type: 'draw' })}
+          >
+            {mine.pendingPick && mine.pendingPick > 0 ? `Pick ${mine.pendingPick}` : 'Go to market'}
+          </Button>
         </section>
         {whotCardId ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm">

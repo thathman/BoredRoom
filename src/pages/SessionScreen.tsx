@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Loader2, Menu, Pause, Play, QrCode, RotateCcw, Trophy, X } from 'lucide-react';
+import { ArrowRight, Loader2, Menu, Play, QrCode, RotateCcw, Trophy, X } from 'lucide-react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
@@ -19,6 +19,8 @@ import { ensureHostDisplayId, getPlayerId } from '@/lib/roomUtils';
 import { getPlayerProfile, hasPlayerProfile, type PlayerProfile } from '@/lib/playerProfile';
 import { PlayerAvatar } from '@/components/profile/PlayerAvatar';
 import { ProfileSheet } from '@/components/profile/ProfileSheet';
+import { ControllerMenu } from '@/components/session/ControllerMenu';
+import { WinnerCelebration } from '@/components/session/WinnerCelebration';
 import { sounds } from '@/lib/sounds';
 import {
   createCompanionPairing,
@@ -460,10 +462,15 @@ export default function SessionScreen() {
     </div>
   ) : null;
 
-  const controllerPauseButton = !isHost && activeRun?.status === 'active' ? (
-    <Button className="fixed right-3 top-3 z-[70] rounded-xl bg-black/70" variant="outline" onClick={() => pauseGame('player_pause')}>
-      <Pause className="h-4 w-4" /> Pause
-    </Button>
+  // Controller chip + flyout (player name/avatar, edit, achievements, pause) — replaces the old
+  // floating top-right pause button so it never covers the in-game round/turn header.
+  const controllerMenu = (role === 'controller' || role === 'crowd') ? (
+    <ControllerMenu
+      profile={profile}
+      onSaveProfile={setProfile}
+      onPause={() => pauseGame('player_pause')}
+      canPause={activeRun?.status === 'active'}
+    />
   ) : null;
 
   const controllerPersistenceStrip = !isHost && wakeLockStatus === 'unsupported' ? (
@@ -482,6 +489,14 @@ export default function SessionScreen() {
           <section className="mx-auto mt-10 w-full text-center">
             <h1 className="brush-display text-5xl">Game night <span className="text-primary">recap</span></h1>
             <p className="mt-2 text-lg">{activeGame?.emoji} {activeGame?.name ?? snapshot.lastRecap.gameType}</p>
+            {snapshot.lastRecap.status !== 'abandoned' && (
+              <WinnerCelebration
+                fireKey={`${snapshot.lastRecap.gameType}:${snapshot.lastRecap.endedAt ?? ''}`}
+                winnerNames={winners.map((w) => w.displayName)}
+                iWon={snapshot.lastRecap.winnerPlayerIds.includes(deviceId)}
+                isController={role === 'controller' || role === 'crowd'}
+              />
+            )}
             <div className="mt-7 grid gap-4 md:grid-cols-[280px_1fr]">
               <div className="neon-panel rounded-2xl p-6">
                 <p className="text-xs text-muted-foreground">Winner</p>
@@ -534,7 +549,7 @@ export default function SessionScreen() {
         {displayVoteOverlay}
         {controllerPersistenceStrip}
         {pauseOverlay}
-        {controllerPauseButton}
+        {controllerMenu}
         <InstalledGameSurface
           publicState={gamePublicState.state}
           privateState={gamePrivateState?.gameType === activeRun.gameType ? gamePrivateState.state : null}

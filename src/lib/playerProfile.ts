@@ -6,6 +6,13 @@ const PROFILE_KEY = 'boredroom_player_profile';
 
 export type AvatarType = 'emoji' | 'photo' | 'default';
 
+export interface PlayerStats {
+  gamesPlayed: number;
+  wins: number;
+  currentStreak: number;
+  bestStreak: number;
+}
+
 export interface PlayerProfile {
   id: string;
   displayName: string;
@@ -17,7 +24,20 @@ export interface PlayerProfile {
     haptics: boolean;
     language: 'en' | 'pcm';
   };
+  stats: PlayerStats;
   updatedAt: string;
+}
+
+// Achievements are derived from stats — no separate storage, always consistent.
+export interface Achievement { id: string; label: string; emoji: string; earned: boolean; hint: string }
+export function achievementsFor(stats: PlayerStats): Achievement[] {
+  return [
+    { id: 'first_game', label: 'Showed up', emoji: '🎮', earned: stats.gamesPlayed >= 1, hint: 'Play your first game' },
+    { id: 'first_win', label: 'First win', emoji: '🏆', earned: stats.wins >= 1, hint: 'Win a game' },
+    { id: 'hat_trick', label: 'Hat-trick', emoji: '🎩', earned: stats.bestStreak >= 3, hint: 'Win 3 games in a row' },
+    { id: 'veteran', label: 'Veteran', emoji: '🎖️', earned: stats.gamesPlayed >= 10, hint: 'Play 10 games' },
+    { id: 'champion', label: 'Champion', emoji: '👑', earned: stats.wins >= 5, hint: 'Win 5 games' },
+  ];
 }
 
 export const AVATAR_EMOJIS = ['😎', '🦁', '🔥', '👑', '🎮', '⚡', '🌟', '🦅', '🐍', '🎲', '🥁', '🌍', '💚', '🚀', '🎤', '🧠'];
@@ -32,6 +52,7 @@ function defaultProfile(): PlayerProfile {
     avatarValue: '',
     accentColor: localStorage.getItem('boredroom_player_color') || ACCENT_COLORS[0],
     preferences: { sound: true, haptics: true, language: 'en' },
+    stats: { gamesPlayed: 0, wins: 0, currentStreak: 0, bestStreak: 0 },
     updatedAt: new Date().toISOString(),
   };
 }
@@ -47,6 +68,7 @@ export function getPlayerProfile(): PlayerProfile {
         ...parsed,
         id: base.id, // device id is authoritative
         preferences: { ...base.preferences, ...(parsed.preferences ?? {}) },
+        stats: { ...base.stats, ...(parsed.stats ?? {}) },
       };
     } catch {
       // fall through to default
@@ -70,10 +92,12 @@ export function hasPlayerProfile(): boolean {
 }
 
 export function savePlayerProfile(update: Partial<PlayerProfile>): PlayerProfile {
+  const current = getPlayerProfile();
   const next: PlayerProfile = {
-    ...getPlayerProfile(),
+    ...current,
     ...update,
-    preferences: { ...getPlayerProfile().preferences, ...(update.preferences ?? {}) },
+    preferences: { ...current.preferences, ...(update.preferences ?? {}) },
+    stats: { ...current.stats, ...(update.stats ?? {}) },
     updatedAt: new Date().toISOString(),
   };
   localStorage.setItem(PROFILE_KEY, JSON.stringify(next));
@@ -81,6 +105,20 @@ export function savePlayerProfile(update: Partial<PlayerProfile>): PlayerProfile
   if (next.displayName) localStorage.setItem('boredroom_player_name', next.displayName);
   localStorage.setItem('boredroom_player_color', next.accentColor);
   return next;
+}
+
+// Record a finished game on this device's profile (idempotent per runId via the caller).
+export function recordGameResult(won: boolean): PlayerProfile {
+  const s = getPlayerProfile().stats;
+  const currentStreak = won ? s.currentStreak + 1 : 0;
+  return savePlayerProfile({
+    stats: {
+      gamesPlayed: s.gamesPlayed + 1,
+      wins: s.wins + (won ? 1 : 0),
+      currentStreak,
+      bestStreak: Math.max(s.bestStreak, currentStreak),
+    },
+  });
 }
 
 // What the avatar should render as. Photo/emoji return their value; default derives an initial.
