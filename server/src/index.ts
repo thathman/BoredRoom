@@ -6,7 +6,7 @@
 //   - deterministic runtime bot decisions
 //   - mid-game approvals + moderation
 //
-import { Server } from '@colyseus/core';
+import { Server, matchMaker } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import express from 'express';
 import cors from 'cors';
@@ -64,6 +64,12 @@ import {
 import { generateSessionStory, getAiHealth, moderateOwnerContent, recommendGames } from './aiService.js';
 
 const PORT = Number(process.env.PORT ?? 2567);
+
+// Colyseus prepends its router ahead of Express and answers every OPTIONS request.
+// Extend that router's allow-list as well as Express CORS or owner/admin browser
+// requests are rejected by preflight before they reach our authenticated routes.
+matchMaker.controller.DEFAULT_CORS_HEADERS['Access-Control-Allow-Headers'] =
+  'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-BoredRoom-Owner, X-BoredRoom-Admin';
 
 const app = express();
 app.use(cors({
