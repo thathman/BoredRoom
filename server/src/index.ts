@@ -11,6 +11,7 @@ import { WebSocketTransport } from '@colyseus/ws-transport';
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
+import { createHash } from 'crypto';
 import { HouseSessionRoom } from './rooms/HouseSessionRoom.js';
 import { PROTOCOL_VERSION } from '../../shared/src/contracts/index.js';
 import { log } from './logger.js';
@@ -372,6 +373,49 @@ app.get('/sessions/:code/ai/story', async (req, res) => {
       }] : [],
     }),
   });
+});
+
+// Dynamic Naija TTS via YarnGPT. Generates a line like "<player> calls semi last card" with a
+// Naija voice, caches it in-memory by (line+voice), and streams the audio. Fails soft with 503 so
+// the client falls back to the pre-recorded clips — audio never breaks if TTS is down/unset.
+const TTS_BASE_URL = (process.env.TTS_BASE_URL?.trim() || 'https://yarngpt.ai/api/v1').replace(/\/+$/, '');
+const TTS_DEFAULT_VOICE = process.env.TTS_VOICE?.trim() || 'Idera';
+const TTS_TIMEOUT_MS = Number(process.env.TTS_TIMEOUT_MS ?? 9000);
+const ttsCache = new Map<string, Buffer>();
+const TTS_CACHE_MAX = 80;
+
+app.get('/tts', async (req, res) => {
+  const line = String(req.query.line ?? '').trim().slice(0, 300);
+  const voice = String(req.query.voice ?? TTS_DEFAULT_VOICE).trim().slice(0, 40);
+  const apiKey = process.env.TTS_API_KEY?.trim();
+  if (!line) return res.status(400).json({ error: 'line_required' });
+  if (!apiKey) return res.status(503).json({ error: 'tts_not_configured' });
+
+  const key = createHash('sha256').update(`${voice}:${line}`).digest('hex');
+  const cached = ttsCache.get(key);
+  if (cached) {
+    res.setHeader('content-type', 'audio/mpeg');
+    res.setHeader('cache-control', 'public, max-age=86400');
+    return res.end(cached);
+  }
+  try {
+    const upstream = await fetch(`${TTS_BASE_URL}/tts`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(TTS_TIMEOUT_MS),
+      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: line, voice, response_format: 'mp3' }),
+    });
+    if (!upstream.ok) return res.status(503).json({ error: `tts_provider_${upstream.status}` });
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    if (ttsCache.size >= TTS_CACHE_MAX) ttsCache.delete(ttsCache.keys().next().value as string);
+    ttsCache.set(key, buf);
+    res.setHeader('content-type', 'audio/mpeg');
+    res.setHeader('cache-control', 'public, max-age=86400');
+    return res.end(buf);
+  } catch (error) {
+    log('warn', 'tts_failed', { error: String(error) });
+    return res.status(503).json({ error: 'tts_unavailable' });
+  }
 });
 
 app.get('/health', (_req, res) => {

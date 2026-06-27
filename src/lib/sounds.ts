@@ -2,6 +2,13 @@
 // All sounds are synthesized on demand. Safe on iOS (resumes on first gesture).
 
 let ctx: AudioContext | null = null;
+
+// Server HTTP base derived from the realtime URL (ws→http) for the dynamic TTS endpoint.
+function ttsServerBase(): string {
+  const raw = (import.meta.env.VITE_COLYSEUS_URL as string | undefined) ?? '';
+  return raw.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/+$/, '');
+}
+
 let muted = typeof localStorage !== 'undefined' ? localStorage.getItem('boredroom_sound_muted') === 'true' : false;
 let volume = typeof localStorage !== 'undefined' ? Number(localStorage.getItem('boredroom_sound_volume') ?? '0.85') : 0.85;
 
@@ -205,6 +212,20 @@ export const sounds = {
     if (!variants?.length) return;
     const index = Math.floor(Math.random() * variants.length);
     playSample(variants[index], 1.05);
+  },
+  // Dynamic Naija line via the server TTS endpoint, falling back to a fixed clip if TTS is down.
+  async whotCalloutLine(line: string, kind: 'semi_last_card' | 'last_card' | 'check_up') {
+    const c = getCtx();
+    if (!c || muted) return;
+    try {
+      const res = await fetch(`${ttsServerBase()}/tts?line=${encodeURIComponent(line)}`);
+      if (!res.ok) throw new Error(`tts_${res.status}`);
+      const buf = await res.arrayBuffer();
+      const decoded = await c.decodeAudioData(buf);
+      fireSample(c, decoded, 1.05);
+    } catch {
+      this.whotCallout(kind); // fail-soft to the pre-recorded clip
+    }
   },
   // ── Word Wahala cues ─────────────────────────────────────────────────────
   wahalaTilePlace() {

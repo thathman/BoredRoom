@@ -127,7 +127,7 @@ export default function SessionScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const wakeLockStatus = useWakeLock(role === 'controller' || role === 'crowd' || role === 'companion');
   const whotCallout = gamePublicState?.gameType === 'whot'
-    ? (gamePublicState.state as { callout?: { kind?: string; sequence?: number } }).callout
+    ? (gamePublicState.state as { callout?: { kind?: string; sequence?: number; playerName?: string } }).callout
     : undefined;
 
   useEffect(() => {
@@ -136,9 +136,14 @@ export default function SessionScreen() {
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, '1');
     if (whotCallout.kind === 'semi_last_card' || whotCallout.kind === 'last_card' || whotCallout.kind === 'check_up') {
-      sounds.whotCallout(whotCallout.kind);
+      // Dynamic Naija TTS line ("<player> calls semi/last card / check up") with the player's
+      // name; falls back to the pre-recorded clip if the TTS service is unavailable.
+      const phrase = whotCallout.kind === 'semi_last_card' ? 'calls semi last card'
+        : whotCallout.kind === 'last_card' ? 'calls last card' : 'calls check up';
+      const line = `${whotCallout.playerName ?? 'Player'} ${phrase}`;
+      void sounds.whotCalloutLine(line, whotCallout.kind);
     }
-  }, [normalizedCode, role, whotCallout?.kind, whotCallout?.sequence]);
+  }, [normalizedCode, role, whotCallout?.kind, whotCallout?.sequence, whotCallout?.playerName]);
 
   useEffect(() => {
     void fetchGamesCatalog()
