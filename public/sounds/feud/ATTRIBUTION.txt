@@ -1,0 +1,3 @@
+Faith Feud sound effects adapted from Friendly-Feud (https://github.com/joshzcold/Friendly-Feud)
+Copyright (c) 2021 Joshua Cold — MIT License.
+Files: good-answer.mp3, wrong.mp3, try-again.mp3, duplicate.mp3, fm-answer-reveal.mp3, buzzer.wav

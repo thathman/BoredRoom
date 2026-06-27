@@ -221,7 +221,38 @@ export const sounds = {
     tone(880, 0.08, 'square', 0.10, 0);
     tone(880, 0.08, 'square', 0.10, 0.18);
   },
+  // ── Faith Feud cues (sampled, adapted from Friendly-Feud, MIT) ───────────────
+  feudCorrect() { playSample('/sounds/feud/good-answer.mp3'); },
+  feudWrong() { playSample('/sounds/feud/wrong.mp3'); },
+  feudDuplicate() { playSample('/sounds/feud/duplicate.mp3'); },
+  feudSteal() { playSample('/sounds/feud/try-again.mp3'); },
+  feudReveal() { playSample('/sounds/feud/fm-answer-reveal.mp3'); },
+  feudBuzz() { playSample('/sounds/feud/buzzer.wav', 0.7); },
 };
+
+// Sampled-audio playback for assets that synthesis can't match (e.g. the Family-Feud cues).
+// Respects mute/volume, caches decoded buffers, and fails silently offline.
+const sampleCache = new Map<string, AudioBuffer | null>();
+function playSample(url: string, gainScale = 1): void {
+  const c = getCtx();
+  if (!c || muted) return;
+  const cached = sampleCache.get(url);
+  if (cached) { fireSample(c, cached, gainScale); return; }
+  if (cached === null) return; // previously failed to load
+  fetch(url)
+    .then((res) => (res.ok ? res.arrayBuffer() : Promise.reject(new Error('sample_fetch_failed'))))
+    .then((buf) => c.decodeAudioData(buf))
+    .then((decoded) => { sampleCache.set(url, decoded); fireSample(c, decoded, gainScale); })
+    .catch(() => { sampleCache.set(url, null); });
+}
+function fireSample(c: AudioContext, buffer: AudioBuffer, gainScale: number): void {
+  const src = c.createBufferSource();
+  const gain = c.createGain();
+  src.buffer = buffer;
+  gain.gain.value = getVolume() * gainScale;
+  src.connect(gain).connect(c.destination);
+  src.start();
+}
 
 export function vibrate(pattern: number | number[]) {
   if (typeof navigator === 'undefined') return;

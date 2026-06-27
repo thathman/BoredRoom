@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, FastForward, Trophy, Users } from 'lucide-react';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { Button } from '@/components/ui/button';
@@ -163,6 +163,21 @@ export function InstalledGameSurface({
     setValue('');
     setOrder([]);
   }, [state.round]);
+
+  // Faith Feud audio cues (sampled Family-Feud sounds) driven by lastAction transitions.
+  const prevActionRef = useRef<string>('');
+  useEffect(() => {
+    if (state.gameType !== 'faith-feud') { prevActionRef.current = state.lastAction; return; }
+    const action = state.lastAction ?? '';
+    if (action && action !== prevActionRef.current) {
+      if (action.startsWith('✅')) sounds.feudCorrect();
+      else if (/already found/i.test(action)) sounds.feudDuplicate();
+      else if (action.includes('❌') || /strike/i.test(action)) sounds.feudWrong();
+      else if (/steal/i.test(action)) sounds.feudSteal();
+      else if (state.phase === 'reveal') sounds.feudReveal();
+    }
+    prevActionRef.current = action;
+  }, [state.gameType, state.lastAction, state.phase]);
 
   const sortedPlayers = useMemo(
     () => [...(state.players ?? [])].sort((a, b) => b.score - a.score),
