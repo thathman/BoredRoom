@@ -99,6 +99,150 @@ function WhotCardBack({ compact = false }: { compact?: boolean }) {
   );
 }
 
+// ── Oga Landlord board surface ───────────────────────────────────────────────
+const LANDLORD_SET_COLORS: Record<string, string> = {
+  market: '#a855f7', tech: '#38bdf8', estate: '#f59e0b', island: '#45f36b',
+};
+const LANDLORD_TOKENS = ['🔴', '🔵', '🟢', '🟡', '🟣', '🟠'];
+
+interface LandlordState {
+  board?: Array<{ name: string; type: string; price?: number; rent?: number; set?: string; amount?: number }>;
+  players?: Array<{ id: string; name: string; cash?: number }>;
+  positions?: Record<string, number>;
+  properties?: Record<string, number[]>;
+  houses?: Record<string, number>;
+  mortgaged?: string[];
+  jail?: Record<string, number>;
+  diceValue?: number | null;
+  currentPlayerId?: string;
+  cellProps?: { price: number; owned: boolean } | null;
+  wahalaCard?: { text: string } | null;
+  lastAction?: string;
+  phase?: string;
+}
+
+function LandlordSurface({
+  state, mine, role, sendIntent,
+}: {
+  state: LandlordState;
+  mine: { isTurn?: boolean; cash?: number; position?: number; properties?: number[]; legalIntents?: Array<Record<string, unknown>> };
+  role: 'display' | 'controller' | 'crowd' | 'companion';
+  sendIntent: (intent: Record<string, unknown>) => void;
+}) {
+  const board = state.board ?? [];
+  const players = state.players ?? [];
+  const isController = role === 'controller';
+  const legalIntents = mine.legalIntents ?? [];
+  const diceRef = useRef<HTMLDivElement | null>(null);
+  const prevDice = useRef<number | null>(null);
+
+  // Re-trigger the 3D roll animation whenever the dice value changes.
+  useEffect(() => {
+    const el = diceRef.current;
+    if (!el || state.diceValue == null || state.diceValue === prevDice.current) return;
+    prevDice.current = state.diceValue;
+    el.classList.remove('rolling');
+    void el.offsetWidth; // reflow to restart the animation
+    el.classList.add('rolling');
+    sounds.landlordRoll();
+  }, [state.diceValue]);
+
+  const ownerOf = (idx: number) => players.find((p) => (state.properties?.[p.id] ?? []).includes(idx));
+  const tokenFor = (id: string) => LANDLORD_TOKENS[players.findIndex((p) => p.id === id) % LANDLORD_TOKENS.length];
+
+  function act(intent: Record<string, unknown>) {
+    if (intent.type === 'buy') sounds.landlordBuy();
+    else if (intent.type === 'roll') sounds.landlordRoll();
+    sendIntent(intent);
+  }
+
+  const cell = mine.position != null ? board[mine.position] : null;
+
+  return (
+    <main className="star-field min-h-screen bg-[#020817] px-4 pb-6 pt-4 text-white sm:px-6">
+      <header className="mx-auto flex max-w-7xl items-center justify-between border-b border-white/10 pb-3">
+        <div className="flex items-center gap-3"><BrandLogo className="text-2xl" /><span className="text-sm font-semibold">🏠 Oga Landlord</span></div>
+        <div className="text-xs text-muted-foreground">{state.lastAction}</div>
+      </header>
+
+      <div className="mx-auto grid max-w-7xl gap-5 py-5 lg:grid-cols-[1fr_280px]">
+        <section>
+          {/* Board ring as a wrapping track; each cell tinted by its colour set. */}
+          <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
+            {board.map((bcell, idx) => {
+              const owner = ownerOf(idx);
+              const here = players.filter((p) => (state.positions?.[p.id] ?? 0) === idx);
+              const houses = state.houses?.[String(idx)] ?? 0;
+              const mortgaged = (state.mortgaged ?? []).includes(String(idx));
+              const setColor = bcell.set ? LANDLORD_SET_COLORS[bcell.set] : undefined;
+              return (
+                <div
+                  key={idx}
+                  className={`relative min-h-[68px] rounded-lg border p-1.5 text-[9px] leading-tight ${owner ? 'border-white/30' : 'border-white/10'} bg-white/[0.04] ${mortgaged ? 'opacity-50' : ''}`}
+                  style={setColor ? { borderTopColor: setColor, borderTopWidth: 4 } : undefined}
+                >
+                  <div className="font-semibold text-white/80">{bcell.name}</div>
+                  {bcell.type === 'property' || bcell.type === 'rail' ? (
+                    <div className="text-white/40">₦{(bcell.price ?? 0).toLocaleString()}</div>
+                  ) : null}
+                  {houses > 0 && <div className="text-primary">{'🏠'.repeat(houses)}</div>}
+                  {owner && <div className="text-[8px] text-white/60">{tokenFor(owner.id)} {owner.name}</div>}
+                  <div className="absolute right-1 top-1 flex gap-0.5 text-xs">
+                    {here.map((p) => <span key={p.id} className="landlord-token">{tokenFor(p.id)}</span>)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {state.diceValue != null && (
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <div ref={diceRef} className="landlord-dice grid h-14 w-14 place-items-center rounded-xl border-2 border-primary bg-[#06150f] text-2xl font-black text-primary shadow-[0_0_18px_rgba(69,243,107,.4)]">
+                {state.diceValue}
+              </div>
+              {state.wahalaCard && <div className="landlord-card max-w-xs rounded-xl border border-secondary/50 bg-secondary/10 p-3 text-xs">{state.wahalaCard.text}</div>}
+            </div>
+          )}
+        </section>
+
+        <aside className="space-y-3">
+          <div className="neon-panel rounded-2xl p-4">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Bank</p>
+            <ul className="mt-2 space-y-1.5 text-sm">
+              {[...players].sort((a, b) => (b.cash ?? 0) - (a.cash ?? 0)).map((p) => (
+                <li key={p.id} className={`flex items-center justify-between ${p.id === state.currentPlayerId ? 'text-primary' : ''}`}>
+                  <span>{tokenFor(p.id)} {p.name}{(state.jail?.[p.id] ?? 0) > 0 ? ' 🚓' : ''}</span>
+                  <span className="font-mono">₦{(p.cash ?? 0).toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {isController && (
+            <div className="neon-panel rounded-2xl p-4">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                {mine.isTurn ? 'Your move' : 'Waiting…'} · ₦{(mine.cash ?? 0).toLocaleString()}
+              </p>
+              {cell && <p className="mt-1 text-xs text-white/60">On: {cell.name}</p>}
+              <div className="mt-3 grid gap-2">
+                {legalIntents.map((intent, i) => (
+                  <Button key={i} variant={intent.type === 'roll' || intent.type === 'buy' ? 'default' : 'outline'}
+                    className={intent.type === 'roll' || intent.type === 'buy' ? 'neon-primary h-11 rounded-xl' : 'h-10 rounded-xl text-xs'}
+                    disabled={!mine.isTurn}
+                    onClick={() => act(intent)}>
+                    {String(intent.label ?? intent.type)}
+                  </Button>
+                ))}
+                {legalIntents.length === 0 && <p className="text-xs text-muted-foreground">Wait for your turn.</p>}
+              </div>
+            </div>
+          )}
+        </aside>
+      </div>
+    </main>
+  );
+}
+
 const ludoPalette = [
   { name: 'Emerald', token: 'bg-primary text-[#031008]', glow: 'shadow-[0_0_18px_rgba(69,243,107,.65)]', border: 'border-primary/80', area: 'bg-primary/10' },
   { name: 'Violet', token: 'bg-secondary text-white', glow: 'shadow-[0_0_18px_rgba(179,76,255,.65)]', border: 'border-secondary/80', area: 'bg-secondary/10' },
@@ -197,6 +341,10 @@ export function InstalledGameSurface({
         : (challenge.options ?? []).map((_, index) => index);
       sendIntent({ type: 'submit_order', orderedIndexes });
     }
+  }
+
+  if (state.mode === 'landlord') {
+    return <LandlordSurface state={state as unknown as LandlordState} mine={mine} role={role} sendIntent={sendIntent} />;
   }
 
   return (
