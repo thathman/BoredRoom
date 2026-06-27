@@ -555,10 +555,33 @@ export function finishActiveGame(
 ): SessionRuntime | null {
   const record = getSessionRecord(code);
   if (!record?.activeRuntime) return null;
+  const previousStatus = record.activeRuntime.run.status;
   const now = new Date().toISOString();
   record.activeRuntime.run.status = status;
   record.activeRuntime.run.endedAt = now;
   record.activeRuntime.run.winnerPlayerIds = winnerPlayerIds;
+  if (status === 'finished' && previousStatus !== 'finished') {
+    const winnerSet = new Set(winnerPlayerIds);
+    const participatingPlayers = Array.from(record.members.values())
+      .filter((member) => member.role === 'controller' && !member.pending);
+    const standings = new Map(record.session.standings.map((standing) => [standing.playerId, { ...standing }]));
+    for (const member of participatingPlayers) {
+      const standing = standings.get(member.deviceId) ?? {
+        playerId: member.deviceId,
+        displayName: member.displayName,
+        gameWins: 0,
+        gamesPlayed: 0,
+      };
+      standing.displayName = member.displayName;
+      standing.gamesPlayed += 1;
+      if (winnerSet.has(member.deviceId)) standing.gameWins += 1;
+      standings.set(member.deviceId, standing);
+    }
+    record.session.standings = Array.from(standings.values()).sort((a, b) =>
+      b.gameWins - a.gameWins || b.gamesPlayed - a.gamesPlayed || a.displayName.localeCompare(b.displayName),
+    );
+    record.session.completedGameCount += 1;
+  }
   record.lastRecap = {
     gameType: record.activeRuntime.run.gameType,
     status,

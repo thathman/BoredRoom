@@ -200,6 +200,12 @@ export const sounds = {
     tone(740, 0.06, 'square', 0.08, 0);
     tone(880, 0.06, 'square', 0.08, 0.05);
   },
+  whotCallout(kind: 'semi_last_card' | 'last_card' | 'check_up') {
+    const variants = WHOT_CALLOUTS[kind];
+    if (!variants?.length) return;
+    const index = Math.floor(Math.random() * variants.length);
+    playSample(variants[index], 1.05);
+  },
   // ── Word Wahala cues ─────────────────────────────────────────────────────
   wahalaTilePlace() {
     tone(1100 + Math.random() * 200, 0.04, 'triangle', 0.08);
@@ -229,6 +235,23 @@ export const sounds = {
   feudReveal() { playSample('/sounds/feud/fm-answer-reveal.mp3'); },
   feudBuzz() { playSample('/sounds/feud/buzzer.wav', 0.7); },
 };
+
+const WHOT_CALLOUTS = {
+  semi_last_card: [
+    '/audio/whot/semi-idera.mp3',
+    '/audio/whot/semi-jude.mp3',
+    '/audio/whot/semi-chinenye.mp3',
+  ],
+  last_card: [
+    '/audio/whot/last-emma.mp3',
+    '/audio/whot/last-wura.mp3',
+    '/audio/whot/last-osagie.mp3',
+  ],
+  check_up: [
+    '/audio/whot/check-emma.mp3',
+    '/audio/whot/check-jude.mp3',
+  ],
+} as const;
 
 // Sampled-audio playback for assets that synthesis can't match (e.g. the Family-Feud cues).
 // Respects mute/volume, caches decoded buffers, and fails silently offline.

@@ -32,6 +32,9 @@ type GameState = {
   lastResults?: Array<{ playerId: string; points: number }>;
   winnerPlayerIds: string[];
   lastAction: string;
+  roundsToWin?: number;
+  roundWins?: Record<string, number>;
+  callout?: { kind: string; playerName: string; text: string; sequence: number } | null;
 };
 type PrivateState = {
   seated?: boolean;
@@ -610,6 +613,90 @@ export function InstalledGameSurface({
 
   if (state.mode === 'pidgin') {
     return <PidginVoiceSurface state={state as never} mine={mine as never} role={role} sendIntent={sendIntent} />;
+  }
+
+  if (role === 'controller' && state.mode === 'ludo') {
+    return (
+      <main className="star-field min-h-screen bg-[#020817] px-4 pb-8 pt-5 text-white">
+        <header className="mx-auto flex max-w-xl items-center justify-between border-b border-white/10 pb-4">
+          <div><BrandLogo className="text-2xl" /><p className="mt-1 text-sm font-bold">🎲 Ludo controller</p></div>
+          <span className={mine.isTurn ? 'text-primary' : 'text-muted-foreground'}>{mine.isTurn ? 'Your turn' : 'Waiting'}</span>
+        </header>
+        <section className="mx-auto mt-6 max-w-xl space-y-5">
+          <div className="neon-panel rounded-3xl p-6 text-center">
+            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Your dice</p>
+            <div className="mx-auto mt-4 grid h-24 w-24 place-items-center rounded-3xl border border-primary/50 bg-primary/10 text-5xl font-black text-primary shadow-[0_0_24px_rgba(69,243,107,.22)]">
+              {state.pendingRoll ?? '—'}
+            </div>
+            <p className="mt-4 text-sm text-muted-foreground">{state.lastAction}</p>
+          </div>
+          <div className="neon-panel rounded-3xl p-5">
+            <p className="mb-3 text-xs uppercase tracking-[0.22em] text-muted-foreground">Your tokens</p>
+            <div className="grid grid-cols-4 gap-3">
+              {(mine.tokens ?? []).map((position, index) => (
+                <div key={index} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-center">
+                  <span className="text-2xl font-black text-primary">{ludoTokenLabel(index)}</span>
+                  <p className="mt-1 text-[10px] text-muted-foreground">{position < 0 ? 'Yard' : position >= 57 ? 'Home' : `Step ${position}`}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-3">
+            {legalIntents.map((intent, index) => (
+              <Button key={index} className="neon-primary h-16 rounded-2xl text-base" onClick={() => {
+                if (intent.type === 'roll') sounds.ludoDiceGlassRoll(); else sounds.tokenMove();
+                vibrate(intent.type === 'roll' ? [30, 20, 30] : 45);
+                sendIntent(intent);
+              }}>
+                {intent.label ?? (intent.type === 'roll' ? 'Roll dice' : 'Move token')}
+              </Button>
+            ))}
+            {legalIntents.length === 0 && <p className="text-center text-sm text-muted-foreground">Waiting for the active player.</p>}
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (role === 'controller' && state.mode === 'whot') {
+    return (
+      <main className="star-field min-h-screen bg-[#020817] px-4 pb-8 pt-5 text-white">
+        <header className="mx-auto flex max-w-xl items-center justify-between border-b border-white/10 pb-4">
+          <div><BrandLogo className="text-2xl" /><p className="mt-1 text-sm font-bold">🃏 Whot controller</p></div>
+          <div className="text-right text-xs"><p className="text-primary">Round {state.round} of 5</p><p className="text-muted-foreground">First to {state.roundsToWin ?? 3}</p></div>
+        </header>
+        <section className="mx-auto mt-5 max-w-xl space-y-4">
+          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/30 p-4">
+            <div><p className="text-xs text-muted-foreground">{mine.isTurn ? 'Your turn' : `Waiting for ${state.players.find((player) => player.id === state.currentPlayerId)?.name ?? 'player'}`}</p><p className="mt-1 font-bold">{state.lastAction}</p></div>
+            <WhotCardFace card={state.topCard} compact />
+          </div>
+          {mine.pendingPick && mine.pendingPick > 0 ? <p className="rounded-xl border border-amber-300/50 bg-amber-300/10 p-3 text-center text-sm text-amber-100">Pick {mine.pendingPick}, or stack a matching penalty card.</p> : null}
+          <div>
+            <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-black uppercase tracking-[0.2em]">Your hand</h2><span className="text-xs text-primary">{(mine.hand ?? []).length} cards</span></div>
+            <div className="flex min-h-44 gap-3 overflow-x-auto pb-3">
+              {(mine.hand ?? []).map((card) => {
+                const legal = legalIntents.find((intent) => intent.type === 'play_card' && intent.cardId === card.id);
+                return <button key={card.id} type="button" disabled={!legal || state.phase !== 'playing'} onClick={() => {
+                  if (!legal) return;
+                  sounds.hustleCard(); vibrate(45);
+                  if (card.isWhot) setWhotCardId(card.id); else sendIntent(legal);
+                }} className="shrink-0 disabled:cursor-not-allowed" aria-label={legal ? `Play ${card.label}` : `${card.label} cannot be played now`}><WhotCardFace card={card} disabled={!legal} playable={Boolean(legal)} /></button>;
+              })}
+            </div>
+          </div>
+          {legalIntents.some((intent) => intent.type === 'draw') ? <Button className="neon-primary h-14 w-full rounded-xl" onClick={() => sendIntent({ type: 'draw' })}>{mine.pendingPick ? `Pick ${mine.pendingPick}` : 'Go to market'}</Button> : null}
+        </section>
+        {whotCardId ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-2xl border border-secondary/40 bg-[#090713] p-6">
+              <p className="mb-4 text-center text-lg font-bold text-secondary">Call a shape</p>
+              <div className="grid grid-cols-2 gap-3">{WHOT_SHAPES.map((shape) => <Button key={shape} variant="outline" onClick={() => { sendIntent({ type: 'play_card', cardId: whotCardId, calledShape: shape }); setWhotCardId(null); }}>{whotShapeGlyph[shape]} {shape}</Button>)}</div>
+              <Button variant="ghost" className="mt-4 w-full" onClick={() => setWhotCardId(null)}>Cancel</Button>
+            </div>
+          </div>
+        ) : null}
+      </main>
+    );
   }
 
   return (

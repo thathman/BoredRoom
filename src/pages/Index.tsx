@@ -12,7 +12,6 @@ import {
   setDeviceClassCorrection,
   type DeviceClass,
 } from '@/lib/deviceExperience';
-import { fetchGamesCatalog, type LibraryGame } from '@/lib/serverApi';
 import {
   isInstallPromptAvailable,
   isIosSafari,
@@ -115,7 +114,6 @@ export default function Index() {
   const device = detectDeviceClass();
   const lastHouse = getLastHouseSession();
   const resumableHouse = lastHouse?.code?.length === 4 ? lastHouse : null;
-  const [games, setGames] = useState<LibraryGame[]>([]);
   const [installAvailable, setInstallAvailable] = useState(isInstallPromptAvailable());
   const installed = isStandalonePWA();
 
@@ -130,12 +128,6 @@ export default function Index() {
       toast('Install from your browser menu', { description: 'Open your browser menu and choose “Install app” or “Add to Home screen”.', duration: 12000 });
     }
   }
-
-  useEffect(() => {
-    void fetchGamesCatalog()
-      .then((result) => setGames(result.games.filter((game) => game.installed).slice(0, 6)))
-      .catch(() => setGames([]));
-  }, []);
 
   if (device === 'tablet') return <TabletEntry />;
   if (device === 'mobile_controller') return <MobileEntry />;
@@ -163,7 +155,7 @@ export default function Index() {
           )}
         </header>
 
-        <section className="flex flex-1 flex-col items-center justify-start pb-[21rem] pt-[7vh] text-center lg:pt-[8vh]">
+        <section className="flex flex-1 flex-col items-center justify-start pb-24 pt-[7vh] text-center lg:pt-[8vh]">
           <h1 className="brush-display text-5xl uppercase leading-[1.04] text-white sm:text-6xl lg:text-[68px]">
             One room.<br />
             <span className="text-primary">Every phone is<br />a controller.</span>
@@ -192,39 +184,7 @@ export default function Index() {
           )}
         </section>
 
-        <section className="absolute inset-x-0 bottom-0 border-t border-white/10 bg-[linear-gradient(180deg,rgba(2,7,19,.28),rgba(2,7,19,.76)_18%,rgba(2,7,19,.95)_64%,rgba(2,7,19,.98))] px-8 pb-5 pt-3 backdrop-blur-[3px] lg:px-14">
-          <div className="mx-auto max-w-[1424px]">
-            <div className="flex items-end justify-between">
-              <div>
-                <h2 className="text-xl font-bold">Your games</h2>
-                <p className="mt-1 text-xs text-muted-foreground">Jump back in or discover something new.</p>
-              </div>
-              {games.length === 0 && (
-                <button className="text-sm text-primary" onClick={() => navigate('/games')}>Install games <ArrowRight className="inline h-4 w-4" /></button>
-              )}
-            </div>
-            <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-              {games.map((game) => (
-                <button
-                  key={game.id}
-                  className="neon-panel min-w-52 rounded-xl px-4 py-4 text-left hover:border-primary/70"
-                  onClick={() => navigate('/games')}
-                >
-                  <span className="text-4xl">{game.emoji}</span>
-                  <strong className="mt-4 block text-sm">{game.name}</strong>
-                  <span className="mt-2 block text-xs text-primary">● Installed</span>
-                </button>
-              ))}
-              {games.length === 0 && (
-                <button className="neon-panel min-w-64 rounded-xl p-5 text-left" onClick={() => navigate('/games')}>
-                  <strong>No games installed</strong>
-                  <span className="mt-2 block text-xs text-muted-foreground">Open the Games Library to install your first game.</span>
-                </button>
-              )}
-            </div>
-          </div>
-          <BuiltByFooter />
-        </section>
+        <BuiltByFooter />
       </div>
     </LagosScene>
   );

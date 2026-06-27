@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useState } from 'react';
-import { ArrowLeft, ArrowRight, Loader2, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -55,16 +55,11 @@ export default function SessionSetup() {
           <p className="mt-2 text-sm text-muted-foreground">Set up your game session.</p>
 
           <div className="neon-panel mt-7 overflow-hidden rounded-2xl text-left">
-            <div className="flex items-center gap-4 border-b border-white/10 px-5 py-4">
+            <button type="button" className="flex w-full items-center gap-4 border-b border-white/10 px-5 py-4 text-left hover:bg-white/5" onClick={() => navigate('/games')}>
               <span className="text-2xl">🎮</span>
               <div className="flex-1"><strong className="text-sm">Games</strong><p className="text-xs text-muted-foreground">{gameCount} installed</p></div>
               <ArrowRight className="h-4 w-4" />
-            </div>
-            <div className="flex items-center gap-4 border-b border-white/10 px-5 py-4">
-              <Users className="h-6 w-6" />
-              <div className="flex-1"><strong className="text-sm">Players</strong><p className="text-xs text-muted-foreground">Up to {state.settings.maxControllers}</p></div>
-              <ArrowRight className="h-4 w-4" />
-            </div>
+            </button>
             <label className="flex items-center gap-4 border-b border-white/10 px-5 py-4">
               <span className="text-xl">🤖</span>
               <div className="flex-1"><strong className="text-sm">Allow bots</strong><p className="text-xs text-muted-foreground">Fill available seats when supported</p></div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Loader2, Menu, Pause, Play, QrCode, RotateCcw, Trophy } from 'lucide-react';
+import { ArrowRight, Loader2, Menu, Pause, Play, QrCode, RotateCcw, Trophy, X } from 'lucide-react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
@@ -19,6 +19,7 @@ import { ensureHostDisplayId, getPlayerId } from '@/lib/roomUtils';
 import { getPlayerProfile, hasPlayerProfile, type PlayerProfile } from '@/lib/playerProfile';
 import { PlayerAvatar } from '@/components/profile/PlayerAvatar';
 import { ProfileSheet } from '@/components/profile/ProfileSheet';
+import { sounds } from '@/lib/sounds';
 import {
   createCompanionPairing,
   fetchGamesCatalog,
@@ -115,9 +116,24 @@ export default function SessionScreen() {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [pairingInput, setPairingInput] = useState('');
   const [pairingBusy, setPairingBusy] = useState(false);
+  const [hostPairingBusy, setHostPairingBusy] = useState(false);
+  const [dismissedVoteId, setDismissedVoteId] = useState<string | null>(null);
   const [installedGames, setInstalledGames] = useState<LibraryGame[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const wakeLockStatus = useWakeLock(role === 'controller' || role === 'crowd' || role === 'companion');
+  const whotCallout = gamePublicState?.gameType === 'whot'
+    ? (gamePublicState.state as { callout?: { kind?: string; sequence?: number } }).callout
+    : undefined;
+
+  useEffect(() => {
+    if (role !== 'display' || !whotCallout?.sequence) return;
+    const key = `boredroom_whot_callout:${normalizedCode}:${whotCallout.sequence}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+    if (whotCallout.kind === 'semi_last_card' || whotCallout.kind === 'last_card' || whotCallout.kind === 'check_up') {
+      sounds.whotCallout(whotCallout.kind);
+    }
+  }, [normalizedCode, role, whotCallout?.kind, whotCallout?.sequence]);
 
   useEffect(() => {
     void fetchGamesCatalog()
@@ -199,14 +215,17 @@ export default function SessionScreen() {
           <BrandLogo className="mx-auto text-2xl" />
           <div className="flex flex-1 flex-col justify-center">
             <h1 className="brush-display text-5xl">Pair with <span className="text-primary">your host</span></h1>
-            <p className="mt-2 text-sm text-muted-foreground">Enter the approval code shown on the host’s screen.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Enter the six-digit approval code shown on the host’s screen.</p>
             <Input
               value={pairingInput}
               onChange={(event) => setPairingInput(event.target.value.replace(/\D/g, ''))}
               maxLength={6}
+              minLength={6}
               inputMode="numeric"
-              className="mt-7 h-16 bg-black/35 text-center font-mono text-3xl tracking-[0.4em]"
-              placeholder="000000"
+              autoComplete="one-time-code"
+              aria-label="Six-digit companion pairing code"
+              className="mt-7 h-16 bg-black/35 text-center font-mono text-3xl tracking-[0.18em]"
+              placeholder="000 000"
             />
             <Button className="neon-primary mt-4 h-14 rounded-xl" disabled={pairingInput.length !== 6 || pairingBusy} onClick={() => void pair()}>
               {pairingBusy ? <Loader2 className="animate-spin" /> : 'Request host approval'}
@@ -279,6 +298,28 @@ export default function SessionScreen() {
     }
   };
 
+  async function createPairing() {
+    if (hostPairingBusy) return;
+    setHostPairingBusy(true);
+    try {
+      const pairing = await createCompanionPairing(normalizedCode);
+      setPairingCode(pairing.pairingCode);
+      toast.success('Six-digit companion code created.');
+    } catch (error) {
+      toast.error(error instanceof Error && error.message.includes('403')
+        ? 'This display no longer has the owner credential. Resume the house from its original host device.'
+        : 'Could not create a companion code. Try again.');
+    } finally {
+      setHostPairingBusy(false);
+    }
+  }
+
+  function endCurrentGame() {
+    if (!activeRun || !window.confirm('End the current game and move everyone to the recap?')) return;
+    endGame();
+    setDrawerOpen(false);
+  }
+
   const hostControls = isHost ? (
     <>
       {/* Public display keeps the lightweight Games & controls drawer (emergency surface).
@@ -291,12 +332,17 @@ export default function SessionScreen() {
           <HostGameDrawer
             open={drawerOpen}
             onOpenChange={setDrawerOpen}
-            activeGameType={activeRun?.gameType}
+            activeGameType={activeRun && ['active', 'paused', 'setup', 'recoverable'].includes(activeRun.status) ? activeRun.gameType : undefined}
+            activeRunStatus={activeRun?.status}
             members={members}
             busyGame={busyGame}
             onSelectGame={(game) => void chooseGame(game)}
             pairingCode={pairingCode}
-            onCreatePairing={() => void createCompanionPairing(normalizedCode).then((pairing) => setPairingCode(pairing.pairingCode))}
+            onCreatePairing={() => void createPairing()}
+            pairingBusy={hostPairingBusy}
+            onPauseGame={() => pauseGame('host_pause')}
+            onResumeGame={resumeGame}
+            onEndGame={endCurrentGame}
             games={drawerGames}
             sessionCode={normalizedCode}
           />
@@ -327,7 +373,7 @@ export default function SessionScreen() {
           overrideVote={overrideVote}
           endParty={endParty}
           deleteParty={deleteParty}
-          createPairing={() => void createCompanionPairing(normalizedCode).then((pairing) => setPairingCode(pairing.pairingCode))}
+          createPairing={() => void createPairing()}
         />
       )}
     </>
@@ -345,9 +391,19 @@ export default function SessionScreen() {
   ) : null;
 
   // Cinematic vote overlay for the public display (the stage). Read-only: live tally + result.
-  const displayVoteOverlay = role === 'display' && votePoll ? (
-    <div className="pointer-events-none fixed inset-x-0 top-6 z-[75] flex justify-center px-6">
-      <div className="w-full max-w-2xl rounded-3xl border border-secondary/50 bg-[#0b0716]/95 p-6 text-center shadow-[0_0_40px_rgba(168,85,247,.25)] backdrop-blur-xl">
+  const displayVoteOverlay = role === 'display' && votePoll && dismissedVoteId !== votePoll.id ? (
+    <div className="fixed inset-x-0 top-6 z-[75] flex justify-center px-6">
+      <div className="relative w-full max-w-2xl rounded-3xl border border-secondary/50 bg-[#0b0716]/95 p-6 text-center shadow-[0_0_40px_rgba(168,85,247,.25)] backdrop-blur-xl">
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="absolute right-3 top-3 rounded-full"
+          aria-label="Dismiss vote from host screen"
+          onClick={() => setDismissedVoteId(votePoll.id)}
+        >
+          <X className="h-4 w-4" />
+        </Button>
         <p className="text-xs uppercase tracking-[0.3em] text-secondary">
           {votePoll.status === 'open' ? '● House vote live' : votePoll.status === 'expired' ? 'Vote expired' : 'Vote result'}
         </p>
@@ -410,11 +466,9 @@ export default function SessionScreen() {
     </Button>
   ) : null;
 
-  const controllerPersistenceStrip = !isHost && wakeLockStatus !== 'active' ? (
+  const controllerPersistenceStrip = !isHost && wakeLockStatus === 'unsupported' ? (
     <div className="fixed inset-x-3 bottom-3 z-[70] rounded-xl border border-amber-300/30 bg-[#171006]/92 px-4 py-2 text-center text-[11px] text-amber-100 shadow-[0_0_18px_rgba(251,191,36,.12)]">
-      {wakeLockStatus === 'unsupported'
-        ? `If your phone locks, reopen BoredRoom and tap Resume House ${normalizedCode}.`
-        : 'Keeping the controller awake when your browser allows it…'}
+      If your phone locks, reopen BoredRoom and tap Resume House {normalizedCode}.
     </div>
   ) : null;
 
@@ -443,10 +497,27 @@ export default function SessionScreen() {
                 </p>
               </div>
             </div>
+            {(snapshot.session.standings?.length ?? 0) > 0 && (
+              <div className="neon-panel mt-4 rounded-2xl p-5 text-left">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-bold">Game-night championship</h2>
+                  <span className="text-xs text-muted-foreground">{snapshot.session.completedGameCount} games completed</span>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {snapshot.session.standings.map((standing, index) => (
+                    <div key={standing.playerId} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                      <span className="w-6 font-mono text-primary">{index + 1}</span>
+                      <span className="flex-1 font-semibold">{standing.displayName}</span>
+                      <span className="text-sm">{standing.gameWins} game {standing.gameWins === 1 ? 'win' : 'wins'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {isHost ? (
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <Button className="neon-primary h-14 rounded-xl" onClick={() => setDrawerOpen(true)}>Choose next game <ArrowRight className="ml-auto" /></Button>
-                <Button variant="outline" className="h-14 rounded-xl" onClick={endGame}>End game night</Button>
+                <Button variant="outline" className="h-14 rounded-xl" onClick={endParty}>End game night</Button>
               </div>
             ) : <p className="mt-7 text-sm text-muted-foreground">Waiting for the host to choose the next game.</p>}
           </section>

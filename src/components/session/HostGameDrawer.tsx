@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bot, Gamepad2, Settings, Users } from 'lucide-react';
+import { Bot, CircleStop, Gamepad2, Pause, Play, Settings, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -25,11 +25,16 @@ interface HostGameDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   activeGameType?: string;
+  activeRunStatus?: string;
   members: SessionMember[];
   busyGame?: string | null;
   onSelectGame: (game: DrawerGame) => void;
   pairingCode?: string | null;
   onCreatePairing: () => void;
+  pairingBusy?: boolean;
+  onPauseGame: () => void;
+  onResumeGame: () => void;
+  onEndGame: () => void;
   games: DrawerGame[];
   sessionCode: string;
 }
@@ -38,11 +43,16 @@ export function HostGameDrawer({
   open,
   onOpenChange,
   activeGameType,
+  activeRunStatus,
   members,
   busyGame,
   onSelectGame,
   pairingCode,
   onCreatePairing,
+  pairingBusy = false,
+  onPauseGame,
+  onResumeGame,
+  onEndGame,
   games,
   sessionCode,
 }: HostGameDrawerProps) {
@@ -61,17 +71,35 @@ export function HostGameDrawer({
         overlayClassName="bg-black/55"
       >
         <SheetHeader>
-          <SheetTitle className="brush-display text-3xl">Choose a game</SheetTitle>
-          <SheetDescription>Everyone stays in this house session.</SheetDescription>
+          <SheetTitle className="brush-display text-3xl">{activeGameType ? 'Game controls' : 'Choose a game'}</SheetTitle>
+          <SheetDescription>{activeGameType ? 'Control the current run without exposing the game library.' : 'Everyone stays in this house session.'}</SheetDescription>
         </SheetHeader>
         <Tabs defaultValue="games" className="mt-5">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="games"><Gamepad2 className="mr-1 h-4 w-4" /> Games</TabsTrigger>
+            <TabsTrigger value="games"><Gamepad2 className="mr-1 h-4 w-4" /> {activeGameType ? 'Current' : 'Games'}</TabsTrigger>
             <TabsTrigger value="players"><Users className="mr-1 h-4 w-4" /> Players</TabsTrigger>
             <TabsTrigger value="settings"><Settings className="mr-1 h-4 w-4" /> Settings</TabsTrigger>
           </TabsList>
           <TabsContent value="games" className="mt-4 space-y-2">
-            {games.length === 0 && (
+            {activeGameType ? (
+              <div className="space-y-3 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-primary">Now playing</p>
+                  <p className="mt-1 text-lg font-bold">{games.find((game) => game.slug === activeGameType)?.name ?? activeGameType}</p>
+                  <p className="text-xs capitalize text-muted-foreground">{activeRunStatus ?? 'active'}</p>
+                </div>
+                {activeRunStatus === 'paused' ? (
+                  <Button className="neon-primary w-full" onClick={onResumeGame}><Play className="h-4 w-4" /> Resume game</Button>
+                ) : (
+                  <Button className="w-full" variant="outline" onClick={onPauseGame}><Pause className="h-4 w-4" /> Pause game</Button>
+                )}
+                <Button className="w-full border-destructive/50 text-destructive hover:bg-destructive/10" variant="outline" onClick={onEndGame}>
+                  <CircleStop className="h-4 w-4" /> End current game
+                </Button>
+                <p className="text-xs text-muted-foreground">End the current game to return to recap and choose the next one.</p>
+              </div>
+            ) : null}
+            {!activeGameType && games.length === 0 && (
               <div className="rounded-2xl border border-dashed border-border p-6 text-center">
                 <p className="font-medium">No games installed</p>
                 <p className="mt-1 text-sm text-muted-foreground">Open the Games Library to install what this house can play.</p>
@@ -80,7 +108,7 @@ export function HostGameDrawer({
                 </Button>
               </div>
             )}
-            {games.map((game) => (
+            {!activeGameType && games.map((game) => (
               <div
                 key={game.slug}
                 className={`flex items-center gap-3 rounded-2xl border p-3 ${
@@ -134,8 +162,8 @@ export function HostGameDrawer({
                     <p className="mt-1 text-xs">Expires in 5 minutes</p>
                   </div>
                 ) : (
-                  <Button className="mt-3 w-full" variant="outline" onClick={onCreatePairing}>
-                    Create pairing code
+                  <Button className="mt-3 w-full" variant="outline" disabled={pairingBusy} onClick={onCreatePairing}>
+                    {pairingBusy ? 'Creating code…' : 'Create pairing code'}
                   </Button>
                 )}
               </div>

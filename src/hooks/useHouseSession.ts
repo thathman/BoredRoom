@@ -277,7 +277,7 @@ export function useHouseSession({
     activeVote,
     voteHistory,
     votePoll: activeVote && ['open', 'locked', 'resolved', 'expired'].includes(activeVote.status)
-      ? { options: activeVote.options, tally: activeVote.tally, status: activeVote.status, result: activeVote.result }
+      ? { id: activeVote.id, options: activeVote.options, tally: activeVote.tally, status: activeVote.status, result: activeVote.result }
       : null,
     setReady,
     sendGameIntent,

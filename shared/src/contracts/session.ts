@@ -43,6 +43,13 @@ export const HouseSessionSettings = z.object({
   maxControllers: z.number().int().positive().default(12),
 });
 
+export const SessionStanding = z.object({
+  playerId: Id,
+  displayName: z.string().min(1),
+  gameWins: z.number().int().nonnegative().default(0),
+  gamesPlayed: z.number().int().nonnegative().default(0),
+});
+
 export const HouseSession = z.object({
   id: Id,
   code: z.string().min(4),
@@ -53,6 +60,8 @@ export const HouseSession = z.object({
   currentGameRunId: Id.optional(),
   walkthroughCompleted: z.boolean().default(false),
   settings: HouseSessionSettings,
+  standings: z.array(SessionStanding).default([]),
+  completedGameCount: z.number().int().nonnegative().default(0),
   createdAt: Iso,
   updatedAt: Iso,
   endedAt: Iso.optional(),

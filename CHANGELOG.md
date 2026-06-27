@@ -2,6 +2,15 @@
 
 All notable changes to BoredRoom are documented here.
 
+## 1.6.0.0 — 2026-06-27
+
+- Added display-side vote dismissal and current-game pause, resume, and end controls.
+- Removed public game boards from Ludo and Whot controllers.
+- Fixed companion pairing feedback and clarified the six-digit code flow.
+- Added persisted cross-game championship standings.
+- Added mixed Nigerian YarnGPT callouts for Whot and removed the persistent wake-lock notice.
+- Removed the homepage game shelf and made the setup Games row open the Games Library.
+
 ## 1.3.0.1 — 2026-06-25
 
 - Replaced the retired OpenRouter Gemini 2.0 endpoint with the verified `google/gemini-2.5-flash-lite` endpoint.

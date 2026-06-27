@@ -42,6 +42,11 @@ describe('house session lifecycle (consecutive games + reconnect)', () => {
     finishActiveGame(code, 'finished', ['ada']);
     expect(getPublicSession(code)?.session.status).toBe('game_recap'); // recap, NOT ended
     expect(getPublicSession(code)?.session.code).toBe(code); // code unchanged
+    expect(getPublicSession(code)?.session.completedGameCount).toBe(1);
+    expect(getPublicSession(code)?.session.standings).toEqual([
+      { playerId: 'ada', displayName: 'Ada', gameWins: 1, gamesPlayed: 1 },
+      { playerId: 'tobi', displayName: 'Tobi', gameWins: 0, gamesPlayed: 1 },
+    ]);
 
     clearActiveGame(code);
     expect(getPublicSession(code)?.session.status).toBe('intermission');
@@ -54,6 +59,11 @@ describe('house session lifecycle (consecutive games + reconnect)', () => {
     expect(snap.members.map((m) => m.deviceId).sort()).toEqual(['ada', 'tobi']);
     // The party is never 'ended' just because games came and went.
     expect(snap.session.status).not.toBe('ended');
+    finishActiveGame(code, 'finished', ['tobi']);
+    expect(getPublicSession(code)?.session.standings.map((standing) => [standing.displayName, standing.gameWins])).toEqual([
+      ['Ada', 1],
+      ['Tobi', 1],
+    ]);
   });
 
   it('auto-pauses on a seated player disconnect and resumes on reconnect', () => {

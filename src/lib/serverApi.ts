@@ -33,6 +33,13 @@ export interface CreatedSession {
     hintsEnabled: boolean;
     maxControllers: number;
   };
+  standings: Array<{
+    playerId: string;
+    displayName: string;
+    gameWins: number;
+    gamesPlayed: number;
+  }>;
+  completedGameCount: number;
 }
 
 export interface SessionMember {
