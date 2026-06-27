@@ -1,6 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
-import { verifyArtifactBytes } from '../../server/src/installedGames';
+import { mkdtempSync, rmSync, writeFileSync, symlinkSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { verifyArtifactBytes, inspectArchiveSafety } from '../../server/src/installedGames';
 
 // Sign the way the release pipeline does: Ed25519 over the hex sha256 digest string.
 function makeArtifact(bytes: Buffer, privateKey: ReturnType<typeof generateKeyPairSync>['privateKey']) {
@@ -37,5 +41,50 @@ describe('verifyArtifactBytes (installable game artifact gate)', () => {
   it('rejects an oversized artifact before hashing', () => {
     const huge = Buffer.alloc(25_000_001);
     expect(() => verifyArtifactBytes(huge, { ...good, size: huge.length }, pubPem)).toThrow('artifact_too_large');
+  });
+});
+
+describe('inspectArchiveSafety (archive-level artifact gate)', () => {
+  const work = mkdtempSync(path.join(tmpdir(), 'artifact-test-'));
+  afterAll(() => rmSync(work, { recursive: true, force: true }));
+
+  // Build a .tgz from a staged dir; -C keeps stored paths relative to the staging root.
+  function tgz(name: string, build: (dir: string) => void): string {
+    const src = mkdtempSync(path.join(work, `${name}-`));
+    build(src);
+    const out = path.join(work, `${name}.tgz`);
+    const r = spawnSync('tar', ['-czf', out, '-C', src, '.']);
+    if (r.status !== 0) throw new Error(`tar build failed: ${r.stderr}`);
+    return out;
+  }
+
+  it('accepts a clean archive of regular files', async () => {
+    const archive = tgz('clean', (d) => {
+      writeFileSync(path.join(d, 'manifest.json'), '{}');
+      writeFileSync(path.join(d, 'game-runtime.js'), 'export {}');
+    });
+    await expect(inspectArchiveSafety(archive)).resolves.toBeUndefined();
+  });
+
+  it('rejects a symlink entry', async () => {
+    const archive = tgz('symlinked', (d) => {
+      writeFileSync(path.join(d, 'manifest.json'), '{}');
+      symlinkSync('/etc/passwd', path.join(d, 'leak'));
+    });
+    await expect(inspectArchiveSafety(archive)).rejects.toThrow('artifact_links_invalid');
+  });
+
+  it('rejects a parent-traversal path', async () => {
+    // Craft a tarball whose stored path escapes via `..` using an absolute -C transform.
+    const src = mkdtempSync(path.join(work, 'evil-'));
+    writeFileSync(path.join(src, 'evil.js'), 'boom');
+    const out = path.join(work, 'traversal.tgz');
+    const r = spawnSync('tar', ['-czf', out, '-C', src, '--transform', 's,^\\./,../escaped/,', '.'], { encoding: 'utf8' });
+    if (r.status !== 0) {
+      // BSD tar (macOS) lacks --transform; build the entry name directly instead.
+      const r2 = spawnSync('tar', ['-czf', out, '-C', path.dirname(src), `../${path.basename(src)}/evil.js`]);
+      if (r2.status !== 0) return; // environment can't craft it; skip rather than false-fail
+    }
+    await expect(inspectArchiveSafety(out)).rejects.toThrow('artifact_paths_invalid');
   });
 });

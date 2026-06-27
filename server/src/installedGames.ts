@@ -164,6 +164,22 @@ async function runTar(args: string[]): Promise<string> {
   });
 }
 
+// Archive-level safety gate, run on a staged .tgz before extraction. Rejects absolute paths,
+// parent-dir traversal (`..`), backslash paths, and symlink/hardlink entries so a malicious
+// tarball can't escape the staging dir. Throws a stable error code; resolves on a clean archive.
+export async function inspectArchiveSafety(archivePath: string): Promise<void> {
+  const listing = await runTar(['-tzf', archivePath]);
+  const entries = listing.split('\n').filter(Boolean);
+  if (
+    entries.length === 0 ||
+    entries.some((entry) => entry.startsWith('/') || entry.includes('..') || entry.includes('\\'))
+  ) throw new Error('artifact_paths_invalid');
+  const verboseListing = await runTar(['-tvzf', archivePath]);
+  if (verboseListing.split('\n').filter(Boolean).some((entry) => /^[lh]/.test(entry))) {
+    throw new Error('artifact_links_invalid');
+  }
+}
+
 async function persistInstalled(game: InstalledGame): Promise<void> {
   const response = await dbFetch('installed_games', {
     method: 'POST',
@@ -326,16 +342,7 @@ export async function installOfficialGame(gameId: string): Promise<InstalledGame
   await mkdir(staging, { recursive: true });
   await writeFile(archive, bytes, { mode: 0o600 });
   try {
-    const listing = await runTar(['-tzf', archive]);
-    const entries = listing.split('\n').filter(Boolean);
-    if (
-      entries.length === 0 ||
-      entries.some((entry) => entry.startsWith('/') || entry.includes('..') || entry.includes('\\'))
-    ) throw new Error('artifact_paths_invalid');
-    const verboseListing = await runTar(['-tvzf', archive]);
-    if (verboseListing.split('\n').filter(Boolean).some((entry) => /^[lh]/.test(entry))) {
-      throw new Error('artifact_links_invalid');
-    }
+    await inspectArchiveSafety(archive);
     await runTar(['-xzf', archive, '-C', staging, '--no-same-owner', '--no-same-permissions']);
     const manifest = GamePluginManifest.parse(JSON.parse(await readFile(path.join(staging, 'manifest.json'), 'utf8')));
     if (manifest.id !== game.id || manifest.version !== game.version) throw new Error('artifact_manifest_mismatch');
