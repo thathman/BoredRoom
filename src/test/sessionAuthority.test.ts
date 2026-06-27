@@ -6,6 +6,9 @@ import {
   endSession,
   kickSessionMember,
   admitSessionMember,
+  addSessionBot,
+  removeSessionBot,
+  uniqueDisplayName,
   setRemoteMode,
   resolveMemberByOption,
   getPublicSession,
@@ -182,5 +185,29 @@ describe('house session authority', () => {
     expect(getPublicSession(session.code)?.session.settings.allowRemote).toBe(false);
     setRemoteMode(session.code, true);
     expect(getPublicSession(session.code)?.session.settings.allowRemote).toBe(true);
+  });
+
+  it('deduplicates display names so no two members clash (humans and bots)', () => {
+    const { session } = createRecord();
+    upsertSessionMember(session.code, { deviceId: 'd1', displayName: 'Ada', role: 'controller' });
+    upsertSessionMember(session.code, { deviceId: 'd2', displayName: 'Ada', role: 'controller' });
+    const names = getPublicSession(session.code)!.members.map((m) => m.displayName).sort();
+    expect(names).toContain('Ada');
+    expect(names).toContain('Ada 2');
+    // the helper is idempotent for the same device (reconnect keeps its name)
+    expect(uniqueDisplayName(getSessionRecord(session.code)!, 'Ada', 'd1')).toBe('Ada');
+  });
+
+  it('adds and removes named bots without clashing names', () => {
+    const { session } = createRecord();
+    const b1 = addSessionBot(session.code);
+    const b2 = addSessionBot(session.code);
+    expect(b1?.isBot).toBe(true);
+    expect(b1?.displayName).not.toBe(b2?.displayName); // unique bot names
+    expect(removeSessionBot(session.code, b1!.deviceId)).toBe(true);
+    expect(getSessionRecord(session.code)?.members.has(b1!.deviceId)).toBe(false);
+    // removing a non-bot is rejected
+    upsertSessionMember(session.code, { deviceId: 'human', displayName: 'Real', role: 'controller' });
+    expect(removeSessionBot(session.code, 'human')).toBe(false);
   });
 });

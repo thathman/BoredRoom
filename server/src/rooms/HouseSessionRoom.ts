@@ -18,6 +18,8 @@ import {
   getSessionRecord,
   pauseActiveGame,
   removeSessionBotMembers,
+  addSessionBot,
+  removeSessionBot,
   resumeActiveGame,
   resolveSessionVote,
   openSessionVote,
@@ -161,6 +163,14 @@ export class HouseSessionRoom extends Room {
       if (!this.isHostClient(client)) return;
       const identity = this.identities.get(client.sessionId);
       this.kickPlayer(String(payload?.deviceId ?? ''), payload?.reason, identity?.deviceId);
+    });
+    this.onMessage('session:add_bot', (client) => {
+      if (!this.isHostClient(client)) return;
+      if (addSessionBot(this.code)) this.broadcast('session:state', getPublicSession(this.code));
+    });
+    this.onMessage('session:remove_bot', (client, payload: { deviceId?: string }) => {
+      if (!this.isHostClient(client)) return;
+      if (removeSessionBot(this.code, String(payload?.deviceId ?? ''))) this.broadcast('session:state', getPublicSession(this.code));
     });
     this.onMessage('session:set_remote_mode', (client, payload: { enabled?: boolean }) => {
       if (!this.isHostClient(client)) return;
@@ -760,33 +770,32 @@ export class HouseSessionRoom extends Room {
     });
   }
 
+  // At game start, honour the host's explicit lobby bot roster. If the game can't use bots, drop
+  // them; otherwise auto-fill up to the game's minimum and trim any bots over the maximum.
   private prepareBotSeats(): void {
     const record = getSessionRecord(this.code);
     const run = record?.activeRuntime?.run;
-    removeSessionBotMembers(this.code);
-    if (!record || !run || !record.session.settings.allowBots) return;
+    if (!record || !run) return;
     const manifest = getInstalledGameManifest(run.gameType);
-    if (!manifest?.capabilities.bots) return;
+    if (!record.session.settings.allowBots || !manifest?.capabilities.bots) {
+      removeSessionBotMembers(this.code);
+      return;
+    }
     const humans = Array.from(record.members.values())
-      .filter((member) => member.role === 'controller' && !member.isBot && member.ready && member.connected);
-    const existingBots = Array.from(record.members.values())
-      .filter((member) => member.role === 'controller' && member.isBot);
-    const requested = Math.max(0, Math.trunc(Number(run.settings?.botCount ?? run.settings?.bots ?? 0)));
-    const targetSeats = Math.min(
-      manifest.maxPlayers,
-      Math.max(manifest.minPlayers, humans.length + requested),
-    );
-    const requiredBots = Math.max(0, targetSeats - humans.length);
-    for (let index = existingBots.length; index < requiredBots; index += 1) {
-      const deviceId = `bot:${run.id}:${index + 1}`;
-      upsertSessionMember(this.code, {
-        deviceId,
-        displayName: `Bot ${index + 1}`,
-        role: 'controller',
-        isBot: true,
-        ready: true,
-        connected: true,
-      });
+      .filter((m) => m.role === 'controller' && !m.isBot && m.ready && m.connected);
+    let bots = Array.from(record.members.values()).filter((m) => m.role === 'controller' && m.isBot);
+
+    // Trim bots that push the table over the game's max.
+    while (humans.length + bots.length > manifest.maxPlayers && bots.length > 0) {
+      const drop = bots.pop()!;
+      removeSessionBot(this.code, drop.deviceId);
+    }
+    // Auto-fill up to the game's minimum so a solo host can still start.
+    const explicit = Math.max(0, Math.trunc(Number(run.settings?.botCount ?? run.settings?.bots ?? 0)));
+    const needed = Math.max(manifest.minPlayers - (humans.length + bots.length), explicit - bots.length);
+    for (let i = 0; i < needed && humans.length + bots.length < manifest.maxPlayers; i += 1) {
+      const added = addSessionBot(this.code);
+      if (added) bots = [...bots, added];
     }
   }
 

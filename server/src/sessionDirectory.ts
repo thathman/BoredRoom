@@ -288,6 +288,23 @@ export function subscribeToSession(code: string, listener: Listener): () => void
   };
 }
 
+// Disambiguate a display name against everyone else in the house: if `desired` is already taken
+// by a different device, append " 2", " 3"… so no two members share a name (humans or bots).
+export function uniqueDisplayName(record: SessionRecord, desired: string, deviceId: string): string {
+  const base = (desired || 'Player').trim();
+  const taken = new Set(
+    Array.from(record.members.values())
+      .filter((m) => m.deviceId !== deviceId)
+      .map((m) => m.displayName.toLowerCase()),
+  );
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let n = 2; n < 100; n += 1) {
+    const candidate = `${base} ${n}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+  return `${base} ${Math.floor(Math.random() * 1000)}`;
+}
+
 export function upsertSessionMember(
   code: string,
   input: Pick<SessionMember, 'deviceId' | 'displayName' | 'role'> & Partial<Pick<SessionMember, 'isBot' | 'ready' | 'connected' | 'avatar' | 'accentColor' | 'pending'>>,
@@ -301,9 +318,12 @@ export function upsertSessionMember(
   const pending = previous
     ? previous.pending
     : (input.pending ?? (record.session.settings.requireAdmission && input.role === 'controller' && !input.isBot));
+  // Keep a reconnecting member's existing name; otherwise dedupe against the house.
+  const rawName = input.displayName || previous?.displayName || 'Player';
+  const displayName = previous ? rawName : uniqueDisplayName(record, rawName, input.deviceId);
   const member: SessionMember = {
     deviceId: input.deviceId,
-    displayName: input.displayName || previous?.displayName || 'Player',
+    displayName,
     role: input.role,
     isBot: input.isBot ?? previous?.isBot,
     pending,
@@ -521,6 +541,32 @@ export function removeSessionBotMembers(code: string): void {
     }
   }
   if (removed) emit(code, 'bot.removed');
+}
+
+// Nigerian first names for bots — distinct, friendly, and deduped against the house.
+const BOT_NAMES = ['Chidi', 'Amaka', 'Tunde', 'Ngozi', 'Emeka', 'Bisi', 'Yusuf', 'Zainab', 'Obi', 'Funke', 'Sade', 'Kelechi'];
+
+// Add a single bot to the lobby immediately (host-driven), with a unique name. Returns the new
+// bot member, or null if the house already has its max controllers.
+export function addSessionBot(code: string): SessionMember | null {
+  const record = getSessionRecord(code);
+  if (!record) return null;
+  const controllers = Array.from(record.members.values()).filter((m) => m.role === 'controller');
+  if (controllers.length >= record.session.settings.maxControllers) return null;
+  const deviceId = `bot:lobby:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const desired = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
+  const name = uniqueDisplayName(record, desired, deviceId);
+  return upsertSessionMember(code, { deviceId, displayName: name, role: 'controller', isBot: true, ready: true, connected: true });
+}
+
+// Remove one specific bot by deviceId (host-driven). Returns whether it was removed.
+export function removeSessionBot(code: string, deviceId: string): boolean {
+  const record = getSessionRecord(code);
+  const member = record?.members.get(deviceId);
+  if (!record || !member?.isBot) return false;
+  record.members.delete(deviceId);
+  emit(code, 'bot.removed');
+  return true;
 }
 
 export function selectSessionGame(code: string, run: GameRun): void {

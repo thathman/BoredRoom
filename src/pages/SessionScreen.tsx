@@ -100,6 +100,8 @@ export default function SessionScreen() {
     kickPlayer,
     admitPlayer,
     rejectPlayer,
+    addBot,
+    removeBot,
     setRemoteMode,
     endParty,
     deleteParty,
@@ -697,7 +699,10 @@ export default function SessionScreen() {
                   {member.ready && !member.isBot && <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-primary text-[10px] text-black">✓</span>}
                 </div>
                 <p className="mt-2 text-xs">{member.displayName}</p>
-                {member.isBot && <p className="text-[10px] uppercase tracking-[0.2em] text-secondary">Bot</p>}
+                {member.isBot && <p className="text-[10px] uppercase tracking-[0.2em] text-secondary">🤖 Bot</p>}
+                {isHost && member.isBot && (
+                  <button type="button" className="mt-1 text-[10px] uppercase tracking-[0.15em] text-red-300/80 hover:text-red-200" onClick={() => removeBot(member.deviceId)}>Remove</button>
+                )}
                 {role === 'companion' && !member.isBot && (
                   <button
                     type="button"
@@ -711,6 +716,22 @@ export default function SessionScreen() {
             ))}
             {controllerMembers.length === 0 && <p className="text-sm text-muted-foreground">Waiting for the first player…</p>}
           </div>
+          {/* Host bot roster: add named bots (no name clashes) before starting a game. */}
+          {isHost && snapshot?.session.settings.allowBots && (
+            <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
+              <span className="text-xs text-muted-foreground">
+                {controllerMembers.filter((m) => m.isBot).length} bot(s) · {controllerMembers.filter((m) => !m.isBot).length} player(s)
+              </span>
+              <Button
+                variant="outline"
+                className="h-9 rounded-xl text-xs"
+                disabled={controllerMembers.length >= (snapshot?.session.settings.maxControllers ?? 12)}
+                onClick={() => addBot()}
+              >
+                🤖 Add bot
+              </Button>
+            </div>
+          )}
         </section>
       </div>
       {pickerOpen && (
