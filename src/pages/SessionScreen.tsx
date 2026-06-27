@@ -21,6 +21,7 @@ import { PlayerAvatar } from '@/components/profile/PlayerAvatar';
 import { ProfileSheet } from '@/components/profile/ProfileSheet';
 import { ControllerMenu } from '@/components/session/ControllerMenu';
 import { WinnerCelebration } from '@/components/session/WinnerCelebration';
+import { GameConfigSheet } from '@/components/session/GameConfigSheet';
 import { sounds } from '@/lib/sounds';
 import {
   createCompanionPairing,
@@ -125,6 +126,7 @@ export default function SessionScreen() {
   const [dismissedVoteId, setDismissedVoteId] = useState<string | null>(null);
   const [installedGames, setInstalledGames] = useState<LibraryGame[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [configGame, setConfigGame] = useState<LibraryGame | null>(null);
   const wakeLockStatus = useWakeLock(role === 'controller' || role === 'crowd' || role === 'companion');
   const whotCallout = gamePublicState?.gameType === 'whot'
     ? (gamePublicState.state as { callout?: { kind?: string; sequence?: number; playerName?: string } }).callout
@@ -168,21 +170,26 @@ export default function SessionScreen() {
     [activeRun?.gameType, installedGames],
   );
 
-  const chooseGame = useCallback((game: { slug: string; name: string }) => {
+  // Picking a game opens its configuration screen first (every game gets one); the actual
+  // start/switch happens from the config sheet with the chosen settings.
+  const chooseGame = useCallback((game: { slug: string }) => {
     if (!snapshot || !isHost || busyGame) return;
-    setBusyGame(game.slug);
+    const lib = installedGames.find((g) => g.id === game.slug);
+    if (lib) { setConfigGame(lib); setDrawerOpen(false); setPickerOpen(false); }
+  }, [busyGame, installedGames, isHost, snapshot]);
+
+  const startConfigured = useCallback((settings: Record<string, unknown>) => {
+    if (!configGame || !isHost) return;
+    const slug = configGame.id;
+    setBusyGame(slug);
     if (activeRun && !['finished', 'abandoned'].includes(activeRun.status)) {
-      if (!window.confirm(`End ${activeGame?.name ?? 'the current game'} and switch to ${game.name}?`)) {
-        setBusyGame(null);
-        return;
-      }
-      switchGame(game.slug);
+      switchGame(slug, settings);
     } else {
-      startGame(game.slug);
+      startGame(slug, settings);
     }
-    setDrawerOpen(false);
+    setConfigGame(null);
     window.setTimeout(() => setBusyGame(null), 800);
-  }, [activeGame?.name, activeRun, busyGame, isHost, snapshot, startGame, switchGame]);
+  }, [activeRun, configGame, isHost, startGame, switchGame]);
 
   if (!role) return <Navigate to={deviceClass === 'desktop_host' ? `/session/${normalizedCode}/display` : `/session/${normalizedCode}/controller`} replace />;
   if (!compatibleRole) return <Navigate to={deviceClass === 'desktop_host' ? '/' : `/join/${normalizedCode}`} replace />;
@@ -332,6 +339,15 @@ export default function SessionScreen() {
 
   const hostControls = isHost ? (
     <>
+      {/* Pre-game configuration — every game gets a config screen before it starts. */}
+      {configGame && (
+        <GameConfigSheet
+          game={configGame}
+          readyPlayers={readyCount}
+          onStart={startConfigured}
+          onCancel={() => setConfigGame(null)}
+        />
+      )}
       {/* Public display keeps the lightweight Games & controls drawer (emergency surface).
           The companion gets the full tabbed control booth instead. */}
       {role === 'display' && (

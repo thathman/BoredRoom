@@ -104,6 +104,7 @@ export class HouseSessionRoom extends Room {
   private lastScores = new Map<string, number>();
   private static readonly HINT_CAP = 3;
   private botTimer: NodeJS.Timeout | null = null;
+  private paceTimer: NodeJS.Timeout | null = null;
   private botTurnNumber = 0;
 
   onCreate(options: JoinOptions): void {
@@ -510,6 +511,7 @@ export class HouseSessionRoom extends Room {
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.clearBotTimer();
+    this.clearPaceTimer();
     this.clearVoteTimer();
     this.gameRuntime?.dispose();
     this.gameRuntime = null;
@@ -601,6 +603,36 @@ export class HouseSessionRoom extends Room {
       const identity = this.identities.get(client.sessionId);
       if (identity) this.sendGameState(client, identity);
     }
+    this.schedulePaceTimer();
+  }
+
+  // Fast-paced timer: with a configured pace, auto-advance a round/turn that drags. During
+  // 'playing' it force-reveals after timerMs; during 'reveal' it moves on after revealCountdownMs.
+  // Off when the host chose 'relaxed' (timerMs 0). Turn-based board games are left untouched.
+  private schedulePaceTimer(): void {
+    this.clearPaceTimer();
+    const run = getSessionRecord(this.code)?.activeRuntime?.run;
+    if (!this.gameRuntime || !run || run.status !== 'active') return;
+    const state = this.gameRuntime.publicState() as { phase?: string };
+    const timerMs = Math.max(0, Math.trunc(Number(run.settings?.timerMs ?? 0)));
+    const revealMs = Math.max(0, Math.trunc(Number(run.settings?.revealCountdownMs ?? 5000)));
+    let delay = 0;
+    if (state.phase === 'playing' && timerMs > 0) delay = timerMs;
+    else if (state.phase === 'reveal' && revealMs > 0) delay = revealMs;
+    if (delay <= 0) return;
+    this.paceTimer = setTimeout(() => {
+      if (!this.gameRuntime) return;
+      // Force the round forward as a host 'advance' (reveal → next, or playing → reveal).
+      const host = Array.from(this.identities.values()).find((i) => i.isOwner)?.deviceId ?? 'pace-timer';
+      const changed = this.gameRuntime.handleIntent(host, { type: 'advance' }, true);
+      if (changed) this.broadcastGameState();
+      else this.schedulePaceTimer();
+    }, delay).unref();
+  }
+
+  private clearPaceTimer(): void {
+    if (this.paceTimer) clearTimeout(this.paceTimer);
+    this.paceTimer = null;
   }
 
   private persistMember(deviceId: string): void {
