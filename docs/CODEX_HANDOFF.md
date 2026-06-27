@@ -184,9 +184,25 @@ npm run build
 
 ## Exact remaining tasks
 
-### Immediate next tasks
+### State as of the latest Claude continuation (GOAL1+GOAL2 verifiable layers done)
 
-1. Vote + party lifecycle are now broad: companion UI, player requests, auto-apply, game-selection start-from-vote, action votes (end_party/end_game/pause/resume), public-display vote overlay, recap vote mentions, and explicit End/Delete Party. Remaining vote/party work: admin dashboard vote/session visibility, vote-driven admit/kick/remote_mode/team_change, browser-page (not just socket) vote UI smoke, and the in-game **party-status vocabulary migration** (`game_active`→`in_game`, `next_decision`→`intermission`, `voting`→`selecting_game`, add `configuring_game`/`game_recap`). Deploy to Dell and rerun live smoke. Next biggest non-vote tracks: admin dashboard, profiles/avatars, PWA/QR hardening, and the per-game rebuilds (Whot/Ludo/Connect4/etc.).
+What is DONE and verified (tests/live smokes, both repos green):
+- Party-status vocabulary migration to `draft/open_lobby/selecting_game/configuring_game/in_game/game_recap/intermission/ending_confirm/ended/deleted`.
+- Vote lifecycle: companion UI, player requests, override, auto-apply, game-selection start-from-vote, action votes, and vote-driven kick_player/remote_mode/admit_player; public-display overlay; recap mentions; admin vote visibility.
+- Player management triad: kick, remote-mode toggle, admission queue (requireAdmission) — host + vote driven. Permission smoke proves non-host cannot run host-only actions (`scripts/playwright-permissions.mjs`).
+- Explicit End/Delete Party. Admin dashboard (`/admin`). Profiles/avatars. PWA real install-prompt capture + QR hardening. AI fail-soft for no-key/schema/429/402/timeout.
+- **All 15 game runtimes have dedicated tests (BoredRoom-Games suite 192, stable).** Real bugs fixed: trivia always-index-0 answer leak, landlord rent owner-lookup, ETTT team-restore, faith-feud 1v1 deadlock, flaky landlord contract test. Ludo rebuilt (correct absolute board). Connect 4 team/best-of. Generic projection-isolation check across all games.
+
+HARD BLOCKERS (cannot be cleared without maintainer/infra — do NOT mark complete):
+- **Signed artifact release**: needs `BOREDROOM_GAMES_SIGNING_KEY` (maintainer-held). Build pipeline verified healthy with an ephemeral key. Until the key holder runs `npm run build` + commits dist/catalog, installed artifacts are stale vs the improved runtimes.
+- **Dell deploy + live verification**: needs deploy access. Nothing deployed this pass.
+- **Real iOS/Android QR camera evidence**: needs physical devices.
+- **Visual-regression ledger**: no approved-screenshot reference set exists.
+
+LARGE REMAINING (verifiable only with the dev server / browser tooling running interactively):
+- Per-game browser display/controller polish for the challenge games (board games already render); companion tabbed sections (Party/Players/Games/Current Game/Votes/Settings/Recap); public-display emergency-drawer separation from companion controls.
+- Full Monopoly feature set for Oga Landlord (sets/upgrades/mortgage/jail/auction/trade) from `christelbuchanan/Monopoly-Game`; Faith Feud full port from `joshzcold/Friendly-Feud`; richer content banks + AI generation wiring.
+- Browser-page Playwright E2E (consecutive games, refresh/reconnect, server-restart recovery), vote-driven admit needs no extra model.
 2. Keep `scripts/playwright-vote-lifecycle.mjs` in the live smoke set when changing votes/session messages.
 3. Update both docs after each change.
 4. Commit/push/deploy and rerun live smoke/matrix.
