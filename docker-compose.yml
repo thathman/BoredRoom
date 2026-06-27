@@ -32,9 +32,14 @@ services:
       GAME_ADMIN_TOKEN: ${GAME_ADMIN_TOKEN:-}
       GAME_ADMIN_ORIGINS: ${GAME_ADMIN_ORIGINS:-https://party.hendrix.com.ng}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-google/gemini-2.5-flash-lite}
       AI_APP_URL: ${AI_APP_URL:-https://party.hendrix.com.ng}
       AI_APP_NAME: ${AI_APP_NAME:-BoredRoom}
+      TTS_BASE_URL: ${TTS_BASE_URL:-https://yarngpt.ai/api/v1}
+      TTS_API_KEY: ${TTS_API_KEY:-}
+      TTS_VOICE: ${TTS_VOICE:-Idera}
       BOREDROOM_GAMES_DIR: /var/lib/boredroom/games
       BOREDROOM_GAMES_CATALOG_URL: ${BOREDROOM_GAMES_CATALOG_URL:-https://raw.githubusercontent.com/thathman/BoredRoom-Games/main/catalog.json}
       BOREDROOM_GAMES_PUBLIC_KEY: ${BOREDROOM_GAMES_PUBLIC_KEY:-}
