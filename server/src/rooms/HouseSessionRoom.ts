@@ -105,6 +105,7 @@ export class HouseSessionRoom extends Room {
   private static readonly HINT_CAP = 3;
   private botTimer: NodeJS.Timeout | null = null;
   private paceTimer: NodeJS.Timeout | null = null;
+  private paceDeadline: number | null = null;
   private botTurnNumber = 0;
 
   onCreate(options: JoinOptions): void {
@@ -572,6 +573,7 @@ export class HouseSessionRoom extends Room {
     client.send('game:public_state', {
       gameType: this.gameRuntime.gameType,
       state: projectedState,
+      paceDeadline: this.paceDeadline,
     });
     if (identity.role === 'controller') {
       if (!this.hintBudgets.has(identity.deviceId)) this.hintBudgets.set(identity.deviceId, 1);
@@ -620,6 +622,7 @@ export class HouseSessionRoom extends Room {
     if (state.phase === 'playing' && timerMs > 0) delay = timerMs;
     else if (state.phase === 'reveal' && revealMs > 0) delay = revealMs;
     if (delay <= 0) return;
+    this.paceDeadline = Date.now() + delay;
     this.paceTimer = setTimeout(() => {
       if (!this.gameRuntime) return;
       // Force the round forward as a host 'advance' (reveal → next, or playing → reveal).
@@ -633,6 +636,7 @@ export class HouseSessionRoom extends Room {
   private clearPaceTimer(): void {
     if (this.paceTimer) clearTimeout(this.paceTimer);
     this.paceTimer = null;
+    this.paceDeadline = null;
   }
 
   private persistMember(deviceId: string): void {

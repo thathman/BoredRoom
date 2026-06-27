@@ -590,6 +590,7 @@ export default function SessionScreen() {
           aiCommentary={aiResult?.kind === 'commentary' || aiResult?.kind === 'pacing' ? aiResult.text : null}
           requestHint={role === 'controller' && snapshot?.session.settings.hintsEnabled ? requestHint : undefined}
           hintBudget={gamePrivateState?.gameType === activeRun.gameType ? gamePrivateState.hintBudget : undefined}
+          paceDeadline={gamePublicState.paceDeadline}
         />
       </div>
     );

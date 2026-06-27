@@ -52,6 +52,7 @@ export function useHouseSession({
   const [gamePublicState, setGamePublicState] = useState<{
     gameType: string;
     state: unknown;
+    paceDeadline?: number | null;
   } | null>(null);
   const [gamePrivateState, setGamePrivateState] = useState<{
     gameType: string;
@@ -124,7 +125,7 @@ export function useHouseSession({
             setActiveVote(null);
           }
         });
-        room.onMessage('game:public_state', (payload: { gameType: string; state: unknown }) => {
+        room.onMessage('game:public_state', (payload: { gameType: string; state: unknown; paceDeadline?: number | null }) => {
           setGamePublicState(payload);
         });
         room.onMessage('game:private_state', (payload: { gameType: string; state: unknown; hintBudget?: number }) => {

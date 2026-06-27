@@ -540,6 +540,31 @@ function ludoTokenLabel(index: number) {
   return ['A', 'B', 'C', 'D'][index] ?? String(index + 1);
 }
 
+// Fast-paced round countdown — a shrinking neon bar + seconds, driven by the server pace deadline.
+function RoundTimerBar({ deadline }: { deadline: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 200);
+    return () => window.clearInterval(id);
+  }, []);
+  const remaining = Math.max(0, deadline - now);
+  const secs = Math.ceil(remaining / 1000);
+  // Bar resets each phase; we only know remaining, so scale against a 20s visual ceiling.
+  const pct = Math.min(100, (remaining / 20000) * 100);
+  const urgent = remaining <= 4000;
+  return (
+    <div className="mx-auto mt-2 flex max-w-7xl items-center gap-3">
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+        <div
+          className={`h-full rounded-full transition-[width] duration-200 ${urgent ? 'bg-red-500' : 'bg-primary'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className={`min-w-[2.5rem] text-right text-sm font-bold tabular-nums ${urgent ? 'text-red-400' : 'text-primary'}`}>{secs}s</span>
+    </div>
+  );
+}
+
 export function InstalledGameSurface({
   publicState,
   privateState,
@@ -549,6 +574,7 @@ export function InstalledGameSurface({
   requestHint,
   aiCommentary,
   hintBudget,
+  paceDeadline,
 }: {
   publicState: unknown;
   privateState: unknown;
@@ -558,6 +584,7 @@ export function InstalledGameSurface({
   requestHint?: () => void;
   aiCommentary?: string | null;
   hintBudget?: number;
+  paceDeadline?: number | null;
 }) {
   const state = publicState as GameState;
   const mine = (privateState ?? {}) as PrivateState;
@@ -735,6 +762,8 @@ export function InstalledGameSurface({
         <div className="text-xs text-muted-foreground">Round {state.round} / {state.totalRounds}</div>
         <div className="flex items-center gap-2 text-xs"><Users className="h-4 w-4" /> {state.players?.length ?? 0}</div>
       </header>
+
+      {paceDeadline ? <RoundTimerBar deadline={paceDeadline} /> : null}
 
       <div className="mx-auto grid min-h-[calc(100vh-76px)] max-w-7xl gap-5 py-5 lg:grid-cols-[1fr_270px]">
         <section className="flex flex-col items-center justify-center">
