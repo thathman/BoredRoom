@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
+import { clearContentMemory } from './aiContentMemory.js';
 import type { GameRun, HouseSession, HouseVote, HouseVoteResult, HouseVoteSettings, HouseVoteType } from '../../shared/src/contracts/session.js';
 import {
   applyVote,
@@ -621,6 +622,7 @@ export function endSession(code: string): PublicSessionSnapshot | null {
   record.session.currentStage = 'ended';
   record.session.status = 'ended';
   record.session.updatedAt = now;
+  clearContentMemory(record.session.id);
   emit(code, 'party.ended');
   return getPublicSession(code);
 }
@@ -637,6 +639,7 @@ export function deleteSession(code: string): PublicSessionSnapshot | null {
   record.session.updatedAt = new Date().toISOString();
   const finalSnapshot = getPublicSession(code);
   emit(code, 'party.deleted');
+  clearContentMemory(record.session.id);
   for (const pairKey of pairings.keys()) {
     if (pairKey.startsWith(`${key}:`)) pairings.delete(pairKey);
   }

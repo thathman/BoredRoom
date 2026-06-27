@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   generatePrivateHint,
   getAiHealth,
+  generateGameContent,
+  generateTriviaQuestions,
   moderateOwnerContent,
   recommendGames,
 } from '../../server/src/aiService';
+import { recentPromptsFor, rememberPrompts, clearContentMemory } from '../../server/src/aiContentMemory';
 
 let previousKey: string | undefined;
 let previousFetch: typeof globalThis.fetch | undefined;
@@ -188,5 +191,49 @@ describe('server-side AI fallback and isolation', () => {
     })).resolves.toEqual([
       { gameId: 'word-wahala', reason: 'Good for this group.' },
     ]);
+  });
+
+  it('generates validated trivia questions and drops malformed ones', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    mockOpenRouter({ questions: [
+      { prompt: 'Capital of Nigeria?', options: ['Abuja', 'Lagos', 'Kano', 'Jos'], answer: 0 },
+      { prompt: 'Bad — only one option', options: ['x'], answer: 0 }, // dropped
+      { prompt: 'Bad answer index', options: ['a', 'b'], answer: 9 }, // dropped
+    ] });
+    const out = await generateTriviaQuestions({ topic: 'Nigeria', count: 5 });
+    expect(out).toHaveLength(1);
+    expect(out[0].prompt).toBe('Capital of Nigeria?');
+  });
+
+  it('routes faith-feud to survey generation and trivia to questions', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    mockOpenRouter({ surveys: [{ question: 'Name a Nigerian food', answers: [
+      { text: 'Jollof', points: 40 }, { text: 'Eba', points: 30 }, { text: 'Suya', points: 20 },
+    ] }] });
+    const feud = await generateGameContent({ gameId: 'faith-feud', count: 3 });
+    expect(feud.surveys.length).toBe(1);
+    expect(feud.questions.length).toBe(0);
+    // market-price has no AI topic → no generation (curated prices stay authoritative)
+    const market = await generateGameContent({ gameId: 'market-price', count: 3 });
+    expect(market.questions.length).toBe(0);
+    expect(market.surveys.length).toBe(0);
+  });
+
+  it('fails soft to empty content when AI is unavailable (gameplay uses local bank)', async () => {
+    delete process.env.OPENROUTER_API_KEY;
+    const out = await generateGameContent({ gameId: 'trivia', count: 5 });
+    expect(out.questions).toEqual([]);
+    expect(out.surveys).toEqual([]);
+  });
+
+  it('anti-repeat memory accumulates and de-dupes recent prompts per session', () => {
+    clearContentMemory('s1');
+    rememberPrompts('s1', 'trivia', ['Q1', 'Q2']);
+    rememberPrompts('s1', 'trivia', ['Q2', 'Q3']); // Q2 deduped
+    expect(recentPromptsFor('s1', 'trivia')).toEqual(['Q1', 'Q2', 'Q3']);
+    // scoped per (session, game)
+    expect(recentPromptsFor('s1', 'logo')).toEqual([]);
+    clearContentMemory('s1');
+    expect(recentPromptsFor('s1', 'trivia')).toEqual([]);
   });
 });

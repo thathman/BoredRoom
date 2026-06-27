@@ -15,6 +15,8 @@ type JsonSchema = {
   minItems?: number;
   maxItems?: number;
   maxLength?: number;
+  minimum?: number;
+  maximum?: number;
 };
 
 type StructuredSchema<T> = {
@@ -379,6 +381,163 @@ export async function explainRejectedIntent(input: {
     100,
   );
   return response?.text ?? deterministic;
+}
+
+// AI trivia-question content generation. Returns validated multiple-choice questions for a game
+// (with the correct answer index) or [] on any failure — gameplay then uses the local bank.
+// The caller passes `avoid` (recent prompts) so AI content does not repeat across a session.
+interface AiTriviaQuestion { prompt: string; options: string[]; answer: number; explanation?: string }
+
+function validateTriviaBatch(value: unknown): { questions: AiTriviaQuestion[] } | null {
+  if (!isRecord(value) || !Array.isArray(value.questions)) return null;
+  const questions: AiTriviaQuestion[] = [];
+  for (const q of value.questions) {
+    if (!isRecord(q)) continue;
+    const prompt = typeof q.prompt === 'string' ? sanitize(q.prompt, 160) : '';
+    const options = Array.isArray(q.options) ? q.options.filter((o): o is string => typeof o === 'string').map((o) => sanitize(o, 60)) : [];
+    const answer = Number(q.answer);
+    if (!prompt || options.length < 2 || options.length > 6) continue;
+    if (!Number.isInteger(answer) || answer < 0 || answer >= options.length) continue;
+    const explanation = typeof q.explanation === 'string' ? sanitize(q.explanation, 160) : undefined;
+    questions.push({ prompt, options, answer, ...(explanation ? { explanation } : {}) });
+  }
+  return questions.length ? { questions } : null;
+}
+
+const triviaBatchSchema: StructuredSchema<{ questions: AiTriviaQuestion[] }> = {
+  name: 'boredroom_trivia_batch',
+  validate: validateTriviaBatch,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['questions'],
+    properties: {
+      questions: {
+        type: 'array',
+        maxItems: 12,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['prompt', 'options', 'answer'],
+          properties: {
+            prompt: { type: 'string', maxLength: 160 },
+            options: { type: 'array', minItems: 2, maxItems: 6, items: { type: 'string', maxLength: 60 } },
+            answer: { type: 'integer', minimum: 0 },
+            explanation: { type: 'string', maxLength: 160 },
+          },
+        },
+      },
+    },
+  },
+};
+
+export async function generateTriviaQuestions(input: {
+  topic: string;
+  count: number;
+  avoid?: string[];
+}): Promise<AiTriviaQuestion[]> {
+  const count = Math.min(12, Math.max(1, input.count));
+  const avoid = (input.avoid ?? []).slice(0, 40).join('; ');
+  const response = await completeStructured(
+    triviaBatchSchema,
+    'You generate fun, accurate multiple-choice trivia for a Nigerian party-game. Each question has 4 options and exactly one correct answer (by index). Keep it family-friendly. Never reuse a listed avoided question.',
+    `Topic: ${input.topic}\nCount: ${count}\nAvoid these prompts: ${avoid || '(none)'}`,
+    700,
+  );
+  // Drop any AI question that duplicates an avoided prompt (defence in depth).
+  const avoidSet = new Set((input.avoid ?? []).map((p) => p.toLowerCase().trim()));
+  return (response?.questions ?? []).filter((q) => !avoidSet.has(q.prompt.toLowerCase().trim())).slice(0, count);
+}
+
+// AI survey generation for Faith Feud (Family-Feud-style): a question and ranked answers with
+// points. Validated and point-normalised; [] on failure so the local survey packs are used.
+interface AiSurvey { question: string; answers: Array<{ text: string; points: number; aliases?: string[] }> }
+
+function validateSurveyBatch(value: unknown): { surveys: AiSurvey[] } | null {
+  if (!isRecord(value) || !Array.isArray(value.surveys)) return null;
+  const surveys: AiSurvey[] = [];
+  for (const s of value.surveys) {
+    if (!isRecord(s)) continue;
+    const question = typeof s.question === 'string' ? sanitize(s.question, 160) : '';
+    const rawAnswers = Array.isArray(s.answers) ? s.answers : [];
+    const answers = rawAnswers.flatMap((a) => {
+      if (!isRecord(a)) return [];
+      const text = typeof a.text === 'string' ? sanitize(a.text, 60) : '';
+      const points = Number(a.points);
+      if (!text || !Number.isFinite(points) || points <= 0) return [];
+      const aliases = Array.isArray(a.aliases) ? a.aliases.filter((x): x is string => typeof x === 'string').map((x) => sanitize(x, 40)) : [];
+      return [{ text, points: Math.round(points), aliases }];
+    }).slice(0, 6);
+    if (question && answers.length >= 3) surveys.push({ question, answers });
+  }
+  return surveys.length ? { surveys } : null;
+}
+
+const surveyBatchSchema: StructuredSchema<{ surveys: AiSurvey[] }> = {
+  name: 'boredroom_survey_batch',
+  validate: validateSurveyBatch,
+  schema: {
+    type: 'object', additionalProperties: false, required: ['surveys'],
+    properties: {
+      surveys: {
+        type: 'array', maxItems: 6,
+        items: {
+          type: 'object', additionalProperties: false, required: ['question', 'answers'],
+          properties: {
+            question: { type: 'string', maxLength: 160 },
+            answers: {
+              type: 'array', minItems: 3, maxItems: 6,
+              items: {
+                type: 'object', additionalProperties: false, required: ['text', 'points'],
+                properties: {
+                  text: { type: 'string', maxLength: 60 },
+                  points: { type: 'integer', minimum: 1, maximum: 60 },
+                  aliases: { type: 'array', maxItems: 5, items: { type: 'string', maxLength: 40 } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+export async function generateFeudSurveys(input: { count: number; avoid?: string[] }): Promise<AiSurvey[]> {
+  const count = Math.min(6, Math.max(1, input.count));
+  const avoid = (input.avoid ?? []).slice(0, 30).join('; ');
+  const response = await completeStructured(
+    surveyBatchSchema,
+    'You write Family-Feud-style survey questions for a Nigerian/faith party-game. Each survey has a "Name something…" question and 3-5 ranked answers whose points sum near 100 (most popular highest). Family-friendly. Never reuse an avoided question.',
+    `Count: ${count}\nAvoid: ${avoid || '(none)'}`,
+    800,
+  );
+  const avoidSet = new Set((input.avoid ?? []).map((p) => p.toLowerCase().trim()));
+  return (response?.surveys ?? []).filter((s) => !avoidSet.has(s.question.toLowerCase().trim())).slice(0, count);
+}
+
+// Only games that consume the multiple-choice question shape are routed to trivia generation.
+// market-price (real Naira prices) and color-wahala (procedural Stroop + curated flag facts)
+// stay on curated/procedural data on purpose — AI-invented prices/flags would be wrong.
+const GAME_TRIVIA_TOPICS: Record<string, string> = {
+  trivia: 'Nigerian general knowledge, culture, history, music, sports and food',
+};
+
+// One entry point the server uses for any AI-capable content game. Returns plain question/survey
+// arrays the runtimes merge ahead of their local banks; always [] on failure (fail-soft).
+export async function generateGameContent(input: {
+  gameId: string;
+  count: number;
+  avoid?: string[];
+}): Promise<{ questions: AiTriviaQuestion[]; surveys: AiSurvey[] }> {
+  if (input.gameId === 'faith-feud') {
+    const surveys = await generateFeudSurveys({ count: input.count, avoid: input.avoid });
+    return { questions: [], surveys };
+  }
+  const topic = GAME_TRIVIA_TOPICS[input.gameId];
+  if (!topic) return { questions: [], surveys: [] };
+  const questions = await generateTriviaQuestions({ topic, count: input.count, avoid: input.avoid });
+  return { questions, surveys: [] };
 }
 
 export async function generateRecap(input: {

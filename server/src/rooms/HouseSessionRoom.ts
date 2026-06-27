@@ -58,7 +58,9 @@ import {
   generatePacingSuggestion,
   generatePrivateHint,
   generateRecap,
+  generateGameContent,
 } from '../aiService.js';
+import { recentPromptsFor, rememberPrompts } from '../aiContentMemory.js';
 import { chooseDeterministicBotIntent } from '../botStrategy.js';
 
 // A binary action vote (end party, pause, etc.) fires only when the winning option reads as a yes.
@@ -564,6 +566,37 @@ export class HouseSessionRoom extends Room {
     return false;
   }
 
+  // Inject AI-generated, non-repeating content for content games. Server-authoritative: the AI
+  // only proposes question/survey banks; the runtime still validates and falls back to its local
+  // bank. Disabled when the party turns AI off or the game opts out (aiContent: false).
+  private async withAiContent(
+    gameId: string,
+    sessionId: string,
+    settings: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    // Always pass the session's recently-used prompts so every content game's local bank avoids
+    // repeats across the whole night — even with AI disabled.
+    const avoid = recentPromptsFor(sessionId, gameId);
+    let next: Record<string, unknown> = avoid.length ? { ...settings, avoidPrompts: avoid } : settings;
+
+    if (settings.aiContent === false) return next;
+    const count = Math.min(12, Math.max(3, Number(settings.questionCount ?? settings.rounds ?? 8)));
+    try {
+      const { questions, surveys } = await generateGameContent({ gameId, count, avoid });
+      if (questions.length === 0 && surveys.length === 0) return next;
+      rememberPrompts(sessionId, gameId, [...questions.map((q) => q.prompt), ...surveys.map((s) => s.question)]);
+      next = {
+        ...next,
+        ...(questions.length ? { aiQuestions: questions } : {}),
+        ...(surveys.length ? { aiSurveys: surveys } : {}),
+      };
+      return next;
+    } catch (error) {
+      log('warn', 'ai_content_generation_failed', { session: this.code, gameId, error: String(error) });
+      return next;
+    }
+  }
+
   private async selectGame(
     gameId: string,
     settings: Record<string, unknown>,
@@ -580,11 +613,14 @@ export class HouseSessionRoom extends Room {
       return;
     }
     if (record.activeRuntime) clearActiveGame(this.code);
+    // Generate fresh AI content for content games (with anti-repeat memory), merged ahead of the
+    // local bank. Fails soft: any error leaves settings untouched and the local bank is used.
+    const enrichedSettings = await this.withAiContent(gameId, record.session.id, settings);
     const run = buildGameRun({
       houseSessionId: record.session.id,
       gameType: gameId,
       gameVersion,
-      settings,
+      settings: enrichedSettings,
     });
     selectSessionGame(this.code, run);
     await Promise.all([
