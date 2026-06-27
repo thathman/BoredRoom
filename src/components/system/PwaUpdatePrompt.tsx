@@ -12,7 +12,7 @@ export function PwaUpdatePrompt() {
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
-  } = useRegisterSW();
+  } = useRegisterSW({ immediate: true });
 
   useEffect(() => {
     if (!needRefresh || shownRef.current) return;

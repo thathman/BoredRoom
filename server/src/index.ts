@@ -66,7 +66,11 @@ import { generateSessionStory, getAiHealth, moderateOwnerContent, recommendGames
 const PORT = Number(process.env.PORT ?? 2567);
 
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({
+  origin: true,
+  credentials: true,
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'X-BoredRoom-Owner', 'X-BoredRoom-Admin'],
+}));
 app.use(express.json());
 
 function ownerCredentialFrom(req: express.Request): string | undefined {

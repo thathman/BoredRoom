@@ -34,8 +34,8 @@ export default defineConfig(() => ({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
-      injectRegister: "auto",
+      registerType: "prompt",
+      injectRegister: null,
       includeAssets: [
         "favicon.ico",
         "robots.txt",
@@ -96,7 +96,7 @@ export default defineConfig(() => ({
       workbox: {
         navigateFallback: "/index.html",
         cleanupOutdatedCaches: true,
-        skipWaiting: true,
+        skipWaiting: false,
         clientsClaim: true,
         runtimeCaching: [
           {

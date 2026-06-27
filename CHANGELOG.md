@@ -7,9 +7,11 @@ All notable changes to BoredRoom are documented here.
 - Added display-side vote dismissal and current-game pause, resume, and end controls.
 - Removed public game boards from Ludo and Whot controllers.
 - Fixed companion pairing feedback and clarified the six-digit code flow.
+- Allowed the owner-control header through CORS preflight so pairing and AI health calls reach the server.
 - Added persisted cross-game championship standings.
 - Added mixed Nigerian YarnGPT callouts for Whot and removed the persistent wake-lock notice.
 - Removed the homepage game shelf and made the setup Games row open the Games Library.
+- Fixed duplicate service-worker registration so installed PWAs show one reliable update prompt.
 
 ## 1.3.0.1 — 2026-06-25
 
