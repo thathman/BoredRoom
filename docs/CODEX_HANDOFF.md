@@ -106,7 +106,22 @@ curl -fsS https://colyseus.hendrix.com.ng/healthz
 PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng node scripts/playwright-entry-flows.mjs
 BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-bot-autofill.mjs
 BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-vote-lifecycle.mjs
+BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-permissions.mjs
+BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-consecutive-reconnect.mjs
 PLAYWRIGHT_BASE_URL=https://party.hendrix.com.ng BOREDROOM_HTTP_URL=https://colyseus.hendrix.com.ng BOREDROOM_WS_URL=wss://colyseus.hendrix.com.ng node scripts/playwright-gameplay-matrix.mjs
+```
+
+Note: `playwright-consecutive-reconnect.mjs` and `playwright-gameplay-matrix.mjs` need games
+installed on the target server (live Dell has them; a bare local server does not, so run these
+two against the deployed server). Session-lifecycle invariants they cover are also unit-proven
+offline in `src/test/sessionLifecycle.test.ts`.
+
+## Signed games release — one command (clears the signing-key blocker)
+
+```bash
+cd /Users/hendrix/Playground/BoredRoom-Games
+BOREDROOM_GAMES_SIGNING_KEY="$(cat /path/to/private.pem)" RELEASE_TAG=v1.3.0.0 bash scripts/release.sh
+# runs tests, rebuilds + verifies signed artifacts, prints the commit/tag/gh-release steps
 ```
 
 Deploy to Dell:
