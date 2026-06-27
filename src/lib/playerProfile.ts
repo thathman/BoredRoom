@@ -57,12 +57,16 @@ export function getPlayerProfile(): PlayerProfile {
 
 export function hasPlayerProfile(): boolean {
   const raw = localStorage.getItem(PROFILE_KEY);
-  if (!raw) return false;
-  try {
-    return Boolean((JSON.parse(raw) as Partial<PlayerProfile>).displayName);
-  } catch {
-    return false;
+  if (raw) {
+    try {
+      if ((JSON.parse(raw) as Partial<PlayerProfile>).displayName) return true;
+    } catch {
+      // fall through to legacy check
+    }
   }
+  // A returning player who joined via the older flow has a name but no profile JSON yet —
+  // don't re-prompt them for a profile they effectively already have.
+  return Boolean(localStorage.getItem('boredroom_player_name'));
 }
 
 export function savePlayerProfile(update: Partial<PlayerProfile>): PlayerProfile {
