@@ -104,8 +104,28 @@ const LANDLORD_SET_COLORS: Record<string, string> = {
   market: '#a855f7', tech: '#38bdf8', estate: '#f59e0b', island: '#45f36b',
 };
 // Recognisable Lagos transport as player tokens — Danfo, Okada, Keke, Molue, boat, chopper.
+// The first four use 3D-rendered art; the rest fall back to themed emoji.
 const LANDLORD_TOKENS = ['🚐', '🏍️', '🛺', '🚌', '🛥️', '🚁'];
 const LANDLORD_TOKEN_NAMES = ['Danfo', 'Okada', 'Keke', 'Molue', 'Speedboat', 'Chopper'];
+const LANDLORD_TOKEN_ART = ['/tokens/danfo.jpg', '/tokens/okada.jpg', '/tokens/keke.jpg', '/tokens/molue.jpg'];
+
+function LagosToken({ index, active, size = 22 }: { index: number; active?: boolean; size?: number }) {
+  const art = LANDLORD_TOKEN_ART[index];
+  const cls = `lagos-token ${active ? 'lagos-token-active' : ''}`;
+  if (art) {
+    return (
+      <img
+        src={art}
+        alt={LANDLORD_TOKEN_NAMES[index]}
+        title={LANDLORD_TOKEN_NAMES[index]}
+        className={`${cls} inline-block rounded-full border border-white/30 object-cover`}
+        style={{ width: size, height: size }}
+        loading="lazy"
+      />
+    );
+  }
+  return <span className={cls} style={{ fontSize: size * 0.8 }}>{LANDLORD_TOKENS[index % LANDLORD_TOKENS.length]}</span>;
+}
 
 interface LandlordState {
   board?: Array<{ name: string; type: string; price?: number; rent?: number; set?: string; amount?: number }>;
@@ -150,7 +170,7 @@ function LandlordSurface({
   }, [state.diceValue]);
 
   const ownerOf = (idx: number) => players.find((p) => (state.properties?.[p.id] ?? []).includes(idx));
-  const tokenFor = (id: string) => LANDLORD_TOKENS[players.findIndex((p) => p.id === id) % LANDLORD_TOKENS.length];
+  const indexOf = (id: string) => players.findIndex((p) => p.id === id);
 
   function act(intent: Record<string, unknown>) {
     if (intent.type === 'buy') sounds.landlordBuy();
@@ -188,12 +208,10 @@ function LandlordSurface({
                     <div className="text-white/40">₦{(bcell.price ?? 0).toLocaleString()}</div>
                   ) : null}
                   {houses > 0 && <div className="text-primary">{'🏠'.repeat(houses)}</div>}
-                  {owner && <div className="text-[8px] text-white/60">{tokenFor(owner.id)} {owner.name}</div>}
-                  <div className="absolute right-1 top-1 flex gap-0.5 text-base">
+                  {owner && <div className="flex items-center gap-1 text-[8px] text-white/60"><LagosToken index={indexOf(owner.id)} size={14} /> {owner.name}</div>}
+                  <div className="absolute right-1 top-1 flex gap-0.5">
                     {here.map((p) => (
-                      <span key={p.id} className={`lagos-token landlord-token ${p.id === state.currentPlayerId ? 'lagos-token-active' : ''}`} title={`${LANDLORD_TOKEN_NAMES[players.findIndex((x) => x.id === p.id) % LANDLORD_TOKEN_NAMES.length]} — ${p.name}`}>
-                        {tokenFor(p.id)}
-                      </span>
+                      <LagosToken key={p.id} index={indexOf(p.id)} active={p.id === state.currentPlayerId} size={24} />
                     ))}
                   </div>
                 </div>
@@ -218,7 +236,7 @@ function LandlordSurface({
               {[...players].sort((a, b) => (b.cash ?? 0) - (a.cash ?? 0)).map((p) => (
                 <li key={p.id} className={`flex items-center justify-between ${p.id === state.currentPlayerId ? 'text-primary' : ''}`}>
                   <span className="flex items-center gap-1.5">
-                    <span className={`lagos-token text-base ${p.id === state.currentPlayerId ? 'lagos-token-active' : ''}`}>{tokenFor(p.id)}</span>
+                    <LagosToken index={indexOf(p.id)} active={p.id === state.currentPlayerId} size={22} />
                     {p.name}{(state.jail?.[p.id] ?? 0) > 0 ? ' 🚓' : ''}
                   </span>
                   <span className="font-mono">₦{(p.cash ?? 0).toLocaleString()}</span>
