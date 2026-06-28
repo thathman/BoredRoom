@@ -589,4 +589,4 @@ Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal com
 - YarnGPT uses only documented voice names, varies voices deterministically, caches audio, restricts phrases, and rate-limits requests.
 - Bots are selected only in game configuration; Whot active house rules are visible in the host settings drawer and locked for match fairness.
 - Local gates passed before release: lint, frontend typecheck, 141 core tests (139 pass + 2 skipped), server TypeScript build, PWA production build, and 229 game/plugin tests.
-- Remaining release work at this checkpoint: commit/push, tag signed games v1.5.0.0, wait for catalog publication, deploy core to Dell, update installed games, and run live Whot browser/device verification.
+- Signed games v1.5.0.0 and core 1.8.0.0 were pushed successfully. During Dell deployment, Docker Compose was found to still forward retired OpenRouter variables; it was corrected to pass DeepSeek and YarnGPT voice configuration before final live verification.
