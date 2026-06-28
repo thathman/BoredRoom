@@ -601,11 +601,13 @@ export class HouseSessionRoom extends Room {
   private broadcastGameState(): void {
     if (!this.gameRuntime) return;
     this.awardHintsFromScores();
+    // Establish/clear the authoritative deadline before projecting state so clients never
+    // receive a stale deadline (the old ordering produced a visible 0s timer).
+    this.schedulePaceTimer();
     for (const client of this.clients) {
       const identity = this.identities.get(client.sessionId);
       if (identity) this.sendGameState(client, identity);
     }
-    this.schedulePaceTimer();
   }
 
   // Fast-paced timer: with a configured pace, auto-advance a round/turn that drags. During

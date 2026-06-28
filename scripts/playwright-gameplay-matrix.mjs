@@ -4,7 +4,7 @@ import { Client } from '@colyseus/sdk';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:8088';
 const HTTP_URL = process.env.BOREDROOM_HTTP_URL ?? 'http://127.0.0.1:2567';
 const WS_URL = process.env.BOREDROOM_WS_URL ?? 'ws://127.0.0.1:2567';
-const GAME_IDS = [
+const ALL_GAME_IDS = [
   'bible-timeline',
   'color-wahala',
   'connect-4',
@@ -21,6 +21,11 @@ const GAME_IDS = [
   'whot',
   'word-wahala',
 ];
+const GAME_IDS = (process.env.PLAYWRIGHT_GAME_IDS ?? '')
+  .split(',')
+  .map((id) => id.trim())
+  .filter(Boolean);
+if (GAME_IDS.length === 0) GAME_IDS.push(...ALL_GAME_IDS);
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -158,15 +163,33 @@ async function verifyLudo(buckets, displayBucket) {
 }
 
 async function verifyWhot(buckets, displayBucket) {
-  const [p1, p2] = buckets;
+  const [p1] = buckets;
   assert(Array.isArray(p1.private.state.hand) && p1.private.state.hand.length > 0, 'whot private hand missing');
   assert(!('hand' in displayBucket.public.state), 'whot leaked a root hand into public state');
   assert((displayBucket.public.state.players ?? []).every((player) => !('hand' in player)), 'whot leaked player hands into public state');
   const beforeMarket = displayBucket.public.state.drawPileCount;
   await sendAndWait(p1.room, displayBucket, { type: 'draw' }, 'whot market draw', (state) => state.drawPileCount === beforeMarket - 1);
-  const legalPlay = firstLegal(p2.private, 'play_card');
-  assert(legalPlay, 'whot expected p2 to have a legal play after p1 draws');
-  await sendAndWait(p2.room, displayBucket, legalPlay, 'whot legal card play', (state) => state.topCard?.label === p2.private.state.hand?.find?.((card) => card.id === legalPlay.cardId)?.label || state.currentPlayerId !== p2.deviceId);
+  let played = false;
+  for (let attempt = 0; attempt < 16 && !played; attempt += 1) {
+    const activeId = displayBucket.public.state.currentPlayerId;
+    const active = buckets.find((bucket) => bucket.deviceId === activeId);
+    assert(active, 'whot active controller missing');
+    const legalPlay = firstLegal(active.private, 'play_card');
+    if (legalPlay) {
+      const playedCard = active.private.state.hand?.find?.((card) => card.id === legalPlay.cardId);
+      await sendAndWait(active.room, displayBucket, legalPlay, 'whot legal card play', (state) => state.topCard?.label === playedCard?.label || state.currentPlayerId !== active.deviceId);
+      if (playedCard?.isWhot) {
+        assert(displayBucket.public.state.requestedShape, 'whot play did not publish the requested shape');
+        assert(/requested/i.test(displayBucket.public.state.lastAction), 'whot narration omitted the requested shape');
+      }
+      played = true;
+    } else {
+      const draw = firstLegal(active.private, 'draw');
+      assert(draw, 'whot active controller has neither a legal play nor draw');
+      await sendAndWait(active.room, displayBucket, draw, 'whot search draw');
+    }
+  }
+  assert(played, 'whot did not produce a legal card play within 16 turns');
   const before = JSON.stringify(displayBucket.public.state);
   p1.room.send('game:intent', { type: 'play_card', cardId: 'not-in-hand' });
   await sleep(300);
