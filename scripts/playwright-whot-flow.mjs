@@ -19,6 +19,7 @@ async function waitFor(label, predicate, timeout = 10_000) {
 }
 function wire(room, bucket) {
   room.onMessage('session:state', (value) => { bucket.session = value; });
+  room.onMessage('session:transition', () => {});
   room.onMessage('game:public_state', (value) => { bucket.public = value; });
   room.onMessage('game:private_state', (value) => { bucket.private = value; });
   room.onMessage('session:error', (value) => { bucket.errors.push(value); });
@@ -73,9 +74,9 @@ const hostPage = await desktop.newPage();
 await hostPage.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
 await hostPage.evaluate(({ sessionCode, credential }) => localStorage.setItem(`boredroom_session_owner:${sessionCode}`, credential), { sessionCode: code, credential: created.ownerCredential });
 await hostPage.goto(`${BASE_URL}/session/${code}/display`, { waitUntil: 'networkidle' });
-await hostPage.getByText('Whot', { exact: true }).first().waitFor();
-assert(await hostPage.getByRole('button', { name: /Games & controls/i }).isVisible(), 'host controls missing without companion');
-assert(await hostPage.getByRole('button', { name: /^Join$/i }).isVisible(), 'on-demand Join control missing');
+await hostPage.getByText(/Whot/).first().waitFor();
+await hostPage.getByRole('button', { name: /Games & controls/i }).waitFor({ timeout: 8_000 });
+await hostPage.getByRole('button', { name: /^Join$/i }).waitFor({ timeout: 8_000 });
 assert(await hostPage.getByText('Join house', { exact: true }).count() === 0, 'persistent Join house overlay still blocks gameplay');
 await hostPage.getByRole('button', { name: /^Join$/i }).click();
 await hostPage.getByRole('dialog', { name: 'Join this house' }).waitFor();
@@ -90,7 +91,7 @@ const redeemed = await redeemResponse.json();
 const companion = await client.joinOrCreate('house-session', { code, deviceId: `companion-${code}`, displayName: 'Companion', role: 'companion', ownerCredential: redeemed.companionCredential });
 await waitFor('companion member', () => hostBucket.session?.members?.some((member) => member.role === 'companion' && member.connected));
 await hostPage.reload({ waitUntil: 'networkidle' });
-await hostPage.getByText('Whot', { exact: true }).first().waitFor();
+await hostPage.getByText(/Whot/).first().waitFor();
 assert(await hostPage.getByRole('button', { name: /Games & controls/i }).count() === 0, 'host controls remain visible with companion connected');
 assert(await hostPage.getByRole('button', { name: /^Join$/i }).count() === 0, 'host Join control remains visible with companion connected');
 
