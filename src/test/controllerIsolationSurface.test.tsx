@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { InstalledGameSurface } from '@/components/session/InstalledGameSurface';
+
+vi.mock('canvas-confetti', () => ({ default: vi.fn() }));
 
 describe('controller projection surfaces', () => {
   it('keeps the public Ludo board off the controller', () => {
@@ -44,5 +46,27 @@ describe('controller projection surfaces', () => {
     expect(screen.getByText('Your private assistant')).toBeInTheDocument();
     expect(screen.getByText(/Play the highlighted Star 3/)).toBeInTheDocument();
     expect(screen.queryByText(/"type"|cardId|\{/)).not.toBeInTheDocument();
+  });
+
+  it('shows Whot match wins and MC callouts without exposing display controls when a companion is active', () => {
+    render(<InstalledGameSurface
+      publicState={{
+        gameType: 'whot', name: 'Whot', emoji: '🃏', mode: 'whot', phase: 'round_end', round: 2, totalRounds: 5, roundsToWin: 3,
+        players: [{ id: 'p1', name: 'Ada', score: 2, roundWins: 2, handCount: 0 }, { id: 'p2', name: 'Tobi', score: 0, roundWins: 0, handCount: 4 }],
+        topCard: { id: 'top', label: 'Circle 3', shape: 'Circle', number: 3 }, drawPileCount: 28,
+        currentPlayerId: 'p1', winnerPlayerIds: ['p1'], lastAction: 'Ada calls check up and wins round 2.',
+        callout: { kind: 'check_up', playerName: 'Ada', text: 'Ada: check up!', sequence: 4 },
+      }}
+      privateState={{ seated: false, legalIntents: [] }}
+      role="display"
+      sendIntent={() => {}}
+      aiCommentary="Ada has cleared the table — two rounds on the board!"
+      hostControlsEnabled={false}
+    />);
+    expect(screen.getByText(/Round 2 of 5 · First to 3/)).toBeInTheDocument();
+    expect(screen.getByText(/2 wins/)).toBeInTheDocument();
+    expect(screen.getByText('Ada: check up!')).toBeInTheDocument();
+    expect(screen.getByText(/MC/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Next round/i })).not.toBeInTheDocument();
   });
 });

@@ -32,6 +32,11 @@ type ExtraField =
 
 const GAME_EXTRAS: Record<string, ExtraField[]> = {
   whot: [
+    { key: 'initialHandSize', label: 'Starting cards per player', type: 'select', default: 6, options: [
+      { value: 4, label: '4 · Quick' },
+      { value: 5, label: '5' },
+      { value: 6, label: '6 · Classic' },
+    ] },
     { key: 'specialCards', label: 'Special cards (pick-2, hold-on, general market, WHOT)', type: 'toggle', default: true },
     { key: 'enableDirection', label: 'Card 11 reverses play direction', type: 'toggle', default: false },
     { key: 'allowSpecialFinish', label: 'Allow an action card or Whot 20 to win a round', type: 'toggle', default: true },
@@ -40,6 +45,15 @@ const GAME_EXTRAS: Record<string, ExtraField[]> = {
       { value: 'stack_any', label: 'Stack 2 or 5' },
       { value: 'no_stack', label: 'No blocking' },
     ] },
+    { key: 'starSuspension', label: 'Star 8 suspension', type: 'select', default: 'skip_two', options: [
+      { value: 'skip_two', label: 'Skip next 2' },
+      { value: 'skip_one', label: 'Skip next 1' },
+    ] },
+    { key: 'generalMarketTurn', label: 'After General Market', type: 'select', default: 'keep', options: [
+      { value: 'keep', label: 'Play again' },
+      { value: 'pass', label: 'Pass turn' },
+    ] },
+    { key: 'rotateStarter', label: 'Rotate the starting player each round', type: 'toggle', default: true },
     { key: 'timeoutPenalty', label: 'When time runs out', type: 'select', default: 'draw_and_pass', options: [
       { value: 'draw_and_pass', label: 'Pick 1 + lose turn' },
       { value: 'pass', label: 'Lose turn' },
@@ -199,7 +213,7 @@ export function GameConfigSheet({
                       onChange={(e) => setExtras((s) => ({ ...s, [f.key]: e.target.checked }))}
                     />
                   ) : (
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap justify-end gap-1">
                       {f.options.map((o) => (
                         <Button
                           key={String(o.value)}

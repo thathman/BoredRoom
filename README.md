@@ -8,7 +8,7 @@
   <a href="https://github.com/thathman/BoredRoom"><img alt="Repo" src="https://img.shields.io/badge/repo-BoredRoom-7c3aed?style=for-the-badge&logo=github"></a>
   <a href="https://github.com/thathman/BoredRoom-Games"><img alt="Games" src="https://img.shields.io/badge/games-installable%20catalog-22c55e?style=for-the-badge&logo=github"></a>
   <a href="./LICENSE.md"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-1.8.0.0-f97316?style=for-the-badge">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.9.0.0-f97316?style=for-the-badge">
 </p>
 
 <p align="center">

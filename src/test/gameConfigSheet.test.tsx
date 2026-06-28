@@ -36,5 +36,9 @@ describe('GameConfigSheet', () => {
     expect(cfg.allowSpecialFinish).toBe(true);
     expect(cfg.pickDefence).toBe('stack_same');
     expect(cfg.timeoutPenalty).toBe('draw_and_pass');
+    expect(cfg.initialHandSize).toBe(6);
+    expect(cfg.starSuspension).toBe('skip_two');
+    expect(cfg.generalMarketTurn).toBe('keep');
+    expect(cfg.rotateStarter).toBe(true);
   });
 });

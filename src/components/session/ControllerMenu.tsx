@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { PlayerAvatar } from '@/components/profile/PlayerAvatar';
 import { ProfileSheet } from '@/components/profile/ProfileSheet';
 import { achievementsFor, type PlayerProfile } from '@/lib/playerProfile';
+import { SoundControls } from '@/components/system/SoundControls';
 
 // Persistent controller chip (avatar + name) shown on every game's controller. Tapping opens a
 // flyout with Edit profile, Achievements, and a Pause request — consolidating controls so they
@@ -76,6 +77,7 @@ export function ControllerMenu({
 
                 <div className="mt-4 grid gap-2">
                   {extraSlot}
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-2"><SoundControls /></div>
                   <Button variant="outline" className="h-10 rounded-xl text-xs" onClick={() => setTab('edit')}>Edit profile</Button>
                   {onPause && (
                     <Button variant="outline" className="h-10 rounded-xl text-xs" disabled={!canPause} onClick={() => { onPause(); setOpen(false); }}>

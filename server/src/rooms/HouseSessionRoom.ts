@@ -107,6 +107,7 @@ export class HouseSessionRoom extends Room {
   private paceTimer: NodeJS.Timeout | null = null;
   private paceDeadline: number | null = null;
   private botTurnNumber = 0;
+  private commentarySerial = 0;
 
   onCreate(options: JoinOptions): void {
     this.code = String(options.code ?? '').trim().toUpperCase();
@@ -114,8 +115,12 @@ export class HouseSessionRoom extends Room {
     this.unsubscribe = subscribeToSession(this.code, (snapshot, event) => {
       this.broadcast('session:state', snapshot);
       if (event) this.broadcast('session:transition', { type: event, at: new Date().toISOString() });
-      if (event === 'game.started') this.ensureRuntime(snapshot);
+      if (event === 'game.started') {
+        this.commentarySerial += 1;
+        this.ensureRuntime(snapshot);
+      }
       if (event === 'game.cleared' || event === 'game.abandoned') {
+        this.commentarySerial += 1;
         this.clearBotTimer();
         this.gameRuntime?.dispose();
         this.gameRuntime = null;
@@ -377,12 +382,7 @@ export class HouseSessionRoom extends Room {
         this.clearBotTimer();
         finishActiveGame(this.code, 'finished', this.gameRuntime.finish().winnerPlayerIds);
       }
-      void generateCommentary({
-        gameName: this.gameRuntime.gameType,
-        publicState,
-      }).then((line) => {
-        if (line) this.broadcast('ai:result', { kind: 'commentary', text: line });
-      });
+      this.requestCommentary(publicState);
       if (publicState?.phase === 'reveal') {
         void generatePacingSuggestion({
           gameName: this.gameRuntime.gameType,
@@ -1037,6 +1037,17 @@ export class HouseSessionRoom extends Room {
     })).catch((error) => log('warn', 'vote_persist_failed', { session: this.code, type, error: String(error) }));
   }
 
+  private requestCommentary(publicState: unknown): void {
+    if (!this.gameRuntime) return;
+    const serial = ++this.commentarySerial;
+    const gameName = this.gameRuntime.gameType;
+    void generateCommentary({ gameName, publicState }).then((line) => {
+      if (line && serial === this.commentarySerial && this.gameRuntime?.gameType === gameName) {
+        this.broadcast('ai:result', { kind: 'commentary', text: line });
+      }
+    });
+  }
+
   private scheduleBotTurn(delayMs = 700): void {
     this.clearBotTimer();
     const record = getSessionRecord(this.code);
@@ -1084,6 +1095,7 @@ export class HouseSessionRoom extends Room {
           .catch((error) => log('warn', 'runtime_snapshot_persist_failed', { session: this.code, error: String(error) }));
       }
       const nextPublic = this.gameRuntime.publicState() as { phase?: unknown };
+      this.requestCommentary(nextPublic);
       if (nextPublic?.phase === 'finished') {
         this.clearBotTimer();
         finishActiveGame(this.code, 'finished', this.gameRuntime.finish().winnerPlayerIds);

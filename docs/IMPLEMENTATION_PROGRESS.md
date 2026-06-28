@@ -591,3 +591,13 @@ Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal com
 - Local gates passed before release: lint, frontend typecheck, 141 core tests (139 pass + 2 skipped), server TypeScript build, PWA production build, and 229 game/plugin tests.
 - Signed games v1.5.0.0 and core 1.8.0.0 were pushed successfully. During Dell deployment, Docker Compose was found to still forward retired OpenRouter variables; it was corrected to pass DeepSeek and YarnGPT voice configuration before final live verification.
 - Final live evidence: all 15 games report installed version `1.5.0.0`; Cloudflare web/game/health routes return 200; DeepSeek health is active on `deepseek-v4-flash`; YarnGPT returns valid MPEG audio; the focused signed Whot gameplay matrix passes; and `playwright-whot-flow.mjs` passes timer pause/resume/penalty, on-demand QR, companion-aware host chrome, controller pause/assistant/isolation, and Android landscape guard against the production URLs.
+
+## 2026-06-28 — Whot completion + Lagos atmosphere (1.9.0.0 / games 1.6.0.0)
+
+- The approved skyline position remains unchanged; its water/reflection layer now continues behind the lower viewport instead of ending at a visible seam.
+- Atmosphere uses small asynchronous twinkles, a few restrained flares, and two rare shooting-star cycles. Phone/tablet entry scenes use a larger, brighter skyline.
+- Whot was re-audited against `mykeels/whot` and `mykeels/whot-server`. Classic six-card deals, rotating round starters, Star 8 suspension variants, General Market turn variants, strategic bot shape calls, public direction/pick status, and readable non-mutating rejections were added.
+- Host and companion show all locked Whot rules. Player seats show match wins; card-count calls are visible and voiced; host commentary is integrated into the table rather than covering controls.
+- A connected companion now owns next-round controls while the public display remains presentation-only. Host, companion, and controllers have sound controls and first-gesture audio unlock.
+- Removed the retired standalone Whot room, duplicate engine, and duplicate React surfaces from the installable game source.
+- Detailed audit: `docs/WHOT_AUDIT.md`.

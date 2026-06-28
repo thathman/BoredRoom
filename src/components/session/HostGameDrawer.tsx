@@ -5,6 +5,8 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { QRCodeSVG } from 'qrcode.react';
 import { fetchAiHealth, type AiHealth, type SessionMember } from '@/lib/serverApi';
+import { SoundControls } from '@/components/system/SoundControls';
+import { WhotRulesSummary } from '@/components/session/WhotRulesSummary';
 
 interface DrawerGame {
   slug: string;
@@ -158,17 +160,7 @@ export function HostGameDrawer({
               <p>Game-specific settings appear in the selected game before play. House-wide settings remain attached to this session.</p>
               <div className="border-t border-border pt-3">
                 {activeGameType === 'whot' && activeRunSettings && (
-                  <div className="mb-3 rounded-xl border border-white/10 bg-black/25 p-3">
-                    <p className="font-medium text-foreground">Current Whot house rules</p>
-                    <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-xs">
-                      <dt>Turn time</dt><dd>{Number(activeRunSettings.turnSeconds ?? 45) === 0 ? 'Off' : `${Number(activeRunSettings.turnSeconds ?? 45)}s`}</dd>
-                      <dt>Pick defence</dt><dd>{String(activeRunSettings.pickDefence ?? 'stack_same').replaceAll('_', ' ')}</dd>
-                      <dt>Special-card finish</dt><dd>{activeRunSettings.allowSpecialFinish === false ? 'Blocked' : 'Allowed'}</dd>
-                      <dt>Timeout</dt><dd>{String(activeRunSettings.timeoutPenalty ?? 'draw_and_pass').replaceAll('_', ' ')}</dd>
-                      <dt>Card 11 reverse</dt><dd>{activeRunSettings.enableDirection === true ? 'On' : 'Off'}</dd>
-                    </dl>
-                    <p className="mt-2 text-[11px] text-muted-foreground">Locked during this match so every player keeps the rules they accepted in setup.</p>
-                  </div>
+                  <WhotRulesSummary settings={activeRunSettings} className="mb-3" />
                 )}
                 <p className="font-medium text-foreground">Pair a host companion</p>
                 <p className="mt-1 text-xs">Scan this QR on the companion device — it pairs in one step. Or enter the code manually.</p>
@@ -187,6 +179,10 @@ export function HostGameDrawer({
                     {pairingBusy ? 'Creating code…' : 'Show pairing QR'}
                   </Button>
                 )}
+              </div>
+              <div className="border-t border-border pt-3">
+                <p className="mb-2 font-medium text-foreground">Sound</p>
+                <SoundControls />
               </div>
               <div className="border-t border-border pt-3">
                 <p className="flex items-center gap-2 font-medium text-foreground"><Bot className="h-4 w-4 text-primary" /> AI assistance</p>

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.0.0 — 2026-06-28
+
+- Extended the Lagos hero water and reflections through the lower viewport without moving the approved skyline composition.
+- Replaced oversized repetitive star flares with restrained asynchronous twinkles and rare shooting stars; increased skyline visibility on controller/tablet entry screens.
+- Completed a source-guided Whot rules pass against `mykeels/whot`: classic six-card deal, rotating round starter, configurable Star 8 suspension and General Market turn behavior, strategic bot shape calls, and non-mutating readable rejection paths.
+- Added complete active Whot house-rule summaries to both host and companion controls, match-win badges around the table, persistent direction/pick-stack status, visible card-count callouts, and integrated host MC commentary.
+- Ensured a connected companion owns the active-game controls while the public display remains presentation-only.
+- Added accessible sound controls and first-gesture audio unlocking for dynamic Nigerian callouts.
+- Removed retired per-game Whot room, engine, and React implementations from the signed game artifact.
+
 ## 1.8.0.0 — 2026-06-28
 
 - Reworked Whot presentation around an oval casino table with seats around the playfield and cream/burgundy cards integrated into BoredRoom neon lighting.

@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PlayerAvatar } from '@/components/profile/PlayerAvatar';
 import type { SessionMember } from '@/lib/serverApi';
+import { SoundControls } from '@/components/system/SoundControls';
+import { WhotRulesSummary } from '@/components/session/WhotRulesSummary';
 
 type Tab = 'party' | 'players' | 'games' | 'current' | 'votes' | 'settings';
 
@@ -24,6 +26,7 @@ interface CompanionConsoleProps {
   members: SessionMember[];
   remoteOn: boolean;
   activeGame: { gameType?: string; status?: string } | null;
+  activeRunSettings?: Record<string, unknown>;
   votePoll: VotePoll | null;
   voteHistory: VoteResult[];
   pairingCode: string | null;
@@ -155,6 +158,7 @@ export function CompanionConsole(props: CompanionConsoleProps) {
             {props.activeGame ? (
               <>
                 <p className="text-xs text-white/70">{props.activeGame.gameType} · {props.activeGame.status}</p>
+                {props.activeGame.gameType === 'whot' && props.activeRunSettings && <WhotRulesSummary settings={props.activeRunSettings} />}
                 {props.activeGame.status === 'paused'
                   ? <Button className="neon-primary h-10 w-full rounded-xl" onClick={props.resumeGame}>Resume game</Button>
                   : <Button variant="outline" className="h-10 w-full rounded-xl" onClick={props.pauseGame}>Pause game</Button>}
@@ -198,6 +202,10 @@ export function CompanionConsole(props: CompanionConsoleProps) {
 
         {tab === 'settings' && (
           <div className="space-y-3">
+            <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+              <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Sound</p>
+              <SoundControls />
+            </div>
             <Button variant="outline" className="h-10 w-full rounded-xl text-xs" onClick={() => props.setRemoteMode(!props.remoteOn)}>
               Remote mode: {props.remoteOn ? 'On' : 'Off'} — tap to toggle
             </Button>

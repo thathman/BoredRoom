@@ -120,16 +120,16 @@
 
   .star-field {
     background-image:
-      radial-gradient(circle at 8% 15%, rgb(255 255 255 / .95) 0 1.35px, transparent 2.25px),
-      radial-gradient(circle at 22% 8%, rgb(95 181 255 / .9) 0 1.15px, transparent 2.15px),
-      radial-gradient(circle at 47% 14%, rgb(255 255 255 / .82) 0 1.1px, transparent 2px),
-      radial-gradient(circle at 73% 6%, rgb(88 255 157 / .82) 0 1.15px, transparent 2.15px),
-      radial-gradient(circle at 91% 18%, rgb(199 110 255 / .86) 0 1.2px, transparent 2.2px),
-      radial-gradient(circle at 64% 42%, rgb(255 255 255 / .64) 0 .95px, transparent 1.85px),
-      radial-gradient(circle at 36% 55%, rgb(95 181 255 / .62) 0 .95px, transparent 1.85px),
-      radial-gradient(circle at 18% 63%, rgb(88 255 157 / .42) 0 .8px, transparent 1.8px),
-      radial-gradient(circle at 84% 56%, rgb(255 255 255 / .5) 0 .9px, transparent 1.9px);
-    background-size: 150px 126px, 210px 176px, 285px 228px, 188px 156px, 248px 200px, 136px 116px, 232px 184px, 172px 148px, 196px 166px;
+      radial-gradient(circle at 8% 15%, rgb(255 255 255 / .8) 0 .8px, transparent 1.45px),
+      radial-gradient(circle at 22% 8%, rgb(95 181 255 / .65) 0 .65px, transparent 1.3px),
+      radial-gradient(circle at 47% 14%, rgb(255 255 255 / .68) 0 .7px, transparent 1.35px),
+      radial-gradient(circle at 73% 6%, rgb(88 255 157 / .55) 0 .65px, transparent 1.3px),
+      radial-gradient(circle at 91% 18%, rgb(199 110 255 / .58) 0 .7px, transparent 1.35px),
+      radial-gradient(circle at 64% 42%, rgb(255 255 255 / .48) 0 .55px, transparent 1.15px),
+      radial-gradient(circle at 36% 55%, rgb(95 181 255 / .42) 0 .5px, transparent 1.1px),
+      radial-gradient(circle at 18% 63%, rgb(88 255 157 / .3) 0 .45px, transparent 1px),
+      radial-gradient(circle at 84% 56%, rgb(255 255 255 / .38) 0 .5px, transparent 1.05px);
+    background-size: 173px 139px, 229px 191px, 307px 247px, 211px 173px, 269px 219px, 157px 131px, 251px 203px, 193px 167px, 217px 187px;
   }
 
   .lagos-skyline-image {
@@ -148,6 +148,19 @@
     -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgb(0 0 0 / .76) 3%, #000 9%, #000 100%);
     mask-image: linear-gradient(180deg, transparent 0%, rgb(0 0 0 / .76) 3%, #000 9%, #000 100%);
     transform: translateY(var(--lagos-skyline-y, 0));
+  }
+
+  .lagos-water-extension {
+    height: calc(var(--lagos-skyline-bottom, 0px) + 2px);
+    background-image: url('/assets/lagos-night-skyline.png');
+    background-position: center bottom;
+    background-repeat: no-repeat;
+    background-size: var(--lagos-skyline-width, 100%) var(--lagos-skyline-height, auto);
+    opacity: var(--lagos-water-opacity, .88);
+    filter: saturate(1.15) contrast(1.04) brightness(.82) blur(.25px);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgb(0 0 0 / .72) 34%, #000 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, rgb(0 0 0 / .72) 34%, #000 100%);
+    transform: scaleY(-1);
   }
 
   .neon-box {
@@ -176,21 +189,21 @@
   }
 
   @keyframes star-twinkle {
-    0%, 100% { opacity: 0.42; transform: scale(0.82) rotate(0deg); filter: brightness(1); }
-    36% { opacity: 1; transform: scale(1.85) rotate(24deg); filter: brightness(2); }
-    51% { opacity: 0.62; transform: scale(1.12) rotate(48deg); filter: brightness(1.2); }
-    64% { opacity: 1; transform: scale(2.2) rotate(90deg); filter: brightness(2.2); }
+    0%, 100% { opacity: .34; transform: scale(.88); filter: brightness(.92); }
+    42% { opacity: .76; transform: scale(1.04); filter: brightness(1.15); }
+    61% { opacity: 1; transform: scale(1.24); filter: brightness(1.45); }
+    78% { opacity: .52; transform: scale(.96); filter: brightness(1); }
   }
 
   @keyframes shooting-star {
-    0%, 40% { transform: rotate(var(--tw-rotate, 20deg)) translateX(-28vw) scaleX(0.12); opacity: 0; }
-    52% { opacity: 1; }
-    74% { opacity: .98; }
-    100% { transform: rotate(var(--tw-rotate, 20deg)) translateX(100vw) scaleX(1); opacity: 0; }
+    0%, 81% { transform: rotate(var(--tw-rotate, 20deg)) translateX(-22vw) scaleX(.35); opacity: 0; }
+    83% { opacity: .72; }
+    94% { opacity: .58; }
+    100% { transform: rotate(var(--tw-rotate, 20deg)) translateX(108vw) scaleX(1); opacity: 0; }
   }
 
-  .atmosphere-star::before,
-  .atmosphere-star::after {
+  .atmosphere-star-flare::before,
+  .atmosphere-star-flare::after {
     content: "";
     position: absolute;
     inset: 50% auto auto 50%;
@@ -200,16 +213,16 @@
     background: currentColor;
     color: inherit;
     transform: translate(-50%, -50%);
-    opacity: .72;
-    box-shadow: 0 0 14px currentColor;
+    opacity: .46;
+    box-shadow: 0 0 8px currentColor;
   }
 
-  .atmosphere-star::after {
+  .atmosphere-star-flare::after {
     transform: translate(-50%, -50%) rotate(90deg);
   }
 
   .atmosphere-shooting-star {
-    height: 2px;
+    height: 1px;
   }
 
   .atmosphere-shooting-star::after {
@@ -217,12 +230,12 @@
     position: absolute;
     right: -3px;
     top: 50%;
-    width: 6px;
-    height: 6px;
+    width: 3px;
+    height: 3px;
     border-radius: 999px;
     background: rgb(255 255 255 / .96);
     transform: translateY(-50%);
-    box-shadow: 0 0 14px rgb(255 255 255 / .95);
+    box-shadow: 0 0 8px rgb(255 255 255 / .75);
   }
 
   .atmosphere-cursor-glow {
@@ -430,9 +443,9 @@
 
   @media (max-width: 767px) {
     .star-field > img[aria-hidden="true"] {
-      height: var(--lagos-skyline-mobile-height, 42%);
+      height: var(--lagos-skyline-mobile-height, 52%);
       top: auto;
-      opacity: var(--lagos-skyline-mobile-opacity, 0.72);
+      opacity: var(--lagos-skyline-mobile-opacity, 0.9);
     }
   }
 }

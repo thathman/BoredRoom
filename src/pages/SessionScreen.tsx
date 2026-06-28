@@ -165,7 +165,7 @@ export default function SessionScreen() {
   }, [displayName, normalizedCode, role]);
 
   useEffect(() => {
-    if (role !== 'controller') return;
+    if (role !== 'controller' || snapshot?.activeRun?.gameType !== 'whot') return;
     const media = window.matchMedia('(orientation: landscape)');
     const update = () => setControllerLandscape(media.matches);
     update();
@@ -175,11 +175,17 @@ export default function SessionScreen() {
       // Browser tabs often reject orientation lock; the rotate guard below remains authoritative.
     });
     return () => media.removeEventListener?.('change', update);
-  }, [role]);
+  }, [role, snapshot?.activeRun?.gameType]);
 
   const activeRun = snapshot?.activeRun ?? null;
   const members = snapshot?.members ?? [];
   const companionConnected = members.some((member) => member.role === 'companion' && member.connected);
+
+  useEffect(() => {
+    const unlock = () => sounds.unlock();
+    window.addEventListener('pointerdown', unlock, { once: true, passive: true });
+    return () => window.removeEventListener('pointerdown', unlock);
+  }, []);
   const activeGame = useMemo(
     () => installedGames.find((game) => game.id === activeRun?.gameType) ?? null,
     [activeRun?.gameType, installedGames],
@@ -400,6 +406,7 @@ export default function SessionScreen() {
           members={members}
           remoteOn={snapshot?.session.settings.allowRemote ?? true}
           activeGame={activeRun ? { gameType: activeRun.gameType, status: activeRun.status } : null}
+          activeRunSettings={activeRun?.settings}
           votePoll={votePoll}
           voteHistory={voteHistory}
           pairingCode={pairingCode}
@@ -530,7 +537,7 @@ export default function SessionScreen() {
     </div>
   ) : null;
 
-  const orientationGuard = role === 'controller' && controllerLandscape ? (
+  const orientationGuard = role === 'controller' && activeRun?.gameType === 'whot' && controllerLandscape ? (
     <div className="fixed inset-0 z-[100] grid place-items-center bg-[#020817] p-8 text-center text-white" role="alert">
       <div><RotateCcw className="mx-auto h-12 w-12 text-primary" /><h1 className="mt-5 text-2xl font-black">Turn your phone upright</h1><p className="mt-2 text-sm text-muted-foreground">The Whot controller is designed for portrait play.</p></div>
     </div>
@@ -618,6 +625,7 @@ export default function SessionScreen() {
           requestHint={role === 'controller' && snapshot?.session.settings.hintsEnabled ? requestHint : undefined}
           hintBudget={gamePrivateState?.gameType === activeRun.gameType ? gamePrivateState.hintBudget : undefined}
           paceDeadline={gamePublicState.paceDeadline}
+          hostControlsEnabled={role === 'companion' || !companionConnected}
         />
       </div>
     );

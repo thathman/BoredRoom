@@ -50,10 +50,15 @@ await waitFor('ready Whot players', () => hostBucket.session?.members?.filter((m
 host.send('session:start_game', { gameId: 'whot', settings: {
   seed: 42, timerMs: 1_200, turnSeconds: 1, pickDefence: 'no_stack',
   allowSpecialFinish: false, timeoutPenalty: 'draw_and_pass', specialCards: true,
+  initialHandSize: 6, starSuspension: 'skip_two', generalMarketTurn: 'keep', rotateStarter: true,
 } });
 await waitFor('Whot start', () => hostBucket.public?.state?.mode === 'whot' && players.every((player) => player.private?.gameType === 'whot'));
 assert(hostBucket.public.state.settings.pickDefence === 'no_stack', 'Whot pick-defence setting not applied');
 assert(hostBucket.public.state.settings.allowSpecialFinish === false, 'Whot finish setting not applied');
+assert(hostBucket.public.state.settings.initialHandSize === 6, 'Whot starting hand setting not applied');
+assert(hostBucket.public.state.settings.starSuspension === 'skip_two', 'Whot Star 8 setting not applied');
+assert(hostBucket.public.state.settings.generalMarketTurn === 'keep', 'Whot General Market setting not applied');
+assert(players.every((player) => player.private.state.hand.length === 6), 'Whot did not deal the configured six-card hand');
 assert(hostBucket.public.paceDeadline > Date.now(), 'Whot deadline not projected to clients');
 
 host.send('session:pause_game', { reason: 'e2e_pause' });

@@ -45,4 +45,17 @@ describe('CompanionConsole', () => {
     expect(screen.getByText('End party')).toBeInTheDocument();
     expect(screen.getByText('Delete party')).toBeInTheDocument();
   });
+
+  it('shows the locked Whot rules in the companion current-game controls', () => {
+    render(<CompanionConsole
+      {...baseProps}
+      activeGame={{ gameType: 'whot', status: 'active' }}
+      activeRunSettings={{ initialHandSize: 6, starSuspension: 'skip_two', generalMarketTurn: 'keep', rotateStarter: true }}
+    />);
+    fireEvent.click(screen.getByText('Current'));
+    expect(screen.getByText('Current Whot house rules')).toBeInTheDocument();
+    expect(screen.getByText('6 cards')).toBeInTheDocument();
+    expect(screen.getByText('Skip 2')).toBeInTheDocument();
+    expect(screen.getByText('Play again')).toBeInTheDocument();
+  });
 });

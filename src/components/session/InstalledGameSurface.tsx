@@ -28,7 +28,7 @@ type GameState = {
   pendingPick?: number;
   pendingRoll?: number | null;
   currentPlayerId?: string;
-  players: Array<PlayerScore & { disc?: string; mark?: string; handCount?: number }>;
+  players: Array<PlayerScore & { disc?: string; mark?: string; handCount?: number; roundWins?: number; pipScore?: number }>;
   submittedCount?: number;
   lastResults?: Array<{ playerId: string; points: number }>;
   winnerPlayerIds: string[];
@@ -36,6 +36,8 @@ type GameState = {
   roundsToWin?: number;
   roundWins?: Record<string, number>;
   callout?: { kind: string; playerName: string; text: string; sequence: number } | null;
+  turnDirection?: number;
+  settings?: Record<string, unknown>;
 };
 type PrivateState = {
   seated?: boolean;
@@ -584,6 +586,7 @@ export function InstalledGameSurface({
   aiCommentary,
   hintBudget,
   paceDeadline,
+  hostControlsEnabled = true,
 }: {
   publicState: unknown;
   privateState: unknown;
@@ -594,10 +597,12 @@ export function InstalledGameSurface({
   aiCommentary?: string | null;
   hintBudget?: number;
   paceDeadline?: number | null;
+  hostControlsEnabled?: boolean;
 }) {
   const state = publicState as GameState;
   const mine = (privateState ?? {}) as PrivateState;
   const isHost = role === 'display' || role === 'companion';
+  const canUseHostControls = isHost && hostControlsEnabled;
   const [value, setValue] = useState('');
   const [order, setOrder] = useState<number[]>([]);
   const [whotCardId, setWhotCardId] = useState<string | null>(null);
@@ -724,7 +729,7 @@ export function InstalledGameSurface({
       <main className="star-field min-h-[100dvh] bg-[#020817] px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-[calc(env(safe-area-inset-top)+4.75rem)] text-white">
         <header className="mx-auto flex max-w-xl items-center justify-between border-b border-white/10 pb-4">
           <div><BrandLogo className="text-2xl" /><p className="mt-1 text-sm font-bold">🃏 Whot controller</p></div>
-          <div className="text-right text-xs"><p className="text-primary">Round {state.round} of 5</p><p className="text-muted-foreground">First to {state.roundsToWin ?? 3}</p></div>
+          <div className="text-right text-xs"><p className="text-primary">Round {state.round} of 5</p><p className="text-muted-foreground">First to {state.roundsToWin ?? 3}{state.settings?.enableDirection ? ` · ${state.turnDirection === -1 ? '↺' : '↻'}` : ''}</p></div>
         </header>
         <section className="mx-auto mt-5 max-w-xl space-y-4">
           <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/30 p-4">
@@ -1092,6 +1097,21 @@ export function InstalledGameSurface({
 
                 {state.mode === 'whot' && (
                   <div className="mx-auto w-full max-w-5xl">
+                    <div className="mb-3 flex flex-col items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-center sm:flex-row sm:text-left">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
+                        Round {state.round ?? 1} of {state.totalRounds ?? 5} · First to {state.roundsToWin ?? 3}
+                        {state.settings?.enableDirection ? ` · ${state.turnDirection === -1 ? '↺ Counter-clockwise' : '↻ Clockwise'}` : ''}
+                        {state.pendingPick ? ` · Pick stack ${state.pendingPick}` : ''}
+                      </p>
+                      {role === 'display' && aiCommentary && (
+                        <p className="max-w-2xl text-sm text-white/85"><span className="mr-2 text-secondary">🎙️ MC</span>{aiCommentary}</p>
+                      )}
+                    </div>
+                    {state.callout && (
+                      <div className="mb-3 rounded-2xl border border-secondary/60 bg-secondary/10 px-4 py-3 text-center text-lg font-black text-secondary shadow-[0_0_24px_rgba(179,76,255,.2)]" role="status">
+                        {state.callout.text}
+                      </div>
+                    )}
                     <div className="relative min-h-[520px] overflow-hidden rounded-[2rem] border border-primary/25 bg-[radial-gradient(circle_at_50%_48%,rgba(20,92,52,.92),rgba(4,24,18,.96)_42%,rgba(2,8,23,.98)_72%)] p-5 shadow-[inset_0_0_90px_rgba(0,0,0,.45),0_0_42px_rgba(69,243,107,.12)]">
                       <div className="pointer-events-none absolute inset-8 rounded-full border border-primary/15" />
                       <div className="pointer-events-none absolute inset-[18%] rounded-full border border-white/10 bg-black/10" />
@@ -1116,7 +1136,7 @@ export function InstalledGameSurface({
                               </span>
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate text-xs font-bold">{player.name}</span>
-                                <span className="block text-[10px] text-muted-foreground">{player.handCount ?? 0} cards{active && pending ? ' · ⚠️' : ''}</span>
+                                <span className="block text-[10px] text-muted-foreground">{player.handCount ?? 0} cards · {player.roundWins ?? player.score ?? 0} win{(player.roundWins ?? player.score ?? 0) === 1 ? '' : 's'}{active && pending ? ' · ⚠️' : ''}</span>
                               </span>
                             </div>
                           );
@@ -1261,7 +1281,7 @@ export function InstalledGameSurface({
                 You joined after this game started. You’re watching from the crowd and will be seated in the next game.
               </p>
             )}
-            {isHost && state.phase !== 'finished' && (
+            {canUseHostControls && state.phase !== 'finished' && (
               <div className="border-t border-white/10 p-4 text-center">
                 {challenge ? (
                   <>
@@ -1307,7 +1327,7 @@ export function InstalledGameSurface({
           <p className="mt-4 text-center text-xs text-muted-foreground">{state.lastAction}</p>
         </aside>}
       </div>
-      {aiCommentary && (
+      {aiCommentary && state.mode !== 'whot' && (
         <div className="pointer-events-none fixed inset-x-4 bottom-4 z-50 mx-auto max-w-2xl rounded-xl border border-secondary/50 bg-[#090713]/95 px-5 py-3 text-center text-sm shadow-[0_0_24px_rgba(179,76,255,.25)]">
           {aiCommentary}
         </div>
