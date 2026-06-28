@@ -31,12 +31,24 @@ export function ControllerMenu({
       <button
         type="button"
         onClick={() => { setTab('menu'); setOpen(true); }}
-        className="fixed left-3 top-3 z-[72] flex items-center gap-2 rounded-full border border-white/15 bg-black/70 py-1 pl-1 pr-3 backdrop-blur-md"
+        className="fixed left-3 top-[calc(env(safe-area-inset-top)+.75rem)] z-[72] flex items-center gap-2 rounded-full border border-white/15 bg-black/70 py-1 pl-1 pr-3 backdrop-blur-md"
         aria-label="Player menu"
       >
         <PlayerAvatar displayName={profile.displayName || 'You'} avatar={profile.avatarType === 'emoji' ? profile.avatarValue : undefined} accentColor={profile.accentColor} size={28} />
         <span className="max-w-24 truncate text-xs font-semibold">{profile.displayName || 'You'}</span>
       </button>
+
+      {onPause && canPause && (
+        <Button
+          type="button"
+          variant="outline"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-3 z-[72] h-11 rounded-full border-amber-300/45 bg-[#171006]/92 px-4 text-xs text-amber-100 shadow-[0_0_18px_rgba(251,191,36,.16)] backdrop-blur-md"
+          onClick={onPause}
+          aria-label="Request game pause"
+        >
+          <Pause className="h-4 w-4" /> Pause
+        </Button>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-[90] flex items-start justify-start bg-black/60 p-3 backdrop-blur-sm" onClick={() => setOpen(false)}>

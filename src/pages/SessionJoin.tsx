@@ -53,7 +53,6 @@ export default function SessionJoin() {
 
   async function openScanner() {
     setCameraError(null);
-    setScannerOpen(true);
     try {
       // Camera APIs require a secure context (https or localhost). Warn clearly instead of a
       // cryptic getUserMedia failure so players know to use the https link or enter the code.
@@ -63,7 +62,9 @@ export default function SessionJoin() {
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error('Camera access is not available in this browser. Enter the 4-letter code instead.');
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Start getUserMedia before any React state update. Mobile Safari/Chrome tie the
+      // permission prompt to this exact user gesture and can suppress it after a dialog mount.
+      const streamPromise = navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: 'environment' },
           width: { ideal: 1280 },
@@ -71,8 +72,11 @@ export default function SessionJoin() {
         },
         audio: false,
       });
+      setScannerOpen(true);
+      const stream = await streamPromise;
       setCameraStream(stream);
     } catch (error) {
+      setScannerOpen(true);
       setCameraStream(null);
       const name = error instanceof DOMException ? error.name : '';
       const message = name === 'NotAllowedError'
@@ -178,6 +182,7 @@ export default function SessionJoin() {
         onOpenChange={(open) => {
           setScannerOpen(open);
           if (!open) {
+            cameraStream?.getTracks().forEach((track) => track.stop());
             setCameraStream(null);
             setCameraError(null);
           }

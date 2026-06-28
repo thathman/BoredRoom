@@ -56,7 +56,7 @@ export default defineConfig(() => ({
         // Prefer an immersive fullscreen shell when the platform supports it, falling back to
         // standalone, then minimal-ui, then the browser tab.
         display_override: ["fullscreen", "standalone", "minimal-ui"],
-        orientation: "any",
+        orientation: "portrait",
         start_url: "/",
         scope: "/",
         shortcuts: [

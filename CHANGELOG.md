@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.8.0.0 — 2026-06-28
+
+- Reworked Whot presentation around an oval casino table with seats around the playfield and cream/burgundy cards integrated into BoredRoom neon lighting.
+- Replaced the obstructive persistent join QR with an accessible on-demand host dialog; the lobby retains its primary join QR.
+- Fixed first-click QR camera permission acquisition and controller safe-area/orientation handling.
+- Restored an always-visible controller pause control and replaced raw hint JSON with a private assistant bubble and human-readable move guidance.
+- Added requested-shape narration/display, configurable Whot pick defence, action-card finish policy, timeout penalty, custom turn seconds, and pause-safe server timers.
+- Added Whot round/game confetti and contextual YarnGPT announcements with a deterministic mix of supported Nigerian voices.
+- Migrated server-side AI from OpenRouter to DeepSeek structured output with deterministic gameplay-safe fallbacks.
+- Moved bot creation out of the party lobby and into per-game setup; host display now defers controls to a connected companion.
+- Updated PWA icons to the approved neon 1–4 controller mark and set the installed experience to portrait.
+
 All notable changes to BoredRoom are documented here.
 
 ## 1.6.0.0 — 2026-06-27

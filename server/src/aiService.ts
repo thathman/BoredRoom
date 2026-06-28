@@ -1,16 +1,14 @@
 import type { GameRuntime } from '../../shared/src/contracts/gameRuntime.js';
 
-const MODEL = process.env.AI_MODEL?.trim() || 'google/gemini-2.5-flash-lite';
+const MODEL = process.env.DEEPSEEK_MODEL?.trim() || process.env.AI_MODEL?.trim() || 'deepseek-v4-flash';
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS ?? 6000);
 
-// Provider-agnostic config: any OpenAI-compatible chat endpoint. Defaults to OpenRouter so the
-// game works zero-config, but a custom/self-hosted model can be used via AI_BASE_URL/AI_API_KEY
-// with no code change. Read at call-time so deployment/tests can override without a restart.
+// DeepSeek's OpenAI-compatible API. Read at call-time so deployments/tests can override safely.
 function aiBaseUrl(): string {
-  return (process.env.AI_BASE_URL?.trim() || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
+  return (process.env.DEEPSEEK_BASE_URL?.trim() || 'https://api.deepseek.com').replace(/\/+$/, '');
 }
 function aiApiKey(): string {
-  return process.env.AI_API_KEY?.trim() || process.env.OPENROUTER_API_KEY?.trim() || '';
+  return process.env.DEEPSEEK_API_KEY?.trim() || '';
 }
 function aiCompletionsUrl(): string {
   return `${aiBaseUrl()}/chat/completions`;
@@ -270,18 +268,11 @@ async function completeStructured<T>(
         messages: [
           {
             role: 'system',
-            content: `${system}\nReturn only JSON that matches the provided schema. Do not include markdown or prose outside JSON.`,
+            content: `${system}\nReturn only valid JSON matching this schema: ${JSON.stringify(schema.schema)}. Do not include markdown or prose outside JSON.`,
           },
           { role: 'user', content: user },
         ],
-        response_format: {
-          type: 'json_schema',
-          json_schema: {
-            name: schema.name,
-            strict: true,
-            schema: schema.schema,
-          },
-        },
+        response_format: { type: 'json_object' },
         max_tokens: maxTokens,
         temperature: 0.25,
       }),
@@ -342,7 +333,13 @@ export async function generateCommentary(input: {
     `Game: ${input.gameName}\nPublic state only: ${JSON.stringify(input.publicState).slice(0, 5000)}`,
     80,
   );
-  return response?.text ?? null;
+  if (response?.text) return response.text;
+  const state = isRecord(input.publicState) ? input.publicState : {};
+  const action = sanitize(state.lastAction, 92);
+  if (!action) return 'The table is set. Make your move!';
+  const openers = ['Table don hot!', 'No dulling!', 'This one is getting serious!', 'Everybody watch this move!'];
+  const seed = [...action].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return `${openers[seed % openers.length]} ${action}`.slice(0, 140);
 }
 
 export async function generatePacingSuggestion(input: {
@@ -366,7 +363,13 @@ export async function generatePrivateHint(input: {
   legalIntents: Array<Record<string, unknown>>;
 }): Promise<string | null> {
   if (input.legalIntents.length === 0) return null;
-  const fallback = `Try ${JSON.stringify(input.legalIntents[0])}. It is a legal move for the current state.`;
+  const describeIntent = (intent: Record<string, unknown>): string => {
+    if (typeof intent.label === 'string' && intent.label.trim()) return intent.label.trim();
+    if (intent.type === 'draw') return 'Go to market and pick the required card(s).';
+    if (intent.type === 'play_card') return 'Play one of the highlighted cards in your hand.';
+    return 'Use the highlighted legal move on your controller.';
+  };
+  const fallback = describeIntent(input.legalIntents[0]);
   const response = await completeStructured(
     hintSchema(input.legalIntents.length - 1),
     'You are a private game coach. Use only the supplied public state, this player private state, rules and server-generated legal intents. Select exactly one legal intent by index. Never invent a move.',
@@ -375,7 +378,7 @@ export async function generatePrivateHint(input: {
   );
   if (!response) return fallback;
   const selected = input.legalIntents[response.selectedIntentIndex] ?? input.legalIntents[0];
-  return `${response.text} Legal move: ${JSON.stringify(selected)}.`;
+  return `${response.text} ${describeIntent(selected)}`;
 }
 
 export async function explainRejectedIntent(input: {

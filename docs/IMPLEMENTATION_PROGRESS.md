@@ -575,3 +575,18 @@ Release-process hardening:
 ## Next recommended agent prompt
 
 Continue from `/Users/hendrix/Playground/boredroom` and do not mark the goal complete. The Lagos hero/motion fix, Colyseus 0.17 deployment, hardened Dell deploy script, and first vote lifecycle/server-state slice are verified live. Continue toward full vote lifecycle: companion vote management UI, player-requested votes/support, auto-apply actions, admin visibility, and browser E2E.
+
+## 2026-06-28 — Whot production-hardening release (1.8.0.0 / games 1.5.0.0)
+
+- Removed the persistent lower-left QR overlay from lobby/gameplay. Active hosts use an on-demand Join dialog; lobby keeps the large primary QR.
+- Fixed scanner acquisition so `getUserMedia` is invoked in the first scan-button gesture; added an automated regression test.
+- Restored a visible controller Pause pill, added iOS safe-area spacing, Android/PWA portrait enforcement plus landscape guard, and replaced PWA icons with the approved neon 1–4 mark.
+- Whot UI now shows requested shape on host/controller, seats players around the oval table, removes the duplicate host player rail, and blends cream/burgundy card faces with green/purple BoredRoom edge lighting.
+- Whot runtime now supports `pickDefence`, `allowSpecialFinish`, `timeoutPenalty`, and custom `turnSeconds`; invalid Whot shape calls no longer mutate the discard state.
+- The server clears pace timers on pause, restarts them on resume, and applies validated Whot timeout intents rather than repeatedly issuing an unsupported generic advance.
+- Controller hints are human-readable and exposed through a private assistant bubble; host commentary always has an energetic deterministic fallback.
+- AI provider is direct DeepSeek (`deepseek-v4-flash` default) using JSON output. OpenRouter keys are no longer read.
+- YarnGPT uses only documented voice names, varies voices deterministically, caches audio, restricts phrases, and rate-limits requests.
+- Bots are selected only in game configuration; Whot active house rules are visible in the host settings drawer and locked for match fairness.
+- Local gates passed before release: lint, frontend typecheck, 141 core tests (139 pass + 2 skipped), server TypeScript build, PWA production build, and 229 game/plugin tests.
+- Remaining release work at this checkpoint: commit/push, tag signed games v1.5.0.0, wait for catalog publication, deploy core to Dell, update installed games, and run live Whot browser/device verification.

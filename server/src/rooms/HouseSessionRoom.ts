@@ -625,7 +625,16 @@ export class HouseSessionRoom extends Room {
     this.paceDeadline = Date.now() + delay;
     this.paceTimer = setTimeout(() => {
       if (!this.gameRuntime) return;
-      // Force the round forward as a host 'advance' (reveal → next, or playing → reveal).
+      const current = this.gameRuntime.publicState() as { mode?: string; currentPlayerId?: string };
+      if (current.mode === 'whot' && current.currentPlayerId) {
+        const changed = this.gameRuntime.handleIntent(current.currentPlayerId, { type: 'timeout' }, true);
+        if (changed) {
+          this.broadcastGameState();
+          this.scheduleBotTurn();
+          return;
+        }
+      }
+      // Force content-game rounds forward as a host 'advance' (reveal → next).
       const host = Array.from(this.identities.values()).find((i) => i.isOwner)?.deviceId ?? 'pace-timer';
       const changed = this.gameRuntime.handleIntent(host, { type: 'advance' }, true);
       if (changed) this.broadcastGameState();
@@ -759,8 +768,11 @@ export class HouseSessionRoom extends Room {
 
   private async pauseGame(reason: string): Promise<void> {
     this.clearBotTimer();
+    this.clearPaceTimer();
     const runtime = pauseActiveGame(this.code, reason);
     if (!runtime) return;
+    this.broadcast('session:state', getPublicSession(this.code));
+    this.broadcastGameState();
     const record = getSessionRecord(this.code);
     await Promise.all([
       persistGameRun(runtime.run),
@@ -779,6 +791,8 @@ export class HouseSessionRoom extends Room {
   private async resumeGame(): Promise<void> {
     const runtime = resumeActiveGame(this.code);
     if (!runtime) return;
+    this.broadcast('session:state', getPublicSession(this.code));
+    this.broadcastGameState();
     const record = getSessionRecord(this.code);
     await Promise.all([
       persistGameRun(runtime.run),

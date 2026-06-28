@@ -102,7 +102,6 @@ export default function SessionScreen() {
     kickPlayer,
     admitPlayer,
     rejectPlayer,
-    addBot,
     removeBot,
     setRemoteMode,
     endParty,
@@ -126,7 +125,9 @@ export default function SessionScreen() {
   const [dismissedVoteId, setDismissedVoteId] = useState<string | null>(null);
   const [installedGames, setInstalledGames] = useState<LibraryGame[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [joinDetailsOpen, setJoinDetailsOpen] = useState(false);
   const [configGame, setConfigGame] = useState<LibraryGame | null>(null);
+  const [controllerLandscape, setControllerLandscape] = useState(false);
   const wakeLockStatus = useWakeLock(role === 'controller' || role === 'crowd' || role === 'companion');
   const whotCallout = gamePublicState?.gameType === 'whot'
     ? (gamePublicState.state as { callout?: { kind?: string; sequence?: number; playerName?: string } }).callout
@@ -137,11 +138,11 @@ export default function SessionScreen() {
     const key = `boredroom_whot_callout:${normalizedCode}:${whotCallout.sequence}`;
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, '1');
-    if (whotCallout.kind === 'semi_last_card' || whotCallout.kind === 'last_card' || whotCallout.kind === 'check_up') {
+    if (whotCallout.kind === 'semi_last_card' || whotCallout.kind === 'last_card') {
       // Dynamic Naija TTS line ("<player> calls semi/last card / check up") with the player's
       // name; falls back to the pre-recorded clip if the TTS service is unavailable.
       const phrase = whotCallout.kind === 'semi_last_card' ? 'calls semi last card'
-        : whotCallout.kind === 'last_card' ? 'calls last card' : 'calls check up';
+        : 'calls last card';
       const line = `${whotCallout.playerName ?? 'Player'} ${phrase}`;
       void sounds.whotCalloutLine(line, whotCallout.kind);
     }
@@ -163,8 +164,22 @@ export default function SessionScreen() {
     }
   }, [displayName, normalizedCode, role]);
 
+  useEffect(() => {
+    if (role !== 'controller') return;
+    const media = window.matchMedia('(orientation: landscape)');
+    const update = () => setControllerLandscape(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    const orientation = window.screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> };
+    void orientation?.lock?.('portrait').catch(() => {
+      // Browser tabs often reject orientation lock; the rotate guard below remains authoritative.
+    });
+    return () => media.removeEventListener?.('change', update);
+  }, [role]);
+
   const activeRun = snapshot?.activeRun ?? null;
   const members = snapshot?.members ?? [];
+  const companionConnected = members.some((member) => member.role === 'companion' && member.connected);
   const activeGame = useMemo(
     () => installedGames.find((game) => game.id === activeRun?.gameType) ?? null,
     [activeRun?.gameType, installedGames],
@@ -350,16 +365,20 @@ export default function SessionScreen() {
       )}
       {/* Public display keeps the lightweight Games & controls drawer (emergency surface).
           The companion gets the full tabbed control booth instead. */}
-      {role === 'display' && (
+      {role === 'display' && !companionConnected && (
         <>
-          <Button className="fixed right-4 top-4 z-[70] rounded-xl bg-black/70" variant="outline" onClick={() => setDrawerOpen(true)}>
-            <Menu className="h-4 w-4" /> Games & controls
-          </Button>
+          <div className="fixed right-4 top-4 z-[70] flex gap-2">
+            {activeRun && <Button className="rounded-xl bg-black/70" variant="outline" onClick={() => setJoinDetailsOpen(true)}><QrCode className="h-4 w-4" /> Join</Button>}
+            <Button className="rounded-xl bg-black/70" variant="outline" onClick={() => setDrawerOpen(true)}>
+              <Menu className="h-4 w-4" /> Games & controls
+            </Button>
+          </div>
           <HostGameDrawer
             open={drawerOpen}
             onOpenChange={setDrawerOpen}
             activeGameType={activeRun && ['active', 'paused', 'setup', 'recoverable'].includes(activeRun.status) ? activeRun.gameType : undefined}
             activeRunStatus={activeRun?.status}
+            activeRunSettings={activeRun?.settings}
             members={members}
             busyGame={busyGame}
             onSelectGame={(game) => void chooseGame(game)}
@@ -405,19 +424,20 @@ export default function SessionScreen() {
     </>
   ) : null;
 
-  const hostJoinStrip = isHost ? (
-    <div className="fixed bottom-4 left-4 z-[65] flex items-center gap-3 rounded-2xl border border-primary/40 bg-[#050914]/92 p-3 shadow-[0_0_24px_rgba(69,243,107,.18)] backdrop-blur-xl">
-      <div className="rounded-lg bg-white p-1"><QRCodeSVG value={joinUrl} size={58} /></div>
-      <div className="text-left">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Join house</p>
-        <p className="font-mono text-2xl font-black tracking-[0.16em] text-primary">{normalizedCode}</p>
-        <p className="text-[10px] text-white/60">{joinUrl.replace(/^https?:\/\//, '')}</p>
+  const hostJoinDialog = role === 'display' && joinDetailsOpen ? (
+    <div className="fixed inset-0 z-[90] grid place-items-center bg-black/75 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Join this house">
+      <div className="relative w-full max-w-sm rounded-3xl border border-primary/40 bg-[#050914] p-6 text-center shadow-[0_0_40px_rgba(69,243,107,.2)]">
+        <Button size="icon" variant="ghost" className="absolute right-3 top-3 rounded-full" aria-label="Close join details" onClick={() => setJoinDetailsOpen(false)}><X className="h-4 w-4" /></Button>
+        <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Join house</p>
+        <div className="mx-auto mt-4 w-fit rounded-2xl bg-white p-3"><QRCodeSVG value={joinUrl} size={210} /></div>
+        <p className="mt-4 font-mono text-4xl font-black tracking-[0.2em] text-primary">{normalizedCode}</p>
+        <p className="mt-2 break-all text-xs text-white/60">{joinUrl.replace(/^https?:\/\//, '')}</p>
       </div>
     </div>
   ) : null;
 
   // Cinematic vote overlay for the public display (the stage). Read-only: live tally + result.
-  const displayVoteOverlay = role === 'display' && votePoll && dismissedVoteId !== votePoll.id ? (
+  const displayVoteOverlay = role === 'display' && !companionConnected && votePoll && dismissedVoteId !== votePoll.id ? (
     <div className="fixed inset-x-0 top-6 z-[75] flex justify-center px-6">
       <div className="relative w-full max-w-2xl rounded-3xl border border-secondary/50 bg-[#0b0716]/95 p-6 text-center shadow-[0_0_40px_rgba(168,85,247,.25)] backdrop-blur-xl">
         <Button
@@ -510,6 +530,12 @@ export default function SessionScreen() {
     </div>
   ) : null;
 
+  const orientationGuard = role === 'controller' && controllerLandscape ? (
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-[#020817] p-8 text-center text-white" role="alert">
+      <div><RotateCcw className="mx-auto h-12 w-12 text-primary" /><h1 className="mt-5 text-2xl font-black">Turn your phone upright</h1><p className="mt-2 text-sm text-muted-foreground">The Whot controller is designed for portrait play.</p></div>
+    </div>
+  ) : null;
+
   if (snapshot?.session.status === 'game_recap' && snapshot.lastRecap) {
     const winners = controllerMembers.filter((member) => snapshot.lastRecap?.winnerPlayerIds.includes(member.deviceId));
     return (
@@ -576,11 +602,12 @@ export default function SessionScreen() {
     return (
       <div className="relative min-h-screen">
         {hostControls}
-        {hostJoinStrip}
+        {hostJoinDialog}
         {displayVoteOverlay}
         {controllerPersistenceStrip}
         {pauseOverlay}
         {controllerMenu}
+        {orientationGuard}
         <InstalledGameSurface
           publicState={gamePublicState.state}
           privateState={gamePrivateState?.gameType === activeRun.gameType ? gamePrivateState.state : null}
@@ -694,7 +721,7 @@ export default function SessionScreen() {
   return (
     <LagosScene className="bg-[linear-gradient(180deg,rgba(2,8,23,.4),rgba(2,8,23,.8))]">
       {hostControls}
-      {hostJoinStrip}
+      {hostJoinDialog}
       {displayVoteOverlay}
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 pb-6 pt-6">
         <BrandLogo className="text-5xl" />
@@ -747,22 +774,6 @@ export default function SessionScreen() {
             ))}
             {controllerMembers.length === 0 && <p className="text-sm text-muted-foreground">Waiting for the first player…</p>}
           </div>
-          {/* Host bot roster: add named bots (no name clashes) before starting a game. */}
-          {isHost && snapshot?.session.settings.allowBots && (
-            <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
-              <span className="text-xs text-muted-foreground">
-                {controllerMembers.filter((m) => m.isBot).length} bot(s) · {controllerMembers.filter((m) => !m.isBot).length} player(s)
-              </span>
-              <Button
-                variant="outline"
-                className="h-9 rounded-xl text-xs"
-                disabled={controllerMembers.length >= (snapshot?.session.settings.maxControllers ?? 12)}
-                onClick={() => addBot()}
-              >
-                🤖 Add bot
-              </Button>
-            </div>
-          )}
         </section>
       </div>
       {pickerOpen && (
@@ -773,7 +784,7 @@ export default function SessionScreen() {
                 <BrandLogo className="text-3xl" />
                 <h1 className="brush-display mt-5 text-5xl">Choose the <span className="text-primary">game</span></h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {controllerMembers.length} joined · {readyCount} ready · bots {snapshot?.session.settings.allowBots ? 'allowed' : 'off'}
+                  {controllerMembers.length} joined · {readyCount} ready · add bots in each game’s setup
                 </p>
               </div>
               <div className="flex gap-2">
@@ -783,7 +794,7 @@ export default function SessionScreen() {
             </div>
             <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {drawerGames.map((game) => {
-                const tooFew = readyCount < game.minPlayers && !snapshot?.session.settings.allowBots;
+                const tooFew = readyCount < game.minPlayers && !game.capabilities?.bots;
                 return (
                   <button
                     key={game.slug}

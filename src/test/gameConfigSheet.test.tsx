@@ -20,7 +20,8 @@ describe('GameConfigSheet', () => {
     expect(onStart).toHaveBeenCalledTimes(1);
     const cfg = onStart.mock.calls[0][0];
     expect(cfg.pace).toBe('blitz');
-    expect(cfg.timerMs).toBe(7000);
+    expect(cfg.timerMs).toBe(15000);
+    expect(cfg.turnSeconds).toBe(15);
     expect(cfg.questionCount).toBe(cfg.rounds);
   });
 
@@ -32,5 +33,8 @@ describe('GameConfigSheet', () => {
     const cfg = onStart.mock.calls[0][0];
     expect(cfg.specialCards).toBe(true);
     expect(cfg.enableDirection).toBe(false);
+    expect(cfg.allowSpecialFinish).toBe(true);
+    expect(cfg.pickDefence).toBe('stack_same');
+    expect(cfg.timeoutPenalty).toBe('draw_and_pass');
   });
 });

@@ -60,8 +60,13 @@ export function QrScanner({
 }: QrScannerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
+  const onCodeRef = useRef(onCode);
+  const onOpenChangeRef = useRef(onOpenChange);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'scanning'>('idle');
+
+  useEffect(() => { onCodeRef.current = onCode; }, [onCode]);
+  useEffect(() => { onOpenChangeRef.current = onOpenChange; }, [onOpenChange]);
 
   // Surface caller-side acquire errors.
   useEffect(() => {
@@ -92,8 +97,8 @@ export function QrScanner({
         const code = extractCode(result.getText());
         if (code) {
           activeControls?.stop();
-          onCode(code);
-          onOpenChange(false);
+          onCodeRef.current(code);
+          onOpenChangeRef.current(false);
         }
       })
       .then((controls) => {
@@ -118,7 +123,7 @@ export function QrScanner({
       controlsRef.current = null;
       if (video.srcObject === stream) video.srcObject = null;
     };
-  }, [open, stream, onCode, onOpenChange]);
+  }, [open, stream]);
 
   // When the dialog closes, fully stop the stream tracks so the camera light goes off.
   useEffect(() => {

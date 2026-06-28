@@ -297,6 +297,7 @@ export interface ActiveRun {
   gameType: string;
   gameVersion: string;
   status: string;
+  settings?: Record<string, unknown>;
 }
 
 // Hydrate a session by code (screens use this on load). null when no server or unknown code.

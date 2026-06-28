@@ -380,16 +380,31 @@ app.get('/sessions/:code/ai/story', async (req, res) => {
 // the client falls back to the pre-recorded clips — audio never breaks if TTS is down/unset.
 const TTS_BASE_URL = (process.env.TTS_BASE_URL?.trim() || 'https://yarngpt.ai/api/v1').replace(/\/+$/, '');
 const TTS_DEFAULT_VOICE = process.env.TTS_VOICE?.trim() || 'Idera';
+const TTS_VOICES = (process.env.TTS_VOICES?.trim() || `${TTS_DEFAULT_VOICE},Tayo,Chinenye,Nonso,Mary,Femi`).split(',').map((voice) => voice.trim()).filter(Boolean);
 const TTS_TIMEOUT_MS = Number(process.env.TTS_TIMEOUT_MS ?? 9000);
 const ttsCache = new Map<string, Buffer>();
 const TTS_CACHE_MAX = 80;
+const ttsRate = new Map<string, { count: number; resetAt: number }>();
 
 app.get('/tts', async (req, res) => {
   const line = String(req.query.line ?? '').trim().slice(0, 300);
-  const voice = String(req.query.voice ?? TTS_DEFAULT_VOICE).trim().slice(0, 40);
+  const requestedVoice = String(req.query.voice ?? '').trim().slice(0, 40);
+  const voiceIndex = [...line].reduce((sum, char) => sum + char.charCodeAt(0), 0) % TTS_VOICES.length;
+  const voice = requestedVoice || TTS_VOICES[voiceIndex] || TTS_DEFAULT_VOICE;
   const apiKey = process.env.TTS_API_KEY?.trim();
   if (!line) return res.status(400).json({ error: 'line_required' });
+  if (!/(?:calls (?:semi last card|last card)|^check up! .+ wins (?:round \d+|the game)!$)/i.test(line)) {
+    return res.status(400).json({ error: 'unsupported_callout' });
+  }
   if (!apiKey) return res.status(503).json({ error: 'tts_not_configured' });
+
+  const now = Date.now();
+  const rateKey = req.ip || req.socket.remoteAddress || 'unknown';
+  const bucket = ttsRate.get(rateKey);
+  const current = !bucket || bucket.resetAt <= now ? { count: 0, resetAt: now + 10 * 60_000 } : bucket;
+  current.count += 1;
+  ttsRate.set(rateKey, current);
+  if (current.count > 30) return res.status(429).json({ error: 'tts_rate_limited' });
 
   const key = createHash('sha256').update(`${voice}:${line}`).digest('hex');
   const cached = ttsCache.get(key);

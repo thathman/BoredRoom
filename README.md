@@ -8,7 +8,7 @@
   <a href="https://github.com/thathman/BoredRoom"><img alt="Repo" src="https://img.shields.io/badge/repo-BoredRoom-7c3aed?style=for-the-badge&logo=github"></a>
   <a href="https://github.com/thathman/BoredRoom-Games"><img alt="Games" src="https://img.shields.io/badge/games-installable%20catalog-22c55e?style=for-the-badge&logo=github"></a>
   <a href="./LICENSE.md"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-1.6.0.0-f97316?style=for-the-badge">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.8.0.0-f97316?style=for-the-badge">
 </p>
 
 <p align="center">
@@ -105,7 +105,7 @@ Games are installed as signed artifacts. A fresh deployment can start with an em
 | QR | `qrcode.react`, ZXing browser scanner |
 | Animation/3D support | Three.js, React Three Fiber, Framer Motion |
 | Persistence | Supabase service-role access on the server side |
-| AI | OpenRouter/OpenAI-compatible endpoint, server-side only |
+| AI | DeepSeek structured-output API, server-side only |
 | Deployment | Docker Compose web + realtime server services |
 
 ```text
@@ -166,10 +166,11 @@ Default local URLs:
 | `SUPABASE_SERVICE_ROLE_KEY` | Server only | Optional | Server-only key for session persistence. Never expose to frontend. |
 | `GAME_ADMIN_TOKEN` | Server only | Recommended | Long random token for admin/game management actions. |
 | `GAME_ADMIN_ORIGINS` | Server only | Recommended | Allowed origins for admin endpoints. |
-| `OPENROUTER_API_KEY` | Server only | Optional | Enables AI commentary, hints, recaps, and recommendations. |
-| `AI_MODEL` | Server only | Optional | OpenRouter/OpenAI-compatible model. |
-| `AI_APP_URL` | Server only | Optional | App URL sent to AI provider metadata where used. |
-| `AI_APP_NAME` | Server only | Optional | App name sent to AI provider metadata where used. |
+| `DEEPSEEK_API_KEY` | Server only | Optional | Enables AI commentary, private hints, recaps, and recommendations. |
+| `DEEPSEEK_MODEL` | Server only | Optional | DeepSeek model; defaults to `deepseek-v4-flash`. |
+| `DEEPSEEK_BASE_URL` | Server only | Optional | DeepSeek API base URL. |
+| `TTS_API_KEY` | Server only | Optional | Enables YarnGPT Whot callouts and winner announcements. |
+| `TTS_VOICES` | Server only | Optional | Comma-separated YarnGPT voices used deterministically for variety. |
 | `BOREDROOM_GAMES_DIR` | Server only | Deployment | Directory for installed game artifacts. |
 | `BOREDROOM_GAMES_CATALOG_URL` | Server only | Deployment | Official game catalog URL. |
 | `BOREDROOM_GAMES_PUBLIC_KEY` | Server only | Deployment | Public key used to verify signed game artifacts. |

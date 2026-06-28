@@ -14,13 +14,16 @@ describe('ControllerMenu', () => {
   it('shows the player name chip and opens a flyout with achievements + pause', () => {
     const onPause = vi.fn();
     render(<ControllerMenu profile={profile} onSaveProfile={() => {}} onPause={onPause} canPause />);
+    expect(screen.getByRole('button', { name: 'Request game pause' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Request game pause' }));
+    expect(onPause).toHaveBeenCalledTimes(1);
     // chip shows the name
     expect(screen.getAllByText('Ada').length).toBeGreaterThanOrEqual(1);
     fireEvent.click(screen.getByLabelText('Player menu'));
     expect(screen.getByText(/Achievements/)).toBeInTheDocument();
     expect(screen.getByText('1 wins · 3 games')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Request pause'));
-    expect(onPause).toHaveBeenCalled();
+    expect(onPause).toHaveBeenCalledTimes(2);
   });
 
   it('derives achievements from stats (first win earned, champion not)', () => {

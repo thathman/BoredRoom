@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import type { LibraryGame } from '@/lib/serverApi';
 
 // Pre-game configuration shown for EVERY game before it starts. Universal knobs (rounds, pace,
@@ -7,7 +8,7 @@ import type { LibraryGame } from '@/lib/serverApi';
 // timer so a round never drags. Game-specific extras can be layered on later per game.
 export type GamePace = 'relaxed' | 'normal' | 'fast' | 'blitz';
 
-const PACE_MS: Record<GamePace, number> = { relaxed: 0, normal: 20000, fast: 12000, blitz: 7000 };
+const PACE_MS: Record<GamePace, number> = { relaxed: 0, normal: 45000, fast: 30000, blitz: 15000 };
 const PACE_LABEL: Record<GamePace, string> = { relaxed: 'Relaxed', normal: 'Normal', fast: 'Fast', blitz: 'Blitz ⚡' };
 
 export interface GameConfig {
@@ -33,6 +34,17 @@ const GAME_EXTRAS: Record<string, ExtraField[]> = {
   whot: [
     { key: 'specialCards', label: 'Special cards (pick-2, hold-on, general market, WHOT)', type: 'toggle', default: true },
     { key: 'enableDirection', label: 'Card 11 reverses play direction', type: 'toggle', default: false },
+    { key: 'allowSpecialFinish', label: 'Allow an action card or Whot 20 to win a round', type: 'toggle', default: true },
+    { key: 'pickDefence', label: 'Defending pick cards', type: 'select', default: 'stack_same', options: [
+      { value: 'stack_same', label: 'Stack same' },
+      { value: 'stack_any', label: 'Stack 2 or 5' },
+      { value: 'no_stack', label: 'No blocking' },
+    ] },
+    { key: 'timeoutPenalty', label: 'When time runs out', type: 'select', default: 'draw_and_pass', options: [
+      { value: 'draw_and_pass', label: 'Pick 1 + lose turn' },
+      { value: 'pass', label: 'Lose turn' },
+      { value: 'draw_one', label: 'Pick 1 + continue' },
+    ] },
   ],
   ettt: [
     { key: 'teamMode', label: 'Team mode', type: 'toggle', default: false },
@@ -99,18 +111,21 @@ export function GameConfigSheet({
   const [pace, setPace] = useState<GamePace>('normal');
   const [botCount, setBotCount] = useState(Math.max(0, Math.min(maxBots, Math.max(0, game.minPlayers - readyPlayers))));
   const [hintsEnabled, setHintsEnabled] = useState(true);
+  const [customSeconds, setCustomSeconds] = useState(45);
   const extraFields = GAME_EXTRAS[game.id] ?? [];
   const [extras, setExtras] = useState<Record<string, string | number | boolean>>(
     () => Object.fromEntries(extraFields.map((f) => [f.key, f.default])),
   );
 
   function start() {
-    const timerMs = PACE_MS[pace];
+    const turnSeconds = pace === 'relaxed' ? 0 : Math.min(180, Math.max(10, Math.trunc(customSeconds)));
+    const timerMs = game.id === 'whot' ? turnSeconds * 1000 : PACE_MS[pace];
     onStart({
       rounds,
       questionCount: rounds, // content games key off questionCount
       pace,
       timerMs,
+      turnSeconds,
       revealCountdownMs: pace === 'blitz' ? 3000 : pace === 'fast' ? 4000 : 5000,
       botCount,
       bots: botCount, // legacy alias
@@ -129,23 +144,29 @@ export function GameConfigSheet({
         <p className="mt-1 text-sm text-muted-foreground">{readyPlayers} ready player(s) · {game.minPlayers}–{game.maxPlayers} seats</p>
 
         <div className="mt-6 space-y-5">
-          <div>
+          {game.id !== 'whot' && <div>
             <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Rounds</p>
             <div className="mt-2 grid grid-cols-4 gap-2">
               {[3, 5, 7, 10].map((n) => (
                 <Button key={n} variant={rounds === n ? 'default' : 'outline'} className={rounds === n ? 'neon-primary h-11 rounded-xl' : 'h-11 rounded-xl'} onClick={() => setRounds(n)}>{n}</Button>
               ))}
             </div>
-          </div>
+          </div>}
 
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Pace (round timer)</p>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{game.id === 'whot' ? 'Turn time' : 'Pace (round timer)'}</p>
             <div className="mt-2 grid grid-cols-4 gap-2">
               {(Object.keys(PACE_MS) as GamePace[]).map((p) => (
-                <Button key={p} variant={pace === p ? 'default' : 'outline'} className={pace === p ? 'neon-primary h-11 rounded-xl text-xs' : 'h-11 rounded-xl text-xs'} onClick={() => setPace(p)}>{PACE_LABEL[p]}</Button>
+                <Button key={p} variant={pace === p ? 'default' : 'outline'} className={pace === p ? 'neon-primary h-11 rounded-xl text-xs' : 'h-11 rounded-xl text-xs'} onClick={() => { setPace(p); if (p !== 'relaxed') setCustomSeconds(PACE_MS[p] / 1000); }}>{PACE_LABEL[p]}{p === 'relaxed' ? '' : ` · ${PACE_MS[p] / 1000}s`}</Button>
               ))}
             </div>
-            <p className="mt-1 text-[11px] text-white/45">{PACE_MS[pace] === 0 ? 'No timer — take your time.' : `${PACE_MS[pace] / 1000}s per round, then auto-advance.`}</p>
+            {game.id === 'whot' && pace !== 'relaxed' && (
+              <label className="mt-3 flex items-center justify-between gap-3 text-sm">
+                Custom seconds
+                <Input className="h-10 w-24 bg-black/30 text-center" type="number" inputMode="numeric" min={10} max={180} value={customSeconds} onChange={(event) => setCustomSeconds(Number(event.target.value) || 10)} />
+              </label>
+            )}
+            <p className="mt-1 text-[11px] text-white/45">{pace === 'relaxed' ? 'No timer — take your time.' : game.id === 'whot' ? `${customSeconds}s per turn. The selected timeout penalty is applied automatically.` : `${PACE_MS[pace] / 1000}s per round, then auto-advance.`}</p>
           </div>
 
           {game.capabilities.bots && (

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, FastForward, Trophy, Users } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { Bot, Check, FastForward, MessageCircle, Trophy, Users, X } from 'lucide-react';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,15 +58,17 @@ const whotShapeGlyph: Record<string, string> = {
 };
 const WHOT_SHAPES = ['Circle', 'Triangle', 'Cross', 'Square', 'Star'];
 
+function casinoSeatPosition(index: number, total: number): React.CSSProperties {
+  const angle = (-90 + (360 / Math.max(1, total)) * index) * (Math.PI / 180);
+  const left = 50 + Math.cos(angle) * 42;
+  const top = Math.min(82, Math.max(7, 45 + Math.sin(angle) * 38));
+  return { left: `${left}%`, top: `${top}%`, transform: 'translate(-50%, -50%)' };
+}
+
 function whotCardTone(card?: WhotCard): string {
-  if (!card) return 'from-white/10 to-white/5 border-white/20';
-  if (card.isWhot || card.shape === 'Whot') return 'from-purple-500/30 to-fuchsia-500/10 border-secondary/70 text-secondary';
-  if (card.shape === 'Circle') return 'from-emerald-400/25 to-emerald-400/5 border-primary/70 text-primary';
-  if (card.shape === 'Triangle') return 'from-amber-300/25 to-amber-300/5 border-amber-200/70 text-amber-200';
-  if (card.shape === 'Cross') return 'from-sky-300/25 to-sky-400/5 border-sky-200/70 text-sky-200';
-  if (card.shape === 'Square') return 'from-rose-300/25 to-rose-400/5 border-rose-200/70 text-rose-200';
-  if (card.shape === 'Star') return 'from-violet-300/25 to-violet-400/5 border-violet-200/70 text-violet-200';
-  return 'from-white/10 to-white/5 border-white/20';
+  if (!card) return 'border-[#7d1228] text-[#7d1228]';
+  if (card.isWhot || card.shape === 'Whot') return 'border-secondary/90 text-[#7d1228] shadow-[0_0_22px_rgba(179,76,255,.26)]';
+  return 'border-[#7d1228] text-[#7d1228] shadow-[0_0_18px_rgba(125,18,40,.28)]';
 }
 
 function WhotCardFace({
@@ -84,13 +87,19 @@ function WhotCardFace({
   const number = card?.number ?? card?.label.match(/\d+/)?.[0] ?? (card?.isWhot ? '20' : '');
   return (
     <div
-      className={`whot-card-face relative grid ${compact ? 'h-28 w-20' : 'h-40 w-28'} place-items-center overflow-hidden rounded-2xl border bg-gradient-to-br p-3 shadow-[0_18px_36px_rgba(0,0,0,.32)] transition ${
+      className={`whot-card-face relative grid ${compact ? 'h-28 w-20' : 'h-40 w-28'} place-items-center overflow-hidden rounded-[.8rem] border-2 bg-[radial-gradient(circle_at_50%_46%,#fffdf6_0%,#f4f0e6_58%,#eadfd6_100%)] p-3 shadow-[0_18px_36px_rgba(0,0,0,.42)] transition ${
         whotCardTone(card)
-      } ${playable ? 'scale-105 ring-2 ring-primary/70' : ''} ${disabled ? 'opacity-45 grayscale' : ''}`}
+      } ${playable ? 'scale-105 ring-4 ring-primary/80 shadow-[0_0_30px_rgba(69,243,107,.48),0_18px_36px_rgba(0,0,0,.42)]' : ''} ${disabled ? 'opacity-48 saturate-50' : ''}`}
     >
-      <span className="absolute left-2 top-2 text-lg font-black">{number}</span>
-      <span className={`${compact ? 'text-4xl' : 'text-6xl'} drop-shadow-[0_0_14px_currentColor]`}>{glyph}</span>
-      <span className="absolute bottom-2 right-2 rotate-180 text-lg font-black">{number}</span>
+      <span className="pointer-events-none absolute inset-1 rounded-[.55rem] border border-[#7d1228]/30" />
+      <span className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-primary/80 to-transparent shadow-[0_0_8px_rgba(69,243,107,.7)]" />
+      <span className="absolute left-2 top-1 text-lg font-black leading-none">{number}</span>
+      {shape === 'Whot' ? (
+        <span className={`${compact ? 'text-xl' : 'text-2xl'} rotate-[-18deg] font-black uppercase tracking-tight text-[#7d1228] drop-shadow-[0_0_7px_rgba(179,76,255,.45)]`}>WHOT</span>
+      ) : (
+        <span className={`${compact ? 'text-4xl' : 'text-6xl'} drop-shadow-[0_0_8px_rgba(125,18,40,.3)]`}>{glyph}</span>
+      )}
+      <span className="absolute bottom-1 right-2 rotate-180 text-lg font-black leading-none">{number}</span>
     </div>
   );
 }
@@ -592,11 +601,29 @@ export function InstalledGameSurface({
   const [value, setValue] = useState('');
   const [order, setOrder] = useState<number[]>([]);
   const [whotCardId, setWhotCardId] = useState<string | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const whotCelebrationRef = useRef('');
 
   useEffect(() => {
     setValue('');
     setOrder([]);
   }, [state.round]);
+
+  useEffect(() => {
+    if (role !== 'display' || state.mode !== 'whot' || !['round_end', 'finished'].includes(state.phase)) return;
+    const winnerId = state.winnerPlayerIds?.[0];
+    const winner = state.players.find((player) => player.id === winnerId)?.name ?? 'The winner';
+    const key = `${state.phase}:${state.round}:${winnerId ?? ''}`;
+    if (whotCelebrationRef.current === key) return;
+    whotCelebrationRef.current = key;
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      confetti({ particleCount: state.phase === 'finished' ? 180 : 110, spread: 105, origin: { y: 0.45 }, colors: ['#45f36b', '#b34cff', '#f7d154', '#ffffff'] });
+    }
+    const line = state.phase === 'finished'
+      ? `Check up! ${winner} wins the game!`
+      : `Check up! ${winner} wins round ${state.round ?? ''}!`;
+    void sounds.whotCalloutLine(line, 'check_up');
+  }, [role, state.mode, state.phase, state.round, state.winnerPlayerIds, state.players]);
 
   // Faith Feud audio cues (sampled Family-Feud sounds) driven by lastAction transitions.
   const prevActionRef = useRef<string>('');
@@ -694,7 +721,7 @@ export function InstalledGameSurface({
 
   if (role === 'controller' && state.mode === 'whot') {
     return (
-      <main className="star-field min-h-screen bg-[#020817] px-4 pb-8 pt-5 text-white">
+      <main className="star-field min-h-[100dvh] bg-[#020817] px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-[calc(env(safe-area-inset-top)+4.75rem)] text-white">
         <header className="mx-auto flex max-w-xl items-center justify-between border-b border-white/10 pb-4">
           <div><BrandLogo className="text-2xl" /><p className="mt-1 text-sm font-bold">🃏 Whot controller</p></div>
           <div className="text-right text-xs"><p className="text-primary">Round {state.round} of 5</p><p className="text-muted-foreground">First to {state.roundsToWin ?? 3}</p></div>
@@ -704,6 +731,11 @@ export function InstalledGameSurface({
             <div><p className="text-xs text-muted-foreground">{mine.isTurn ? 'Your turn' : `Waiting for ${state.players.find((player) => player.id === state.currentPlayerId)?.name ?? 'player'}`}</p><p className="mt-1 font-bold">{state.lastAction}</p></div>
             <WhotCardFace card={state.topCard} compact />
           </div>
+          {state.requestedShape && (
+            <div className="rounded-2xl border border-secondary/60 bg-secondary/10 px-4 py-3 text-center font-bold text-secondary" role="status">
+              Requested shape: {whotShapeGlyph[state.requestedShape] ?? ''} {state.requestedShape}
+            </div>
+          )}
           {mine.pendingPick && mine.pendingPick > 0 ? <p className="rounded-xl border border-amber-300/50 bg-amber-300/10 p-3 text-center text-sm text-amber-100">Pick {mine.pendingPick}, or stack a matching penalty card.</p> : null}
           <div>
             <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-black uppercase tracking-[0.2em]">Your hand</h2><span className="text-xs text-primary">{(mine.hand ?? []).length} cards</span></div>
@@ -728,17 +760,31 @@ export function InstalledGameSurface({
           >
             {mine.pendingPick && mine.pendingPick > 0 ? `Pick ${mine.pendingPick}` : 'Go to market'}
           </Button>
-          {/* Earned hint — spend one of your won hints for a private tip. */}
-          {requestHint && (
-            <div>
-              <Button variant="ghost" className="w-full text-secondary disabled:opacity-40" disabled={(hintBudget ?? 0) <= 0} onClick={requestHint}>
-                💡 Hint {typeof hintBudget === 'number' ? `(${hintBudget})` : ''}
-              </Button>
-              {aiHint && <p className="mt-1 rounded-xl border border-secondary/40 bg-secondary/10 p-3 text-sm">{aiHint}</p>}
-              {(hintBudget ?? 0) <= 0 && <p className="mt-1 text-center text-[11px] text-muted-foreground">Earn hints by scoring or winning a round.</p>}
-            </div>
-          )}
         </section>
+        {requestHint && (
+          <>
+            <button
+              type="button"
+              className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-3 z-40 grid h-14 w-14 place-items-center rounded-full border border-secondary/70 bg-[#160b25] text-secondary shadow-[0_0_25px_rgba(179,76,255,.42)]"
+              aria-label="Open personal game assistant"
+              onClick={() => setAssistantOpen(true)}
+            >
+              <MessageCircle className="h-6 w-6" />
+              {typeof hintBudget === 'number' && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-black">{hintBudget}</span>}
+            </button>
+            {assistantOpen && (
+              <div className="fixed inset-0 z-[80] flex items-end bg-black/70 p-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)] backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Personal game assistant">
+                <div className="mx-auto w-full max-w-md rounded-3xl border border-secondary/50 bg-[#090713] p-5 shadow-[0_0_36px_rgba(179,76,255,.25)]">
+                  <div className="flex items-center gap-3"><Bot className="text-secondary" /><div className="flex-1"><h2 className="font-bold">Your private assistant</h2><p className="text-xs text-muted-foreground">Only your hand and legal moves are used.</p></div><Button size="icon" variant="ghost" aria-label="Close assistant" onClick={() => setAssistantOpen(false)}><X /></Button></div>
+                  <div className="mt-4 rounded-2xl bg-white/[0.04] p-4 text-sm leading-relaxed">
+                    {aiHint ?? ((hintBudget ?? 0) > 0 ? 'Ask me for one clear move when you need it.' : 'Win a round or score to earn another hint.')}
+                  </div>
+                  <Button className="neon-primary mt-4 h-12 w-full rounded-xl" disabled={(hintBudget ?? 0) <= 0} onClick={requestHint}>Suggest my next move</Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
         {whotCardId ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm">
             <div className="w-full max-w-sm rounded-2xl border border-secondary/40 bg-[#090713] p-6">
@@ -765,7 +811,7 @@ export function InstalledGameSurface({
 
       {paceDeadline ? <RoundTimerBar deadline={paceDeadline} /> : null}
 
-      <div className="mx-auto grid min-h-[calc(100vh-76px)] max-w-7xl gap-5 py-5 lg:grid-cols-[1fr_270px]">
+      <div className={`mx-auto grid min-h-[calc(100vh-76px)] max-w-7xl gap-5 py-5 ${state.mode === 'whot' ? '' : 'lg:grid-cols-[1fr_270px]'}`}>
         <section className="flex flex-col items-center justify-center">
           <div className="neon-panel w-full max-w-3xl overflow-hidden rounded-2xl">
             <div className="border-b border-white/10 px-5 py-8 text-center">
@@ -1049,7 +1095,7 @@ export function InstalledGameSurface({
                     <div className="relative min-h-[520px] overflow-hidden rounded-[2rem] border border-primary/25 bg-[radial-gradient(circle_at_50%_48%,rgba(20,92,52,.92),rgba(4,24,18,.96)_42%,rgba(2,8,23,.98)_72%)] p-5 shadow-[inset_0_0_90px_rgba(0,0,0,.45),0_0_42px_rgba(69,243,107,.12)]">
                       <div className="pointer-events-none absolute inset-8 rounded-full border border-primary/15" />
                       <div className="pointer-events-none absolute inset-[18%] rounded-full border border-white/10 bg-black/10" />
-                      <div className="absolute inset-x-4 top-4 flex flex-wrap justify-center gap-3">
+                      <div className="absolute inset-0">
                         {(state.players ?? []).map((player, index) => {
                           const active = player.id === state.currentPlayerId;
                           const pending = state.pendingPick !== undefined && state.pendingPick > 0;
@@ -1063,7 +1109,7 @@ export function InstalledGameSurface({
                                     ? 'border-primary bg-primary/15 shadow-[0_0_20px_rgba(69,243,107,.28)]'
                                     : 'border-white/10 bg-black/28'
                               }`}
-                              style={{ animationDelay: `${index * 80}ms` }}
+                              style={{ ...casinoSeatPosition(index, state.players.length), animationDelay: `${index * 80}ms`, position: 'absolute' }}
                             >
                               <span className="grid h-9 w-9 place-items-center rounded-full border border-primary/50 bg-primary/10 text-xs font-black">
                                 {player.name.slice(0, 1).toUpperCase()}
@@ -1244,7 +1290,7 @@ export function InstalledGameSurface({
           </div>
         </section>
 
-        <aside className="neon-panel rounded-2xl p-4">
+        {state.mode !== 'whot' && <aside className="neon-panel rounded-2xl p-4">
           <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Players</p>
           <div className="mt-3 space-y-2">
             {sortedPlayers.map((player, index) => {
@@ -1259,7 +1305,7 @@ export function InstalledGameSurface({
             })}
           </div>
           <p className="mt-4 text-center text-xs text-muted-foreground">{state.lastAction}</p>
-        </aside>
+        </aside>}
       </div>
       {aiCommentary && (
         <div className="pointer-events-none fixed inset-x-4 bottom-4 z-50 mx-auto max-w-2xl rounded-xl border border-secondary/50 bg-[#090713]/95 px-5 py-3 text-center text-sm shadow-[0_0_24px_rgba(179,76,255,.25)]">

@@ -61,11 +61,6 @@ export default function SessionSetup() {
               <ArrowRight className="h-4 w-4" />
             </button>
             <label className="flex items-center gap-4 border-b border-white/10 px-5 py-4">
-              <span className="text-xl">🤖</span>
-              <div className="flex-1"><strong className="text-sm">Allow bots</strong><p className="text-xs text-muted-foreground">Fill available seats when supported</p></div>
-              <Switch checked={state.settings.allowBots} onCheckedChange={(value) => dispatch({ type: 'set_setting', key: 'allowBots', value })} />
-            </label>
-            <label className="flex items-center gap-4 border-b border-white/10 px-5 py-4">
               <span className="text-xl">💡</span>
               <div className="flex-1"><strong className="text-sm">Player hints</strong><p className="text-xs text-muted-foreground">Private, limited assistance</p></div>
               <Switch checked={state.settings.hintsEnabled} onCheckedChange={(value) => dispatch({ type: 'set_setting', key: 'hintsEnabled', value })} />

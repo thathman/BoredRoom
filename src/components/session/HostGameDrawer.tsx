@@ -27,6 +27,7 @@ interface HostGameDrawerProps {
   onOpenChange: (open: boolean) => void;
   activeGameType?: string;
   activeRunStatus?: string;
+  activeRunSettings?: Record<string, unknown>;
   members: SessionMember[];
   busyGame?: string | null;
   onSelectGame: (game: DrawerGame) => void;
@@ -45,6 +46,7 @@ export function HostGameDrawer({
   onOpenChange,
   activeGameType,
   activeRunStatus,
+  activeRunSettings,
   members,
   busyGame,
   onSelectGame,
@@ -155,6 +157,19 @@ export function HostGameDrawer({
             <div className="space-y-3 rounded-2xl border border-border bg-card/70 p-4 text-sm text-muted-foreground">
               <p>Game-specific settings appear in the selected game before play. House-wide settings remain attached to this session.</p>
               <div className="border-t border-border pt-3">
+                {activeGameType === 'whot' && activeRunSettings && (
+                  <div className="mb-3 rounded-xl border border-white/10 bg-black/25 p-3">
+                    <p className="font-medium text-foreground">Current Whot house rules</p>
+                    <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-xs">
+                      <dt>Turn time</dt><dd>{Number(activeRunSettings.turnSeconds ?? 45) === 0 ? 'Off' : `${Number(activeRunSettings.turnSeconds ?? 45)}s`}</dd>
+                      <dt>Pick defence</dt><dd>{String(activeRunSettings.pickDefence ?? 'stack_same').replaceAll('_', ' ')}</dd>
+                      <dt>Special-card finish</dt><dd>{activeRunSettings.allowSpecialFinish === false ? 'Blocked' : 'Allowed'}</dd>
+                      <dt>Timeout</dt><dd>{String(activeRunSettings.timeoutPenalty ?? 'draw_and_pass').replaceAll('_', ' ')}</dd>
+                      <dt>Card 11 reverse</dt><dd>{activeRunSettings.enableDirection === true ? 'On' : 'Off'}</dd>
+                    </dl>
+                    <p className="mt-2 text-[11px] text-muted-foreground">Locked during this match so every player keeps the rules they accepted in setup.</p>
+                  </div>
+                )}
                 <p className="font-medium text-foreground">Pair a host companion</p>
                 <p className="mt-1 text-xs">Scan this QR on the companion device — it pairs in one step. Or enter the code manually.</p>
                 {pairingCode ? (
