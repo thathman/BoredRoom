@@ -810,21 +810,25 @@ export function InstalledGameSurface({
           <BrandLogo className="text-2xl" />
           <span className="text-sm font-semibold">{state.emoji} {state.name}</span>
         </div>
-        <div className="text-xs text-muted-foreground">Round {state.round} / {state.totalRounds}</div>
+        {state.mode !== 'whot' && <div className="text-xs text-muted-foreground">Round {state.round} / {state.totalRounds}</div>}
         <div className="flex items-center gap-2 text-xs"><Users className="h-4 w-4" /> {state.players?.length ?? 0}</div>
       </header>
 
       {paceDeadline ? <RoundTimerBar deadline={paceDeadline} /> : null}
 
-      <div className={`mx-auto grid min-h-[calc(100vh-76px)] max-w-7xl gap-5 py-5 ${state.mode === 'whot' ? '' : 'lg:grid-cols-[1fr_270px]'}`}>
+      <div className={`mx-auto grid min-h-[calc(100vh-76px)] gap-5 py-5 ${state.mode === 'whot' ? 'max-w-[1600px]' : 'max-w-7xl lg:grid-cols-[1fr_270px]'}`}>
         <section className="flex flex-col items-center justify-center">
-          <div className="neon-panel w-full max-w-3xl overflow-hidden rounded-2xl">
-            <div className="border-b border-white/10 px-5 py-8 text-center">
-              <p className="text-xs uppercase tracking-[0.24em] text-secondary">{state.phase === 'reveal' ? 'Round result' : state.mode ?? 'Your challenge'}</p>
-              <h1 className="mt-3 text-2xl font-bold leading-tight sm:text-4xl">
-                {challenge?.prompt ?? (state.phase === 'finished' ? 'Game complete' : state.lastAction)}
-              </h1>
-            </div>
+          <div className={`neon-panel w-full overflow-hidden rounded-2xl ${state.mode === 'whot' ? 'max-w-none border-0 bg-transparent shadow-none' : 'max-w-3xl'}`}>
+            {/* The Whot table carries its own round bar, callout and turn status — skip the
+                redundant challenge-prompt header for it. */}
+            {state.mode !== 'whot' && (
+              <div className="border-b border-white/10 px-5 py-8 text-center">
+                <p className="text-xs uppercase tracking-[0.24em] text-secondary">{state.phase === 'reveal' ? 'Round result' : state.mode ?? 'Your challenge'}</p>
+                <h1 className="mt-3 text-2xl font-bold leading-tight sm:text-4xl">
+                  {challenge?.prompt ?? (state.phase === 'finished' ? 'Game complete' : state.lastAction)}
+                </h1>
+              </div>
+            )}
 
             {challenge?.kind === 'choice' && (
               <div className="grid gap-2 p-4 sm:grid-cols-2">
@@ -1096,7 +1100,7 @@ export function InstalledGameSurface({
                 )}
 
                 {state.mode === 'whot' && (
-                  <div className="mx-auto w-full max-w-5xl">
+                  <div className="mx-auto w-full max-w-[1500px]">
                     <div className="mb-3 flex flex-col items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-center sm:flex-row sm:text-left">
                       <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
                         Round {state.round ?? 1} of {state.totalRounds ?? 5} · First to {state.roundsToWin ?? 3}
@@ -1112,7 +1116,7 @@ export function InstalledGameSurface({
                         {state.callout.text}
                       </div>
                     )}
-                    <div className="relative min-h-[520px] overflow-hidden rounded-[2rem] border border-primary/25 bg-[radial-gradient(circle_at_50%_48%,rgba(20,92,52,.92),rgba(4,24,18,.96)_42%,rgba(2,8,23,.98)_72%)] p-5 shadow-[inset_0_0_90px_rgba(0,0,0,.45),0_0_42px_rgba(69,243,107,.12)]">
+                    <div className="relative min-h-[68vh] overflow-hidden rounded-[2rem] border border-primary/25 bg-[radial-gradient(circle_at_50%_48%,rgba(20,92,52,.92),rgba(4,24,18,.96)_42%,rgba(2,8,23,.98)_72%)] p-5 shadow-[inset_0_0_90px_rgba(0,0,0,.45),0_0_42px_rgba(69,243,107,.12)]">
                       <div className="pointer-events-none absolute inset-8 rounded-full border border-primary/15" />
                       <div className="pointer-events-none absolute inset-[18%] rounded-full border border-white/10 bg-black/10" />
                       <div className="absolute inset-0">

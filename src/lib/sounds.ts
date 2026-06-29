@@ -213,15 +213,22 @@ export const sounds = {
     const index = Math.floor(Math.random() * variants.length);
     playSample(variants[index], 1.05);
   },
-  // Dynamic Naija line via the server TTS endpoint, falling back to a fixed clip if TTS is down.
+  // Dynamic Naija line via the server TTS endpoint, falling back to a fixed clip if TTS is slow
+  // or down. Decoded buffers are cached per line so repeats are instant, and the fetch is given a
+  // hard timeout so a slow generation drops to the pre-recorded clip fast instead of hanging.
   async whotCalloutLine(line: string, kind: 'semi_last_card' | 'last_card' | 'check_up') {
     const c = getCtx();
     if (!c || muted) return;
+    const cached = ttsLineCache.get(line);
+    if (cached) { fireSample(c, cached, 1.05); return; }
     try {
-      const res = await fetch(`${ttsServerBase()}/tts?line=${encodeURIComponent(line)}`);
+      const res = await fetch(`${ttsServerBase()}/tts?line=${encodeURIComponent(line)}`, {
+        signal: AbortSignal.timeout(2500),
+      });
       if (!res.ok) throw new Error(`tts_${res.status}`);
       const buf = await res.arrayBuffer();
       const decoded = await c.decodeAudioData(buf);
+      ttsLineCache.set(line, decoded);
       fireSample(c, decoded, 1.05);
     } catch {
       this.whotCallout(kind); // fail-soft to the pre-recorded clip
@@ -277,6 +284,8 @@ const WHOT_CALLOUTS = {
 // Sampled-audio playback for assets that synthesis can't match (e.g. the Family-Feud cues).
 // Respects mute/volume, caches decoded buffers, and fails silently offline.
 const sampleCache = new Map<string, AudioBuffer | null>();
+// Decoded TTS callouts, cached per spoken line so a repeated line never re-hits the server.
+const ttsLineCache = new Map<string, AudioBuffer>();
 function playSample(url: string, gainScale = 1): void {
   const c = getCtx();
   if (!c || muted) return;

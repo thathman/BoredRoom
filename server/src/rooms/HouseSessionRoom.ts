@@ -70,6 +70,8 @@ import { chooseDeterministicBotIntent } from '../botStrategy.js';
 const AFFIRMATIVE_OPTIONS = new Set([
   'yes', 'end party', 'end game', 'pause', 'resume', 'do it', 'agree', 'confirm', 'end',
 ]);
+// Minimum gap between MC commentary lines on ordinary moves (key moments bypass it).
+const COMMENTARY_COOLDOWN_MS = 9000;
 function isAffirmative(option: string): boolean {
   return AFFIRMATIVE_OPTIONS.has(option.trim().toLowerCase());
 }
@@ -108,6 +110,8 @@ export class HouseSessionRoom extends Room {
   private paceDeadline: number | null = null;
   private botTurnNumber = 0;
   private commentarySerial = 0;
+  private lastCommentaryAt = 0;
+  private commentaryInFlight = false;
 
   onCreate(options: JoinOptions): void {
     this.code = String(options.code ?? '').trim().toUpperCase();
@@ -1039,13 +1043,24 @@ export class HouseSessionRoom extends Room {
 
   private requestCommentary(publicState: unknown): void {
     if (!this.gameRuntime) return;
+    // Throttle: commenting on every single move floods the AI and the lines land late and
+    // out of context. One line every ~9s, and never two generations in flight at once.
+    const now = Date.now();
+    const phase = (publicState as { phase?: unknown })?.phase;
+    const isKeyMoment = phase === 'reveal' || phase === 'round_end' || phase === 'finished';
+    if (this.commentaryInFlight) return;
+    if (!isKeyMoment && now - this.lastCommentaryAt < COMMENTARY_COOLDOWN_MS) return;
+    this.commentaryInFlight = true;
+    this.lastCommentaryAt = now;
     const serial = ++this.commentarySerial;
     const gameName = this.gameRuntime.gameType;
-    void generateCommentary({ gameName, publicState }).then((line) => {
-      if (line && serial === this.commentarySerial && this.gameRuntime?.gameType === gameName) {
-        this.broadcast('ai:result', { kind: 'commentary', text: line });
-      }
-    });
+    void generateCommentary({ gameName, publicState })
+      .then((line) => {
+        if (line && serial === this.commentarySerial && this.gameRuntime?.gameType === gameName) {
+          this.broadcast('ai:result', { kind: 'commentary', text: line });
+        }
+      })
+      .finally(() => { this.commentaryInFlight = false; });
   }
 
   private scheduleBotTurn(delayMs = 700): void {
