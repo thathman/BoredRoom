@@ -81,9 +81,29 @@ function hashCredential(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
+// Settings keys that carry runtime-private content (questions + answer indexes, AI banks,
+// surveys, dictionaries, anti-repeat memory). These must NEVER reach a client via session:state —
+// the public projection strips them so no answer can leak from GameRun.settings.
+const PRIVATE_SETTINGS_KEYS = new Set([
+  'questions', 'aiQuestions', 'surveys', 'aiSurveys', 'logos', 'aiLogos',
+  'events', 'aiEvents', 'dictionaryWords', 'avoidPrompts',
+]);
+
+// Strip private settings from a GameRun before it leaves the server. Settlement/result is kept
+// (it carries no answers); only content-bearing keys are removed.
+export function publicGameRun(run: GameRun): GameRun {
+  const cloned = structuredClone(run);
+  if (cloned.settings && typeof cloned.settings === 'object') {
+    for (const key of Object.keys(cloned.settings)) {
+      if (PRIVATE_SETTINGS_KEYS.has(key)) delete (cloned.settings as Record<string, unknown>)[key];
+    }
+  }
+  return cloned;
+}
+
 function publicSnapshot(record: SessionRecord): PublicSessionSnapshot {
   const activeRun = record.activeRuntime
-    ? structuredClone(record.activeRuntime.run)
+    ? publicGameRun(record.activeRuntime.run)
     : null;
   return {
     session: structuredClone(record.session),

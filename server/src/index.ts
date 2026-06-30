@@ -31,6 +31,7 @@ import {
   getPublicSession,
   getSessionRecord,
   getSessionCredentialHashes,
+  publicGameRun,
   hydrateSession,
   hydrateActiveRun,
   hydrateSessionMember,
@@ -176,7 +177,7 @@ app.get('/sessions/:code', async (req, res) => {
     return res.json({
       session: hydrated?.session ?? session,
       members: hydrated?.members ?? [],
-      activeRun: hydrated?.activeRun ?? activeRun,
+      activeRun: hydrated?.activeRun ?? (activeRun ? publicGameRun(activeRun) : null),
       lastRecap: hydrated?.lastRecap,
     });
   } catch (err) {
