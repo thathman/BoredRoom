@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { sounds, vibrate } from '@/lib/sounds';
 import { PidginVoiceSurface } from '@/components/session/PidginVoiceSurface';
 import { WordWahalaSurface } from '@/components/session/WordWahalaSurface';
+import { MoneyTriviaSurface } from '@/components/session/MoneyTriviaSurface';
 
 type PlayerScore = { id: string; name: string; score: number };
 type Challenge = { kind: 'choice' | 'number' | 'text' | 'order'; prompt: string; options?: string[] };
@@ -587,6 +588,7 @@ export function InstalledGameSurface({
   hintBudget,
   paceDeadline,
   hostControlsEnabled = true,
+  onMarkPayout,
 }: {
   publicState: unknown;
   privateState: unknown;
@@ -598,6 +600,7 @@ export function InstalledGameSurface({
   hintBudget?: number;
   paceDeadline?: number | null;
   hostControlsEnabled?: boolean;
+  onMarkPayout?: (settlementStatus: 'paid' | 'waived' | 'unsettled') => void;
 }) {
   const state = publicState as GameState;
   const mine = (privateState ?? {}) as PrivateState;
@@ -679,6 +682,10 @@ export function InstalledGameSurface({
 
   if (state.mode === 'pidgin') {
     return <PidginVoiceSurface state={state as never} mine={mine as never} role={role} sendIntent={sendIntent} />;
+  }
+
+  if (state.mode === 'money-trivia') {
+    return <MoneyTriviaSurface state={state as never} mine={mine as never} role={role} sendIntent={sendIntent} onMarkPayout={onMarkPayout} />;
   }
 
   if (role === 'controller' && state.mode === 'ludo') {

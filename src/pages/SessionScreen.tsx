@@ -85,6 +85,7 @@ export default function SessionScreen() {
     voteHistory,
     setReady,
     sendGameIntent,
+    markPayout,
     requestHint,
     requestRules,
     castVote,
@@ -625,6 +626,7 @@ export default function SessionScreen() {
           requestHint={role === 'controller' && snapshot?.session.settings.hintsEnabled ? requestHint : undefined}
           hintBudget={gamePrivateState?.gameType === activeRun.gameType ? gamePrivateState.hintBudget : undefined}
           paceDeadline={gamePublicState.paceDeadline}
+          onMarkPayout={markPayout}
           hostControlsEnabled={role === 'companion' || !companionConnected}
         />
       </div>

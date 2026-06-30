@@ -101,11 +101,22 @@ const GAME_EXTRAS: Record<string, ExtraField[]> = {
   'half-half': [
     { key: 'mode', label: 'Mode', type: 'select', default: 'split_vote', options: [{ value: 'split_vote', label: 'Split vote' }, { value: 'midpoint', label: 'Midpoint' }] },
   ],
-  trivia: [
-    { key: 'aiQuestions', label: 'AI-generated questions', type: 'toggle', default: true },
-  ],
   'bible-timeline': [
     { key: 'aiEvents', label: 'AI-generated events', type: 'toggle', default: true },
+  ],
+  // Money Trivia — cash hot-seat. ageBand picks the approved bank; prizes/timers/lifelines tune
+  // the run. Lifeline toggles are flattened here and re-nested into a `lifelines` object on start.
+  trivia: [
+    { key: 'ageBand', label: 'Age band', type: 'select', default: 'adult', options: [{ value: 'pre_teen', label: 'Pre-teen' }, { value: 'teen', label: 'Teen' }, { value: 'adult', label: 'Adult' }] },
+    { key: 'startingPrize', label: 'Starting prize', type: 'select', default: 100, options: [{ value: 100, label: '₦100' }, { value: 500, label: '₦500' }] },
+    { key: 'topPrize', label: 'Top prize', type: 'select', default: 5000, options: [{ value: 5000, label: '₦5k' }, { value: 10000, label: '₦10k' }, { value: 50000, label: '₦50k' }] },
+    { key: 'fastestFingerSeconds', label: 'Fastest finger timer', type: 'select', default: 10, options: [{ value: 8, label: '8s' }, { value: 10, label: '10s' }, { value: 15, label: '15s' }] },
+    { key: 'questionSeconds', label: 'Question timer', type: 'select', default: 0, options: [{ value: 0, label: 'None' }, { value: 30, label: '30s' }, { value: 45, label: '45s' }, { value: 60, label: '60s' }, { value: 90, label: '90s' }] },
+    { key: 'timeoutOutcome', label: 'When time runs out', type: 'select', default: 'walk_away', options: [{ value: 'walk_away', label: 'Walk away' }, { value: 'wrong_answer', label: 'Wrong answer' }] },
+    { key: 'll_fifty_fifty', label: 'Lifeline: 50:50', type: 'toggle', default: true },
+    { key: 'll_ask_room', label: 'Lifeline: Ask the Room', type: 'toggle', default: true },
+    { key: 'll_ask_player', label: 'Lifeline: Ask a Player', type: 'toggle', default: true },
+    { key: 'll_ask_host', label: 'Lifeline: Ask the Host', type: 'toggle', default: true },
   ],
 };
 
@@ -130,10 +141,28 @@ export function GameConfigSheet({
   const [extras, setExtras] = useState<Record<string, string | number | boolean>>(
     () => Object.fromEntries(extraFields.map((f) => [f.key, f.default])),
   );
+  // Money Trivia is a real-money game: a host-funded confirmation is required before start.
+  const isMoney = game.id === 'trivia';
+  const [hostFundedConfirmed, setHostFundedConfirmed] = useState(false);
 
   function start() {
     const turnSeconds = pace === 'relaxed' ? 0 : Math.min(180, Math.max(10, Math.trunc(customSeconds)));
     const timerMs = game.id === 'whot' ? turnSeconds * 1000 : PACE_MS[pace];
+    let moneyExtras: Record<string, unknown> = {};
+    if (isMoney) {
+      // Re-nest the flat lifeline toggles into the object the runtime expects, and pass the gate.
+      const { ll_fifty_fifty, ll_ask_room, ll_ask_player, ll_ask_host, ...rest } = extras;
+      moneyExtras = {
+        ...rest,
+        lifelines: {
+          fifty_fifty: ll_fifty_fifty !== false,
+          ask_room: ll_ask_room !== false,
+          ask_player: ll_ask_player !== false,
+          ask_host: ll_ask_host !== false,
+        },
+        hostFundedConfirmed,
+      };
+    }
     onStart({
       rounds,
       questionCount: rounds, // content games key off questionCount
@@ -144,7 +173,7 @@ export function GameConfigSheet({
       botCount,
       bots: botCount, // legacy alias
       hintsEnabled,
-      ...extras,
+      ...(isMoney ? moneyExtras : extras),
     });
   }
 
@@ -232,7 +261,23 @@ export function GameConfigSheet({
           )}
         </div>
 
-        <Button className="neon-primary mt-7 h-14 w-full rounded-xl text-base font-bold" onClick={start}>Start {game.name}</Button>
+        {isMoney && (
+          <label className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-300/40 bg-amber-300/5 p-4 text-sm">
+            <input type="checkbox" className="mt-1" checked={hostFundedConfirmed} onChange={(e) => setHostFundedConfirmed(e.target.checked)} />
+            <span className="text-white/80">
+              I confirm this prize is <b>host-funded</b>, no purchase or entry fee is required to play, and
+              <b> BoredRoom does not collect, hold, transfer or guarantee any payment.</b>
+            </span>
+          </label>
+        )}
+
+        <Button
+          className="neon-primary mt-7 h-14 w-full rounded-xl text-base font-bold"
+          disabled={isMoney && !hostFundedConfirmed}
+          onClick={start}
+        >
+          Start {game.name}
+        </Button>
       </div>
     </div>
   );

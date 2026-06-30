@@ -241,6 +241,10 @@ export function useHouseSession({
     roomRef.current?.send('session:end_game');
   }, []);
 
+  const markPayout = useCallback((settlementStatus: 'paid' | 'waived' | 'unsettled') => {
+    roomRef.current?.send('session:mark_payout', { settlementStatus });
+  }, []);
+
   const pauseGame = useCallback((reason = 'player_pause') => {
     roomRef.current?.send('session:pause_game', { reason });
   }, []);
@@ -295,6 +299,7 @@ export function useHouseSession({
       : null,
     setReady,
     sendGameIntent,
+    markPayout,
     requestHint,
     requestRules,
     castVote,
