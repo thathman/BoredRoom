@@ -13,6 +13,7 @@ import {
   castSessionVote,
   closeSessionVote,
   finishActiveGame,
+  markGameRunPayout,
   getPublicSession,
   getRuntimeSnapshot,
   getSessionRecord,
@@ -53,7 +54,7 @@ import {
   isGameInstalled,
 } from '../installedGames.js';
 import type { GameRuntime } from '../../../shared/src/contracts/gameRuntime.js';
-import { HouseVoteType } from '../../../shared/src/contracts/session.js';
+import { HouseVoteType, type GameRun } from '../../../shared/src/contracts/session.js';
 import {
   explainRejectedIntent,
   generateCommentary,
@@ -64,6 +65,7 @@ import {
   generateGameContent,
 } from '../aiService.js';
 import { recentPromptsFor, rememberPrompts } from '../aiContentMemory.js';
+import { selectRunContent } from '../content/moneyTriviaStore.js';
 import { chooseDeterministicBotIntent } from '../botStrategy.js';
 
 // A binary action vote (end party, pause, etc.) fires only when the winning option reads as a yes.
@@ -164,6 +166,20 @@ export class HouseSessionRoom extends Room {
     this.onMessage('session:end_game', (client) => {
       if (!this.isHostClient(client)) return;
       void this.endCurrentGame('finished');
+    });
+    this.onMessage('session:mark_payout', (client, payload: { settlementStatus?: string }) => {
+      if (!this.isHostClient(client)) return;
+      const status = payload?.settlementStatus;
+      if (status !== 'paid' && status !== 'waived' && status !== 'unsettled') return;
+      const result = markGameRunPayout(this.code, status);
+      if (result) {
+        this.broadcast('session:payout_marked', { result });
+        void appendSessionEvent(buildSessionEvent({
+          sessionId: getSessionRecord(this.code)?.session.id ?? this.code,
+          type: 'game_run.payout_marked',
+          payload: { settlementStatus: status, earnedAmount: result.earnedAmount, currency: result.currency },
+        })).catch(() => {});
+      }
     });
     this.onMessage('session:end_party', (client) => {
       if (!this.isHostClient(client)) return;
@@ -381,10 +397,10 @@ export class HouseSessionRoom extends Room {
         void persistRuntimeSnapshot({ gameRunId: runId, reason: 'meaningful_turn', state: runtimeSnapshot })
           .catch((error) => log('warn', 'runtime_snapshot_persist_failed', { session: this.code, error: String(error) }));
       }
-      const publicState = this.gameRuntime.publicState() as { phase?: unknown };
+      const publicState = this.gameRuntime.publicState() as { phase?: unknown; result?: GameRun['result'] };
       if (publicState?.phase === 'finished') {
         this.clearBotTimer();
-        finishActiveGame(this.code, 'finished', this.gameRuntime.finish().winnerPlayerIds);
+        finishActiveGame(this.code, 'finished', this.gameRuntime.finish().winnerPlayerIds, publicState.result);
       }
       this.requestCommentary(publicState);
       if (publicState?.phase === 'reveal') {
@@ -723,6 +739,42 @@ export class HouseSessionRoom extends Room {
       return;
     }
     if (record.activeRuntime) clearActiveGame(this.code);
+    // Money Trivia is a cash game: inject ONLY pre-approved questions (never live AI), and block
+    // setup if the chosen age band lacks enough approved content.
+    if (gameId === 'trivia') {
+      const ageBand = (['pre_teen', 'teen', 'adult'].includes(String(settings.ageBand))
+        ? settings.ageBand : 'adult') as 'pre_teen' | 'teen' | 'adult';
+      const categories = Array.isArray(settings.categories) ? settings.categories.map(String) : undefined;
+      const content = selectRunContent({ ageBand, categories });
+      if (!content.ok) {
+        this.broadcast('session:error', { code: 'insufficient_approved_questions', detail: content.reason });
+        return;
+      }
+      // Host-funded confirmation is required before a cash run starts.
+      if (settings.hostFundedConfirmed !== true) {
+        this.broadcast('session:error', { code: 'host_funding_confirmation_required' });
+        return;
+      }
+      const run = buildGameRun({
+        houseSessionId: record.session.id,
+        gameType: gameId,
+        gameVersion,
+        settings: { ...settings, ageBand, questions: content.questions, aiContent: false },
+      });
+      selectSessionGame(this.code, run);
+      await Promise.all([
+        persistGameRun(run),
+        persistHouseSession(record.session),
+        appendSessionEvent(buildSessionEvent({
+          sessionId: record.session.id,
+          gameRunId: run.id,
+          type: 'game_run.created',
+          payload: { gameType: gameId, gameVersion },
+        })),
+      ]).catch((error) => log('warn', 'game_select_persist_failed', { session: this.code, error: String(error) }));
+      if (startImmediately) await this.startGame();
+      return;
+    }
     // Generate fresh AI content for content games (with anti-repeat memory), merged ahead of the
     // local bank. Fails soft: any error leaves settings untouched and the local bank is used.
     const enrichedSettings = await this.withAiContent(gameId, record.session.id, settings);
@@ -837,7 +889,8 @@ export class HouseSessionRoom extends Room {
     if (this.gameRuntime) {
       this.clearBotTimer();
       const final = this.gameRuntime.finish();
-      finishActiveGame(this.code, status, final.winnerPlayerIds);
+      const result = (this.gameRuntime.publicState() as { result?: GameRun['result'] }).result;
+      finishActiveGame(this.code, status, final.winnerPlayerIds, result);
     } else {
       finishActiveGame(this.code, status, []);
     }

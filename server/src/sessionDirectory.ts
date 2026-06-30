@@ -598,6 +598,7 @@ export function finishActiveGame(
   code: string,
   status: 'finished' | 'abandoned',
   winnerPlayerIds: string[] = [],
+  result?: GameRun['result'],
 ): SessionRuntime | null {
   const record = getSessionRecord(code);
   if (!record?.activeRuntime) return null;
@@ -606,6 +607,7 @@ export function finishActiveGame(
   record.activeRuntime.run.status = status;
   record.activeRuntime.run.endedAt = now;
   record.activeRuntime.run.winnerPlayerIds = winnerPlayerIds;
+  if (result) record.activeRuntime.run.result = result;
   if (status === 'finished' && previousStatus !== 'finished') {
     const winnerSet = new Set(winnerPlayerIds);
     const participatingPlayers = Array.from(record.members.values())
@@ -639,6 +641,17 @@ export function finishActiveGame(
   record.session.updatedAt = now;
   emit(code, status === 'finished' ? 'game.finished' : 'game.abandoned');
   return record.activeRuntime;
+}
+
+// Owner/host marks a Money Trivia payout settled after recap. Pure bookkeeping — no money moves.
+export function markGameRunPayout(code: string, settlementStatus: 'paid' | 'waived' | 'unsettled'): GameRun['result'] | null {
+  const record = getSessionRecord(code);
+  const result = record?.activeRuntime?.run.result;
+  if (!record?.activeRuntime || !result) return null;
+  result.settlementStatus = settlementStatus;
+  record.session.updatedAt = new Date().toISOString();
+  emit(code, 'game.payout_marked');
+  return result;
 }
 
 export function pauseActiveGame(code: string, reason = 'controller_disconnected'): SessionRuntime | null {

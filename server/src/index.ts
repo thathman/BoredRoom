@@ -54,6 +54,7 @@ import {
   verifyGameAdminPassphrase,
   verifyGameAdminSession,
 } from './gameAdminAuth.js';
+import { listQuestions, createDraft, updateQuestion, deleteQuestion } from './content/moneyTriviaStore.js';
 import {
   applyAutomaticUpdates,
   installOfficialGame,
@@ -290,6 +291,41 @@ app.patch('/games/update-policy', async (req, res) => {
   } catch {
     res.status(400).json({ error: 'update_policy_invalid' });
   }
+});
+
+// ── Money Trivia question management (owner-authenticated) ────────────────────
+// Drafts (incl. AI-assisted) are added then reviewed/approved here. Only approved, sourced,
+// non-expired questions ever enter a cash run. Review metadata/credentials are never public.
+app.get('/games/trivia/questions', (req, res) => {
+  if (!requireGameAdminOrigin(req, res)) return;
+  if (!requireGameAdmin(req, res)) return;
+  const ageBand = typeof req.query.ageBand === 'string' ? req.query.ageBand : undefined;
+  const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+  const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+  res.json({ questions: listQuestions({ ageBand, status, category } as never) });
+});
+
+app.post('/games/trivia/questions/drafts', (req, res) => {
+  if (!requireGameAdminOrigin(req, res)) return;
+  if (!requireGameAdmin(req, res)) return;
+  const { question, errors } = createDraft((req.body ?? {}) as never);
+  if (!question) return res.status(422).json({ errors });
+  res.status(201).json({ question });
+});
+
+app.patch('/games/trivia/questions/:questionId', (req, res) => {
+  if (!requireGameAdminOrigin(req, res)) return;
+  if (!requireGameAdmin(req, res)) return;
+  const { question, errors } = updateQuestion(String(req.params.questionId), (req.body ?? {}) as never);
+  if (!question) return res.status(errors.includes('not_found') ? 404 : 422).json({ errors });
+  res.json({ question });
+});
+
+app.delete('/games/trivia/questions/:questionId', (req, res) => {
+  if (!requireGameAdminOrigin(req, res)) return;
+  if (!requireGameAdmin(req, res)) return;
+  const ok = deleteQuestion(String(req.params.questionId));
+  res.status(ok ? 200 : 404).json({ ok });
 });
 
 app.get('/sessions/:code/ai/health', (req, res) => {

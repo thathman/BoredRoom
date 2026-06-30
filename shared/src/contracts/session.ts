@@ -77,6 +77,18 @@ export const GameRunStatus = z.enum([
   'recoverable',
 ]);
 
+// Cash-game result (Money Trivia). BoredRoom only records the host-funded payout — it never
+// collects or transfers money. `settlementStatus` is the owner's manual bookkeeping.
+export const GameRunResult = z.object({
+  contestantId: z.string().optional(),
+  contestantName: z.string().optional(),
+  pledgedPrize: z.number().nonnegative(),
+  earnedAmount: z.number().nonnegative(),
+  outcome: z.enum(['top_prize', 'walked_away', 'wrong_answer', 'timeout_walk', 'timeout_wrong']),
+  currency: z.string().default('NGN'),
+  settlementStatus: z.enum(['unsettled', 'paid', 'waived']).default('unsettled'),
+});
+
 export const GameRun = z.object({
   id: Id,
   houseSessionId: Id,
@@ -89,6 +101,7 @@ export const GameRun = z.object({
   winnerPlayerIds: z.array(Id).optional(),
   recapId: Id.optional(),
   latestSnapshotId: Id.optional(),
+  result: GameRunResult.optional(),
 });
 
 // --- Devices (persist across sessions; O1/O2 open) -------------------------
@@ -245,6 +258,7 @@ export type HouseSessionSettings = z.infer<typeof HouseSessionSettings>;
 export type HouseSession = z.infer<typeof HouseSession>;
 export type GameRunStatus = z.infer<typeof GameRunStatus>;
 export type GameRun = z.infer<typeof GameRun>;
+export type GameRunResult = z.infer<typeof GameRunResult>;
 export type ControllerDevice = z.infer<typeof ControllerDevice>;
 export type SessionEvent = z.infer<typeof SessionEvent>;
 export type ControllerRequest = z.infer<typeof ControllerRequest>;
