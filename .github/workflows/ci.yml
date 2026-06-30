@@ -17,6 +17,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Checkout BoredRoom-Games (real cross-repo recovery test)
+        uses: actions/checkout@v4
+        with:
+          repository: thathman/BoredRoom-Games
+          ref: main
+          path: .games-ci
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -39,6 +46,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Release gates (lint -> test -> web build -> server build)
+        env:
+          # Let the restart-recovery test import the real games runtime instead of skipping.
+          BOREDROOM_GAMES_PATH: ${{ github.workspace }}/.games-ci
         run: npm run gates:release
 
       - name: Start preview server

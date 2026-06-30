@@ -51,3 +51,6 @@ AGENTS.md
 workspace.md
 docs/agents/
 **/*.ai.md
+
+# CI clone of the sibling games repo (cross-repo recovery test)
+.games-ci/

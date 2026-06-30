@@ -78,8 +78,12 @@ describe('server-restart recovery', () => {
       handleIntent: (id: string, i: unknown, h: boolean) => boolean; snapshot: () => unknown;
       restore: (s: unknown) => void; privateState: (id: string) => { hand: unknown[] };
     };
+    // Resolve the games runtime from a configurable filesystem path so CI can clone the sibling
+    // repo to a temp dir and set BOREDROOM_GAMES_PATH. The @vite-ignore keeps Vite from trying to
+    // statically resolve (and fail on) the cross-repo path at build time.
+    const gamesPath = process.env.BOREDROOM_GAMES_PATH ?? new URL('../../../BoredRoom-Games', import.meta.url).pathname;
     try {
-      ({ WhotRuntime } = await import('../../../BoredRoom-Games/runtime/game-runtime.js' as string));
+      ({ WhotRuntime } = await import(/* @vite-ignore */ `${gamesPath}/runtime/game-runtime.js`));
     } catch {
       return; // sibling games repo not present in this checkout — skip
     }
