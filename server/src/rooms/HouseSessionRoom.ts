@@ -175,6 +175,9 @@ export class HouseSessionRoom extends Room {
       const result = markGameRunPayout(this.code, status);
       if (result) {
         this.broadcast('session:payout_marked', { result });
+        // Persist the settlement change so it survives a restart.
+        const run = getSessionRecord(this.code)?.activeRuntime?.run;
+        if (run) void persistGameRun(run).catch((error) => log('warn', 'payout_persist_failed', { session: this.code, error: String(error) }));
         void appendSessionEvent(buildSessionEvent({
           sessionId: getSessionRecord(this.code)?.session.id ?? this.code,
           type: 'game_run.payout_marked',
@@ -401,7 +404,9 @@ export class HouseSessionRoom extends Room {
       const publicState = this.gameRuntime.publicState() as { phase?: unknown; result?: GameRun['result'] };
       if (publicState?.phase === 'finished') {
         this.clearBotTimer();
-        finishActiveGame(this.code, 'finished', this.gameRuntime.finish().winnerPlayerIds, publicState.result);
+        const finished = finishActiveGame(this.code, 'finished', this.gameRuntime.finish().winnerPlayerIds, publicState.result);
+        // Durably persist the run so the cash result survives a server restart.
+        if (finished) void persistGameRun(finished.run).catch((error) => log('warn', 'game_run_persist_failed', { session: this.code, error: String(error) }));
       }
       this.requestCommentary(publicState);
       if (publicState?.phase === 'reveal') {

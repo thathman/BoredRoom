@@ -48,6 +48,7 @@ export interface SessionRecord {
     endedAt: string;
     headline?: string;
     paragraph?: string;
+    result?: GameRun['result']; // Money Trivia cash payout (safe: no answers)
   };
 }
 
@@ -655,6 +656,7 @@ export function finishActiveGame(
     status,
     winnerPlayerIds,
     endedAt: now,
+    result: record.activeRuntime.run.result,
   };
   record.session.status = 'game_recap';
   record.session.currentStage = 'recap';
@@ -669,6 +671,7 @@ export function markGameRunPayout(code: string, settlementStatus: 'paid' | 'waiv
   const result = record?.activeRuntime?.run.result;
   if (!record?.activeRuntime || !result) return null;
   result.settlementStatus = settlementStatus;
+  if (record.lastRecap?.result) record.lastRecap.result.settlementStatus = settlementStatus;
   record.session.updatedAt = new Date().toISOString();
   emit(code, 'game.payout_marked');
   return result;

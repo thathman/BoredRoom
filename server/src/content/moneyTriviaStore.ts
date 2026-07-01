@@ -167,6 +167,28 @@ export function listFastestFingerQuestions(ageBand?: AgeBand): TriviaQuestion[] 
   return [...ffStore.values()].filter((q) => !ageBand || q.ageBand === ageBand).map((q) => ({ ...q }));
 }
 
+// Load reviewed questions persisted in the database over the shipped seed, so owner edits and
+// approvals survive a restart. Best-effort: with no backend this is a no-op and the seed stands.
+export async function hydrateFromRows(rows: Record<string, unknown>[]): Promise<number> {
+  let loaded = 0;
+  for (const r of rows) {
+    if (!r || typeof r.id !== 'string') continue;
+    const q: TriviaQuestion = {
+      id: r.id, prompt: String(r.prompt ?? ''),
+      options: (r.options as [string, string, string, string]) ?? ['', '', '', ''],
+      answer: Number(r.answer ?? 0),
+      category: String(r.category ?? ''), ageBand: r.age_band as AgeBand,
+      difficulty: Number(r.difficulty ?? 1), explanation: String(r.explanation ?? ''),
+      sourceUrl: String(r.source_url ?? ''), reviewStatus: (r.review_status as ReviewStatus) ?? 'draft',
+      reviewDate: String(r.review_date ?? new Date().toISOString().slice(0, 10)),
+      expiry: (r.expiry as string) ?? undefined,
+    };
+    (r.kind === 'fastest_finger' ? ffStore : store).set(q.id, q);
+    loaded += 1;
+  }
+  return loaded;
+}
+
 // Reset to the shipped seed (used by tests).
 export function resetStore(): void {
   store.clear();

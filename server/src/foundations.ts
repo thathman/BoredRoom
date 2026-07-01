@@ -158,6 +158,36 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
 
 type WriteResult = 'ok' | 'skipped';
 
+// Durable persistence for the server-only Money Trivia question bank. These are the only writers
+// for `money_trivia_questions`; when the backend env is missing they throw so callers can 503.
+export function persistenceAvailable(): boolean {
+  return getBackendConfig() !== null;
+}
+
+export async function persistMoneyTriviaQuestion(row: Record<string, unknown>): Promise<void> {
+  if (!getBackendConfig()) throw new Error('persistence_unavailable');
+  const response = await apiFetch('money_trivia_questions', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ ...row, updated_at: new Date().toISOString() }),
+  });
+  if (!response.ok) throw new Error(`mt_question_write_${response.status}:${await response.text()}`);
+}
+
+export async function deleteMoneyTriviaQuestionRow(id: string): Promise<void> {
+  if (!getBackendConfig()) throw new Error('persistence_unavailable');
+  const response = await apiFetch(`money_trivia_questions?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error(`mt_question_delete_${response.status}`);
+}
+
+export async function readMoneyTriviaQuestions(): Promise<Record<string, unknown>[]> {
+  if (!getBackendConfig()) return [];
+  const resp = await apiFetch('money_trivia_questions?select=*');
+  if (!resp.ok) return [];
+  const rows = (await resp.json()) as Record<string, unknown>[];
+  return Array.isArray(rows) ? rows : [];
+}
+
 function sessionRow(
   s: HouseSession,
   credentials?: { ownerCredentialHash?: string; companionCredentialHashes?: string[] },
@@ -242,6 +272,7 @@ export async function readActiveRun(houseSessionId: string): Promise<GameRun | n
       winnerPlayerIds: r.winner_player_ids ?? undefined,
       recapId: r.recap_id ?? undefined,
       latestSnapshotId: r.latest_snapshot_id ?? undefined,
+      result: r.result ?? undefined,
     });
   } catch {
     return null;
@@ -338,6 +369,7 @@ export async function persistGameRun(run: GameRun): Promise<WriteResult> {
       winner_player_ids: run.winnerPlayerIds ?? null,
       recap_id: run.recapId ?? null,
       latest_snapshot_id: run.latestSnapshotId ?? null,
+      result: run.result ?? null,
     }),
   });
   if (!response.ok) throw new Error(`game_run_write_${response.status}:${await response.text()}`);

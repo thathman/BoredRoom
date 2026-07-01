@@ -25,6 +25,10 @@ import {
   readActiveRun,
   buildSessionEvent,
   appendSessionEvent,
+  persistenceAvailable,
+  persistMoneyTriviaQuestion,
+  deleteMoneyTriviaQuestionRow,
+  readMoneyTriviaQuestions,
 } from './foundations.js';
 import {
   createCompanionPairing,
@@ -55,7 +59,7 @@ import {
   verifyGameAdminPassphrase,
   verifyGameAdminSession,
 } from './gameAdminAuth.js';
-import { listQuestions, createDraft, updateQuestion, deleteQuestion } from './content/moneyTriviaStore.js';
+import { listQuestions, createDraft, updateQuestion, deleteQuestion, hydrateFromRows } from './content/moneyTriviaStore.js';
 import {
   applyAutomaticUpdates,
   installOfficialGame,
@@ -306,25 +310,53 @@ app.get('/games/trivia/questions', (req, res) => {
   res.json({ questions: listQuestions({ ageBand, status, category } as never) });
 });
 
-app.post('/games/trivia/questions/drafts', (req, res) => {
+// Reviewed-question mutations require durable persistence — never accept in-memory-only edits.
+function questionRow(q: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: q.id, kind: 'hot_seat', prompt: q.prompt, options: q.options, answer: q.answer,
+    category: q.category, age_band: q.ageBand, difficulty: q.difficulty, explanation: q.explanation,
+    source_url: q.sourceUrl, review_status: q.reviewStatus, review_date: q.reviewDate, expiry: q.expiry ?? null,
+  };
+}
+
+app.post('/games/trivia/questions/drafts', async (req, res) => {
   if (!requireGameAdminOrigin(req, res)) return;
   if (!requireGameAdmin(req, res)) return;
+  if (!persistenceAvailable()) return res.status(503).json({ error: 'persistence_unavailable' });
   const { question, errors } = createDraft((req.body ?? {}) as never);
   if (!question) return res.status(422).json({ errors });
+  try {
+    await persistMoneyTriviaQuestion(questionRow(question as never));
+  } catch {
+    deleteQuestion(question.id); // roll back the in-memory add if the durable write failed
+    return res.status(503).json({ error: 'persistence_write_failed' });
+  }
   res.status(201).json({ question });
 });
 
-app.patch('/games/trivia/questions/:questionId', (req, res) => {
+app.patch('/games/trivia/questions/:questionId', async (req, res) => {
   if (!requireGameAdminOrigin(req, res)) return;
   if (!requireGameAdmin(req, res)) return;
+  if (!persistenceAvailable()) return res.status(503).json({ error: 'persistence_unavailable' });
   const { question, errors } = updateQuestion(String(req.params.questionId), (req.body ?? {}) as never);
   if (!question) return res.status(errors.includes('not_found') ? 404 : 422).json({ errors });
+  try {
+    await persistMoneyTriviaQuestion(questionRow(question as never));
+  } catch {
+    return res.status(503).json({ error: 'persistence_write_failed' });
+  }
   res.json({ question });
 });
 
-app.delete('/games/trivia/questions/:questionId', (req, res) => {
+app.delete('/games/trivia/questions/:questionId', async (req, res) => {
   if (!requireGameAdminOrigin(req, res)) return;
   if (!requireGameAdmin(req, res)) return;
+  if (!persistenceAvailable()) return res.status(503).json({ error: 'persistence_unavailable' });
+  try {
+    await deleteMoneyTriviaQuestionRow(String(req.params.questionId));
+  } catch {
+    return res.status(503).json({ error: 'persistence_write_failed' });
+  }
   const ok = deleteQuestion(String(req.params.questionId));
   res.status(ok ? 200 : 404).json({ ok });
 });
@@ -487,6 +519,11 @@ gameServer.define('house-session', HouseSessionRoom).filterBy(['code']);
 await reconcileInstalledGames();
 void applyAutomaticUpdates();
 setInterval(() => { void applyAutomaticUpdates(); }, 60 * 60 * 1000).unref();
+// Load owner-reviewed Money Trivia questions over the shipped seed (best-effort; no-op without DB).
+void readMoneyTriviaQuestions()
+  .then((rows) => hydrateFromRows(rows))
+  .then((n) => { if (n) log('info', 'money_trivia_questions_loaded', { count: n }); })
+  .catch((error) => log('warn', 'money_trivia_hydrate_failed', { error: String(error) }));
 
 await gameServer.listen(PORT);
 log('info', 'server_listening', { port: PORT, protocolVersion: PROTOCOL_VERSION });
