@@ -555,9 +555,10 @@ const gameServer = new Server({
 
 gameServer.define('house-session', HouseSessionRoom).filterBy(['code']);
 
-await reconcileInstalledGames();
-void applyAutomaticUpdates();
-setInterval(() => { void applyAutomaticUpdates(); }, 60 * 60 * 1000).unref();
+// Catalog fetches reach the public internet; a DNS/network blip must never crash the server.
+await reconcileInstalledGames().catch((error) => log('warn', 'reconcile_failed', { error: String(error) }));
+void applyAutomaticUpdates().catch((error) => log('warn', 'auto_update_failed', { error: String(error) }));
+setInterval(() => { void applyAutomaticUpdates().catch((error) => log('warn', 'auto_update_failed', { error: String(error) })); }, 60 * 60 * 1000).unref();
 // Load owner-reviewed Money Trivia questions over the shipped seed (best-effort; no-op without DB).
 void readMoneyTriviaQuestions()
   .then((rows) => hydrateFromRows(rows))
