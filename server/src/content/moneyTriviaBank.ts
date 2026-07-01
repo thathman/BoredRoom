@@ -100,7 +100,7 @@ const PRE_TEEN: Band = {
   ],
   10: [
     ['What force pulls objects toward the Earth?', ['Gravity', 'Friction', 'Magnetism', 'Wind'], 'Science', 'Gravity', 'Gravity pulls objects down.'],
-    ['Which Nigerian won an Olympic gold in the long jump? (none — who won bronze 1996 football?)', ['Nigeria (football gold 1996)', 'Cameroon', 'Ghana', 'Egypt'], 'Sports', 'Nigeria_national_football_team', 'Nigeria won Olympic football gold in 1996.'],
+    ['In which year did Nigeria win Olympic football gold?', ['1996', '2000', '1988', '2004'], 'Sports', 'Football_at_the_1996_Summer_Olympics', 'Nigeria won gold at the Atlanta 1996 Olympics.'],
     ['How many minutes are in two hours?', ['120', '100', '90', '140'], 'Maths', 'Hour', 'Two hours is 120 minutes.'],
     ['What is the hardest natural substance?', ['Diamond', 'Gold', 'Iron', 'Glass'], 'Science', 'Diamond', 'Diamond is the hardest natural material.'],
     ['Which sea is to the south of Nigeria?', ['Atlantic Ocean', 'Mediterranean', 'Red Sea', 'Indian Ocean'], 'Geography', 'Gulf_of_Guinea', 'Nigeria’s coast meets the Atlantic.'],
@@ -138,7 +138,7 @@ const PRE_TEEN: Band = {
     ['What is the chemical symbol for gold?', ['Au', 'Ag', 'Gd', 'Go'], 'Science', 'Gold', 'Gold’s symbol is Au.'],
     ['Which Nigerian footballer won the 2023 CAF Player of the Year?', ['Victor Osimhen', 'Jay-Jay Okocha', 'Kanu', 'Yekini'], 'Sports', 'Victor_Osimhen', 'Osimhen won in 2023.'],
     ['How many degrees are in a circle?', ['360', '180', '270', '90'], 'Maths', 'Circle', 'A circle has 360 degrees.'],
-    ['Which planet has the most moons?', ['Saturn', 'Jupiter', 'Neptune', 'Uranus'], 'Science', 'Moons_of_Saturn', 'Saturn has the most confirmed moons.'],
+    ['Which planet is famous for its bright system of rings?', ['Saturn', 'Mars', 'Venus', 'Mercury'], 'Science', 'Rings_of_Saturn', 'Saturn’s rings are the most prominent in the Solar System.'],
   ],
 };
 
@@ -215,7 +215,7 @@ const TEEN: Band = {
     ['Which artist painted "Starry Night"?', ['Van Gogh', 'Monet', 'Da Vinci', 'Dali'], 'Art', 'The_Starry_Night', 'Van Gogh painted it in 1889.'],
   ],
   11: [
-    ['Which Nigerian won the 1996 Olympic football gold as captain figure?', ['Nigeria team (Dream Team)', 'Kanu solo', 'Okocha solo', 'Babayaro solo'], 'Sports', 'Nigeria_national_under-23_football_team', 'The Dream Team won gold in Atlanta 1996.'],
+    ['At which Olympics did Nigeria’s football team win gold?', ['Atlanta 1996', 'Sydney 2000', 'Athens 2004', 'Beijing 2008'], 'Sports', 'Football_at_the_1996_Summer_Olympics', 'Nigeria beat Argentina in the Atlanta 1996 final.'],
     ['What is Avogadro’s number (approx)?', ['6.02×10^23', '3.14×10^10', '9.81', '1.6×10^-19'], 'Science', 'Avogadro_constant', 'Avogadro’s number ≈ 6.02×10^23.'],
     ['Which empire built Great Zimbabwe?', ['Kingdom of Zimbabwe', 'Mali Empire', 'Ashanti', 'Zulu'], 'Africa', 'Kingdom_of_Zimbabwe', 'The Kingdom of Zimbabwe built it.'],
     ['Solve: 3x = 27. What is x?', ['9', '6', '8', '12'], 'Maths', 'Equation', 'x = 9.'],
@@ -265,7 +265,7 @@ const ADULT: Band = {
     ['Who is the author of "Half of a Yellow Sun"?', ['Chimamanda Adichie', 'Achebe', 'Soyinka', 'Ben Okri'], 'Literature', 'Half_of_a_Yellow_Sun', 'Adichie wrote it in 2006.'],
     ['Which Nigerian footballer was called "Jay-Jay"?', ['Austin Okocha', 'Kanu', 'Yekini', 'Amokachi'], 'Sports', 'Jay-Jay_Okocha', 'Augustine “Jay-Jay” Okocha.'],
     ['What is the SI unit of electric current?', ['Ampere', 'Volt', 'Ohm', 'Watt'], 'Science', 'Ampere', 'Current is measured in amperes.'],
-    ['Which is Africa’s largest economy (nominal, mid-2020s)?', ['Nigeria', 'South Africa', 'Egypt', 'Algeria'], 'Africa', 'Economy_of_Nigeria', 'Nigeria has ranked as Africa’s largest economy.'],
+    ['Which body issues Nigeria’s currency, the naira?', ['Central Bank of Nigeria', 'NNPC', 'Federal Inland Revenue', 'Nigerian Stock Exchange'], 'Nigeria', 'Central_Bank_of_Nigeria', 'The Central Bank of Nigeria issues the naira.'],
   ],
   3: [
     ['Which Nigerian leader introduced the Structural Adjustment Programme?', ['Ibrahim Babangida', 'Buhari', 'Shagari', 'Abacha'], 'History', 'Ibrahim_Babangida', 'SAP began under Babangida in 1986.'],
@@ -289,7 +289,7 @@ const ADULT: Band = {
     ['Who is the Nigerian playwright behind "The Gods Are Not to Blame"?', ['Ola Rotimi', 'Soyinka', 'Achebe', 'Clark'], 'Literature', 'The_Gods_Are_Not_to_Blame', 'Ola Rotimi wrote it.'],
   ],
   6: [
-    ['Which Nigerian was Secretary-General of OPEC?', ['Mohammed Barkindo', 'Ngozi Okonjo-Iweala', 'Rilwanu Lukman alt', 'Yemi Osinbajo'], 'Nigeria', 'Mohammed_Barkindo', 'Barkindo led OPEC 2016–2022.'],
+    ['Which Nigerian served as OPEC Secretary-General from 2016 to 2022?', ['Mohammed Barkindo', 'Ngozi Okonjo-Iweala', 'Yemi Osinbajo', 'Godwin Emefiele'], 'Nigeria', 'Mohammed_Barkindo', 'Barkindo led OPEC 2016–2022 (he died in 2022).'],
     ['What is the most abundant element in the universe?', ['Hydrogen', 'Helium', 'Oxygen', 'Carbon'], 'Science', 'Hydrogen', 'Hydrogen is most abundant.'],
     ['Which country is completely surrounded by South Africa?', ['Lesotho', 'Eswatini', 'Botswana', 'Namibia'], 'Africa', 'Lesotho', 'Lesotho is an enclave of South Africa.'],
     ['What is 25% of 200?', ['50', '40', '25', '75'], 'Maths', 'Percentage', '25% of 200 is 50.'],
@@ -326,7 +326,7 @@ const ADULT: Band = {
   11: [
     ['Which Nigerian Nobel-nominated activist was executed in 1995?', ['Ken Saro-Wiwa', 'Gani Fawehinmi', 'MKO Abiola', 'Tai Solarin'], 'History', 'Ken_Saro-Wiwa', 'Saro-Wiwa was executed by the Abacha regime in 1995.'],
     ['What is the Heisenberg uncertainty principle about?', ['Position and momentum limits', 'Conservation of mass', 'Relativity of time', 'Wave reflection'], 'Science', 'Uncertainty_principle', 'You cannot know position and momentum exactly together.'],
-    ['Which is the only African country to span the equator and the Greenwich meridian region pairing — which country does the Equator and Prime Meridian both pass near in the Gulf of Guinea?', ['None on land (point is at sea off Ghana)', 'Ghana', 'Gabon', 'Nigeria'], 'Geography', 'Null_Island', 'The 0,0 point lies in the Gulf of Guinea, off Ghana.'],
+    ['The point at 0° latitude, 0° longitude lies in the ocean south of which country?', ['Ghana', 'Nigeria', 'Gabon', 'Senegal'], 'Geography', 'Null_Island', 'The 0,0 point sits in the Gulf of Guinea, south of Ghana.'],
     ['What is the sum of the first 10 natural numbers?', ['55', '45', '50', '60'], 'Maths', 'Triangular_number', '1+…+10 = 55.'],
     ['Who wrote "One Hundred Years of Solitude"?', ['Gabriel García Márquez', 'Borges', 'Neruda', 'Allende'], 'Literature', 'One_Hundred_Years_of_Solitude', 'Márquez wrote it.'],
   ],

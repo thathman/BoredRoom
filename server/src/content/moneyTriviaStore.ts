@@ -140,14 +140,11 @@ export function selectRunContent(req: RunContentRequest, rng: () => number = Mat
 
   const picked: TriviaQuestion[] = [];
   for (let level = 1; level <= HOT_SEAT_LEVELS; level += 1) {
-    let candidates = pool.filter((q) => q.difficulty === level);
-    if (wanted) {
-      const filtered = candidates.filter((q) => wanted.has(q.category));
-      // Only honour the category filter when it still leaves a question at this level.
-      if (filtered.length) candidates = filtered;
-    }
+    // Category filters are STRICT: if the selected categories can't provide a question at some
+    // difficulty level, block setup rather than silently widening the selection.
+    const candidates = pool.filter((q) => q.difficulty === level && (!wanted || wanted.has(q.category)));
     if (candidates.length === 0) {
-      return { ok: false, reason: `insufficient_approved_questions_level_${level}` };
+      return { ok: false, reason: wanted ? `categories_cannot_fill_level_${level}` : `insufficient_approved_questions_level_${level}` };
     }
     picked.push(candidates[Math.floor(rng() * candidates.length)]);
   }

@@ -37,6 +37,18 @@ describe('Money Trivia seed bank', () => {
       expect(q.options).toHaveLength(4);
     }
   });
+
+  it('no seed question is malformed, ambiguous or carries authoring leftovers', () => {
+    // Guard against the classes of defect found in the audit: parenthetical fastest-finger-style
+    // wording, "alt/solo" placeholder options, unstable "mid-2020s"/superlative phrasing, and
+    // options that aren't distinct.
+    for (const q of MONEY_TRIVIA_SEED) {
+      expect(q.prompt.length, q.prompt).toBeLessThan(140); // rambling multi-clause prompts
+      expect(/\balt\b|\bsolo\b|mid-2020s|\bnone —/i.test(q.prompt + q.options.join(' ')), q.id).toBe(false);
+      expect(new Set(q.options.map((o) => o.trim().toLowerCase())).size, q.id).toBe(4); // distinct options
+      expect(q.explanation.length, q.id).toBeGreaterThan(0); // prompt+answer+explanation must agree
+    }
+  });
 });
 
 describe('validateQuestion rejects bad content', () => {
@@ -106,5 +118,12 @@ describe('run selection', () => {
     const run = selectRunContent({ ageBand: 'adult' });
     expect(run.ok).toBe(false);
     expect(run.reason).toBe('insufficient_approved_questions_level_7');
+  });
+
+  it('strictly enforces category filters — blocks setup when they cannot fill all 15 levels', () => {
+    // A single narrow category will not exist at every one of the 15 difficulty levels.
+    const run = selectRunContent({ ageBand: 'adult', categories: ['Music'] });
+    expect(run.ok).toBe(false);
+    expect(run.reason).toMatch(/^categories_cannot_fill_level_/);
   });
 });
