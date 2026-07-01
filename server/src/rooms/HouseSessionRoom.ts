@@ -14,6 +14,7 @@ import {
   closeSessionVote,
   finishActiveGame,
   markGameRunPayout,
+  getInternalActiveRun,
   getPublicSession,
   getRuntimeSnapshot,
   getSessionRecord,
@@ -546,8 +547,9 @@ export class HouseSessionRoom extends Room {
   }
 
   private ensureRuntime(snapshot: NonNullable<ReturnType<typeof getPublicSession>>): void {
-    if (!snapshot.activeRun || this.gameRuntime?.gameType === snapshot.activeRun.gameType) return;
-    const activeManifest = getInstalledGameManifest(snapshot.activeRun.gameType);
+    const runtimeRun = getInternalActiveRun(this.code);
+    if (!snapshot.activeRun || !runtimeRun || this.gameRuntime?.gameType === runtimeRun.gameType) return;
+    const activeManifest = getInstalledGameManifest(runtimeRun.gameType);
     const players = snapshot.members
       .filter((member) =>
         member.role === 'controller'
@@ -560,11 +562,11 @@ export class HouseSessionRoom extends Room {
     try {
       this.gameRuntime?.dispose();
       this.gameRuntime = createInstalledGameRuntime(
-        snapshot.activeRun.gameType,
+        runtimeRun.gameType,
         {
           sessionId: snapshot.session.id,
-          gameRunId: snapshot.activeRun.id,
-          settings: snapshot.activeRun.settings,
+          gameRunId: runtimeRun.id,
+          settings: runtimeRun.settings,
         },
         players,
       );

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.0.1 — 2026-07-01
+
+- Fixed Money Trivia runtime construction to use the server-private GameRun settings while keeping question banks and answer indexes redacted from every public session projection.
+- Added a regression test proving public clients receive sanitized settings while the installed runtime retains all approved hot-seat and Fastest Finger content.
+
 ## 1.9.0.0 — 2026-06-28
 
 - Extended the Lagos hero water and reflections through the lower viewport without moving the approved skyline composition.

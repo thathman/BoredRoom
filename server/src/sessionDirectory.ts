@@ -227,6 +227,14 @@ export function getSessionRecord(code: string): SessionRecord | null {
   return sessions.get(normalizeCode(code)) ?? null;
 }
 
+// Server-only active run used to construct a GameRuntime. Unlike getPublicSession(), this keeps
+// runtime-private settings such as question banks and answer indexes. Return a clone so runtime
+// setup cannot mutate the authoritative session record by reference.
+export function getInternalActiveRun(code: string): GameRun | null {
+  const run = getSessionRecord(code)?.activeRuntime?.run;
+  return run ? structuredClone(run) : null;
+}
+
 export function getPublicSession(code: string): PublicSessionSnapshot | null {
   const record = getSessionRecord(code);
   return record ? publicSnapshot(record) : null;

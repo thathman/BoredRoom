@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { publicGameRun } from '../../server/src/sessionDirectory';
+import {
+  deleteSession,
+  getInternalActiveRun,
+  getPublicSession,
+  issueOwnerCredential,
+  publicGameRun,
+  registerSession,
+  selectSessionGame,
+} from '../../server/src/sessionDirectory';
+import { buildHouseSession } from '../../server/src/foundations';
 import { selectRunContent } from '../../server/src/content/moneyTriviaStore';
 import type { GameRun } from '../../shared/src/contracts/session';
 
@@ -47,5 +56,16 @@ describe('public GameRun projection (answer-leak guard)', () => {
   it('does not mutate the original run settings', () => {
     publicGameRun(run);
     expect((run.settings.questions as unknown[]).length).toBeGreaterThan(0);
+  });
+
+  it('keeps private runtime settings available after the public run is redacted', () => {
+    const session = buildHouseSession({ hostDeviceId: 'money-runtime-host' });
+    registerSession(session, issueOwnerCredential());
+    selectSessionGame(session.code, structuredClone(run));
+
+    expect(getPublicSession(session.code)?.activeRun?.settings.questions).toBeUndefined();
+    expect((getInternalActiveRun(session.code)?.settings.questions as unknown[])).toHaveLength(15);
+
+    deleteSession(session.code);
   });
 });
