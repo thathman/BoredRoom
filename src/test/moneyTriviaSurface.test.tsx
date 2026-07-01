@@ -49,6 +49,29 @@ describe('MoneyTriviaSurface', () => {
     expect(screen.getByRole('button', { name: /Final answer/i })).toBeEnabled();
   });
 
+  it('keeps a completed lifeline recommendation visible to the contestant', () => {
+    render(
+      <MoneyTriviaSurface
+        role="controller"
+        mine={{ isContestant: true, role: 'contestant' }}
+        sendIntent={vi.fn()}
+        state={{
+          name: 'Money Trivia', emoji: '💰', phase: 'hot_seat', currency: 'NGN',
+          ladder: LADDER, safetyNets: [5, 10], players: [{ id: 'p1', name: 'Ada', score: 0 }],
+          contestant: { id: 'p1', name: 'Ada' }, lastAction: '', level: 0, currentPrize: 0, nextPrize: 100,
+          question: { prompt: 'Capital of Nigeria?', options: [
+            { label: 'Abuja', index: 0, removed: false }, { label: 'Lagos', index: 1, removed: false },
+            { label: 'Kano', index: 2, removed: false }, { label: 'Jos', index: 3, removed: false },
+          ] },
+          selectedOption: null, lockedOption: null,
+          lifelines: { ask_player: { enabled: true, used: true } }, lifeline: null, reveal: null,
+          lastLifelineHint: { type: 'ask_player', helperName: 'Obi', recommendation: { optionIndex: 2, confidence: 82 } },
+        }}
+      />,
+    );
+    expect(screen.getByText(/Obi suggests C \(82% sure\)/i)).toBeInTheDocument();
+  });
+
   it('renders the result and host payout controls when finished', () => {
     const onMarkPayout = vi.fn();
     render(

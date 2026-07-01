@@ -1,7 +1,7 @@
 {
   "name": "boredroom",
   "private": true,
-  "version": "1.10.0.1",
+  "version": "1.10.0.2",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -20,6 +20,7 @@
     "smoke:ui-entry": "node scripts/playwright-entry-flows.mjs",
     "smoke:votes": "node scripts/playwright-vote-lifecycle.mjs",
     "smoke:host-controls": "node scripts/playwright-host-controls.mjs",
+    "smoke:money-trivia": "npm --prefix server run build && node scripts/playwright-money-trivia-flow.mjs",
     "smoke:gameplay": "node scripts/playwright-gameplay-matrix.mjs",
     "smoke:all": "npm run smoke:server-start && npm run smoke:e2e"
   },

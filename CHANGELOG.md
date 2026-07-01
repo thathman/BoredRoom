@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.0.2 — 2026-07-01
+
+- Keep completed Money Trivia lifeline recommendations visible to the contestant until the question advances.
+- Add a dedicated live browser test covering Fastest Finger, all lifelines, answer reveal, recap, and payout settlement.
+
 ## 1.10.0.1 — 2026-07-01
 
 - Fixed Money Trivia runtime construction to use the server-private GameRun settings while keeping question banks and answer indexes redacted from every public session projection.

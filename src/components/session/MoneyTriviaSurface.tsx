@@ -33,6 +33,13 @@ interface MTState {
     percentages?: number[]; votesCast?: number;
     helperName?: string; recommendation?: { optionIndex: number; confidence: number } | null;
   } | null;
+  lastLifelineHint?: {
+    type: string;
+    percentages?: number[];
+    votesCast?: number;
+    helperName?: string;
+    recommendation?: { optionIndex: number; confidence: number } | null;
+  } | null;
   reveal?: { pending?: boolean; correctIndex?: number; chosenIndex?: number; correct?: boolean; explanation?: string } | null;
   result?: { contestantName?: string; earnedAmount: number; pledgedPrize: number; outcome: string; currency: string; settlementStatus: string };
 }
@@ -211,6 +218,7 @@ function HotSeat({
   const q = state.question;
   const reveal = state.reveal;
   const lifeline = state.lifeline;
+  const lastHint = state.lastLifelineHint;
   const locked = state.lockedOption != null;
   const lifelinesLeft = useMemo(() => Object.entries(state.lifelines ?? {})
     .filter(([, v]) => v.enabled && !v.used).map(([k]) => k), [state.lifelines]);
@@ -288,6 +296,21 @@ function HotSeat({
             )}
             {lifeline?.type === 'ask_host' && lifeline.recommendation && (
               <p className="mt-3 text-center text-sm text-amber-300">Host leans {LETTERS[lifeline.recommendation.optionIndex]} ({lifeline.recommendation.confidence}% sure)</p>
+            )}
+            {!lifeline && lastHint?.type === 'ask_player' && lastHint.recommendation && (
+              <p className="mt-3 rounded-xl border border-secondary/35 bg-secondary/10 p-3 text-center text-sm text-secondary" role="status">
+                {lastHint.helperName ?? 'Your player'} suggests {LETTERS[lastHint.recommendation.optionIndex]} ({lastHint.recommendation.confidence}% sure)
+              </p>
+            )}
+            {!lifeline && lastHint?.type === 'ask_host' && lastHint.recommendation && (
+              <p className="mt-3 rounded-xl border border-amber-300/35 bg-amber-300/10 p-3 text-center text-sm text-amber-200" role="status">
+                Host suggests {LETTERS[lastHint.recommendation.optionIndex]} ({lastHint.recommendation.confidence}% sure)
+              </p>
+            )}
+            {!lifeline && lastHint?.type === 'ask_room' && lastHint.percentages && (
+              <p className="mt-3 rounded-xl border border-secondary/35 bg-secondary/10 p-3 text-center text-sm text-secondary" role="status">
+                Room vote: {lastHint.percentages.map((pct, index) => `${LETTERS[index]} ${pct}%`).join(' · ')}
+              </p>
             )}
           </div>
         )}
