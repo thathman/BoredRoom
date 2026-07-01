@@ -68,7 +68,7 @@ import {
   setUpdatePolicy,
   uninstallOfficialGame,
 } from './installedGames.js';
-import { generateSessionStory, getAiHealth, moderateOwnerContent, recommendGames } from './aiService.js';
+import { generateSessionStory, getAiHealth, moderateOwnerContent, recommendGames, generateTriviaQuestions } from './aiService.js';
 
 const PORT = Number(process.env.PORT ?? 2567);
 
@@ -332,6 +332,45 @@ app.post('/games/trivia/questions/drafts', async (req, res) => {
     return res.status(503).json({ error: 'persistence_write_failed' });
   }
   res.status(201).json({ question });
+});
+
+// Generate AI draft questions through the server AI gateway. Drafts are stored un-approved; the
+// owner must verify sources and approve before they can ever enter a cash run.
+app.post('/games/trivia/questions/generate', async (req, res) => {
+  if (!requireGameAdminOrigin(req, res)) return;
+  if (!requireGameAdmin(req, res)) return;
+  if (!persistenceAvailable()) return res.status(503).json({ error: 'persistence_unavailable' });
+  const body = (req.body ?? {}) as { ageBand?: string; difficulty?: number; category?: string; count?: number };
+  const ageBand = ['pre_teen', 'teen', 'adult'].includes(String(body.ageBand)) ? body.ageBand! : 'adult';
+  const difficulty = Math.min(15, Math.max(1, Math.trunc(Number(body.difficulty) || 8)));
+  const category = typeof body.category === 'string' && body.category.trim() ? body.category.trim() : 'General knowledge';
+  const count = Math.min(8, Math.max(1, Math.trunc(Number(body.count) || 4)));
+  const topic = `${category}, ${ageBand.replace('_', '-')} level, difficulty ${difficulty} of 15 (Nigerian party trivia; four options, exactly one correct)`;
+  const generated = await generateTriviaQuestions({ topic, count });
+  if (generated.length === 0) return res.status(503).json({ error: 'ai_unavailable' });
+  const drafts = [];
+  for (const g of generated) {
+    if (g.options.length !== 4) continue;
+    const { question } = createDraft({
+      prompt: g.prompt, options: g.options as [string, string, string, string], answer: g.answer,
+      category, ageBand: ageBand as never, difficulty, explanation: g.explanation ?? '',
+      // Placeholder source: the owner MUST verify and replace it before approving.
+      sourceUrl: 'https://example.org/unverified-ai-draft',
+    });
+    if (!question) continue;
+    try {
+      await persistMoneyTriviaQuestion({
+        id: question.id, kind: 'hot_seat', prompt: question.prompt, options: question.options, answer: question.answer,
+        category: question.category, age_band: question.ageBand, difficulty: question.difficulty,
+        explanation: question.explanation, source_url: question.sourceUrl, review_status: 'draft',
+        review_date: question.reviewDate, provenance: { generatedBy: 'ai' },
+      });
+      drafts.push(question);
+    } catch {
+      deleteQuestion(question.id);
+    }
+  }
+  res.status(201).json({ drafts, note: 'Verify each source before approving — AI drafts are unverified.' });
 });
 
 app.patch('/games/trivia/questions/:questionId', async (req, res) => {

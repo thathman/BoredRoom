@@ -275,6 +275,48 @@ export function uninstallGame(gameId: string): Promise<void> {
   return mutateGame(gameId, 'DELETE');
 }
 
+// ── Money Trivia owner question review ────────────────────────────────────────
+export interface TriviaQuestion {
+  id: string; prompt: string; options: string[]; answer: number; category: string;
+  ageBand: 'pre_teen' | 'teen' | 'adult'; difficulty: number; explanation: string;
+  sourceUrl: string; reviewStatus: 'approved' | 'draft' | 'rejected' | 'retired'; reviewDate: string; expiry?: string;
+}
+
+export async function listTriviaQuestions(filter: { ageBand?: string; status?: string } = {}): Promise<TriviaQuestion[]> {
+  const base = serverHttpBase();
+  if (!base) return [];
+  const qs = new URLSearchParams(filter as Record<string, string>).toString();
+  const res = await fetch(`${base}/games/trivia/questions${qs ? `?${qs}` : ''}`, { credentials: 'include' });
+  if (!res.ok) return [];
+  return ((await res.json()).questions ?? []) as TriviaQuestion[];
+}
+
+export async function generateTriviaDrafts(input: { ageBand: string; difficulty: number; category: string; count: number }): Promise<{ drafts: TriviaQuestion[]; error?: string }> {
+  const base = serverHttpBase();
+  if (!base) return { drafts: [], error: 'no_server' };
+  const res = await fetch(`${base}/games/trivia/questions/generate`, {
+    method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+  });
+  if (!res.ok) return { drafts: [], error: (await res.json().catch(() => ({}))).error ?? `http_${res.status}` };
+  return { drafts: ((await res.json()).drafts ?? []) as TriviaQuestion[] };
+}
+
+export async function updateTriviaQuestion(id: string, patch: Partial<TriviaQuestion>): Promise<{ ok: boolean; error?: string }> {
+  const base = serverHttpBase();
+  if (!base) return { ok: false, error: 'no_server' };
+  const res = await fetch(`${base}/games/trivia/questions/${encodeURIComponent(id)}`, {
+    method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch),
+  });
+  return res.ok ? { ok: true } : { ok: false, error: (await res.json().catch(() => ({}))).error ?? `http_${res.status}` };
+}
+
+export async function deleteTriviaQuestion(id: string): Promise<boolean> {
+  const base = serverHttpBase();
+  if (!base) return false;
+  const res = await fetch(`${base}/games/trivia/questions/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'include' });
+  return res.ok;
+}
+
 export async function updateGamesPolicy(input: {
   automatic?: boolean;
   gameId?: string;

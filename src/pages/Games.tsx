@@ -8,6 +8,7 @@ import { BuiltByFooter } from '@/components/layout/BuiltByFooter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { MoneyTriviaReview } from '@/components/games/MoneyTriviaReview';
 import {
   fetchGamesCatalog,
   getGameAdminAuth,
@@ -181,6 +182,11 @@ export default function Games() {
             ))}
           </div>
         </section>
+        {authenticated && (
+          <section className="mt-8">
+            <MoneyTriviaReview />
+          </section>
+        )}
         <BuiltByFooter />
       </div>
     </LagosScene>
