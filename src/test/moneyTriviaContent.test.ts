@@ -85,14 +85,16 @@ describe('approval workflow', () => {
 });
 
 describe('run selection', () => {
-  it('returns 15 ascending-difficulty questions plus fastest-finger spares for each band', () => {
+  it('returns 15 ascending-difficulty hot-seat questions + dedicated FF ordering questions per band', () => {
     for (const ageBand of ['pre_teen', 'teen', 'adult'] as const) {
-      const run = selectRunContent({ ageBand }, () => 0);
+      const run = selectRunContent({ ageBand }, () => 0.4);
       expect(run.ok).toBe(true);
-      const ladder = run.questions!.slice(0, 15);
-      expect(ladder.map((q) => q.difficulty)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
-      expect(run.questions!.length).toBeGreaterThan(15); // spares for fastest finger
-      expect(ladder.every((q) => q.ageBand === ageBand && q.reviewStatus === 'approved')).toBe(true);
+      expect(run.questions).toHaveLength(15);
+      expect(run.questions!.map((q) => q.difficulty)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+      expect(run.questions!.every((q) => q.ageBand === ageBand && q.reviewStatus === 'approved')).toBe(true);
+      // Dedicated fastest-finger ordering questions come separately.
+      expect(run.fastestFingerQuestions!.length).toBeGreaterThan(0);
+      expect(run.fastestFingerQuestions!.every((q) => q.ageBand === ageBand)).toBe(true);
     }
   });
 

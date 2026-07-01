@@ -85,8 +85,8 @@ function hashCredential(value: string): string {
 // surveys, dictionaries, anti-repeat memory). These must NEVER reach a client via session:state —
 // the public projection strips them so no answer can leak from GameRun.settings.
 const PRIVATE_SETTINGS_KEYS = new Set([
-  'questions', 'aiQuestions', 'surveys', 'aiSurveys', 'logos', 'aiLogos',
-  'events', 'aiEvents', 'dictionaryWords', 'avoidPrompts',
+  'questions', 'fastestFingerQuestions', 'aiQuestions', 'surveys', 'aiSurveys',
+  'logos', 'aiLogos', 'events', 'aiEvents', 'dictionaryWords', 'avoidPrompts',
 ]);
 
 // Strip private settings from a GameRun before it leaves the server. Settlement/result is kept

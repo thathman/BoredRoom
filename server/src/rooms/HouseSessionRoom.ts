@@ -787,7 +787,7 @@ export class HouseSessionRoom extends Room {
         houseSessionId: record.session.id,
         gameType: gameId,
         gameVersion,
-        settings: { ...settings, ageBand, questions: content.questions, aiContent: false },
+        settings: { ...settings, ageBand, questions: content.questions, fastestFingerQuestions: content.fastestFingerQuestions, aiContent: false },
       });
       selectSessionGame(this.code, run);
       await Promise.all([

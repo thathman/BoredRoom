@@ -6,12 +6,17 @@
 // money path deterministic and auditable.
 
 import { MONEY_TRIVIA_SEED, type TriviaQuestion, type AgeBand, type ReviewStatus } from './moneyTriviaBank.js';
+import { MONEY_TRIVIA_FF_SEED } from './moneyTriviaFastestFinger.js';
 
 const AGE_BANDS: AgeBand[] = ['pre_teen', 'teen', 'adult'];
 const HOT_SEAT_LEVELS = 15;
 
 const store = new Map<string, TriviaQuestion>();
 for (const q of MONEY_TRIVIA_SEED) store.set(q.id, { ...q });
+// Dedicated Fastest Finger ordering questions live in a separate store (structurally different:
+// the full option order is the answer, so they never mix into the hot-seat difficulty selection).
+const ffStore = new Map<string, TriviaQuestion>();
+for (const q of MONEY_TRIVIA_FF_SEED) ffStore.set(q.id, { ...q });
 
 function normalizePrompt(prompt: string): string {
   return String(prompt ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -119,7 +124,8 @@ export interface RunContentRequest {
 export interface RunContent {
   ok: boolean;
   reason?: string;
-  questions?: TriviaQuestion[]; // 15 hot-seat (ascending difficulty) + fastest-finger extras
+  questions?: TriviaQuestion[]; // 15 hot-seat questions in ascending difficulty
+  fastestFingerQuestions?: TriviaQuestion[]; // dedicated ordering questions for the FF round
 }
 
 // Build a playable run: exactly one approved question per difficulty 1..15 for the age band,
@@ -145,14 +151,26 @@ export function selectRunContent(req: RunContentRequest, rng: () => number = Mat
     }
     picked.push(candidates[Math.floor(rng() * candidates.length)]);
   }
-  // Fastest-finger spares: any two other approved questions from the band.
-  const usedIds = new Set(picked.map((q) => q.id));
-  const spares = pool.filter((q) => !usedIds.has(q.id)).slice(0, 2);
-  return { ok: true, questions: [...picked, ...spares].map((q) => ({ ...q })) };
+  // Dedicated fastest-finger ordering questions for the age band (shuffled selection).
+  const ffPool = [...ffStore.values()].filter((q) => q.ageBand === ageBand && isPlayable(q, now));
+  if (ffPool.length === 0) return { ok: false, reason: 'insufficient_fastest_finger_questions' };
+  const ffShuffled = [...ffPool].sort(() => rng() - 0.5).slice(0, 3);
+  return {
+    ok: true,
+    questions: picked.map((q) => ({ ...q })),
+    fastestFingerQuestions: ffShuffled.map((q) => ({ ...q })),
+  };
+}
+
+// FF question CRUD is owner-managed alongside the hot-seat bank.
+export function listFastestFingerQuestions(ageBand?: AgeBand): TriviaQuestion[] {
+  return [...ffStore.values()].filter((q) => !ageBand || q.ageBand === ageBand).map((q) => ({ ...q }));
 }
 
 // Reset to the shipped seed (used by tests).
 export function resetStore(): void {
   store.clear();
   for (const q of MONEY_TRIVIA_SEED) store.set(q.id, { ...q });
+  ffStore.clear();
+  for (const q of MONEY_TRIVIA_FF_SEED) ffStore.set(q.id, { ...q });
 }
