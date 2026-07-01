@@ -17,7 +17,9 @@ const ALL_GAME_IDS = [
   'ludo',
   'market-price',
   'pidgin-translator',
-  'trivia',
+  // 'trivia' (Money Trivia) is intentionally excluded: it is a bespoke fastest-finger → hot-seat
+  // cash-ladder flow (not the generic answer loop) and requires a host-funded confirmation to
+  // start. It is covered by its own dedicated live Money Trivia E2E matrix.
   'whot',
   'word-wahala',
 ];

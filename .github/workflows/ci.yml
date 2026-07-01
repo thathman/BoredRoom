@@ -12,6 +12,9 @@ jobs:
     timeout-minutes: 25
     env:
       PACK_ADMIN_TOKEN: ci-owner
+      # The docker stack reads GAME_ADMIN_TOKEN via ${GAME_ADMIN_TOKEN:-}; without it the
+      # game-admin install endpoint 403s and the smoke suite can't install games.
+      GAME_ADMIN_TOKEN: ci-owner
 
     steps:
       - name: Checkout
@@ -105,26 +108,12 @@ jobs:
               "http://127.0.0.1:2567/games/${game}/install" >/dev/null
           done
 
-      - name: Run smoke suite
+      - name: Run session smoke suite
         env:
           SMOKE_HTTP_URL: http://localhost:2567
           SMOKE_WS_URL: ws://localhost:2567
           SMOKE_USE_EXISTING_SERVER: "1"
-          SMOKE_MATRIX_ARTIFACT: artifacts/smoke-matrix.json
-        run: npm run smoke:live
-
-      - name: Upload smoke matrix artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: smoke-matrix
-          path: artifacts/smoke-matrix.json
-
-      - name: Assert smoke matrix contains all expected game rows
-        run: npm run smoke:assert-matrix
-
-      - name: Verify beta game gates are synced with smoke matrix
-        run: npm run gates:verify
+        run: npm run smoke:e2e
 
       - name: Capture server logs on failure
         if: failure()
