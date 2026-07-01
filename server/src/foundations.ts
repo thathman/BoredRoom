@@ -369,7 +369,9 @@ export async function persistGameRun(run: GameRun): Promise<WriteResult> {
       winner_player_ids: run.winnerPlayerIds ?? null,
       recap_id: run.recapId ?? null,
       latest_snapshot_id: run.latestSnapshotId ?? null,
-      result: run.result ?? null,
+      // Only send `result` when a run actually has one (Money Trivia). Omitting it otherwise keeps
+      // writes working on a database where the `result` column migration hasn't been applied yet.
+      ...(run.result ? { result: run.result } : {}),
     }),
   });
   if (!response.ok) throw new Error(`game_run_write_${response.status}:${await response.text()}`);
