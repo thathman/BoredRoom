@@ -110,6 +110,7 @@ export class HouseSessionRoom extends Room {
   private botTimer: NodeJS.Timeout | null = null;
   private paceTimer: NodeJS.Timeout | null = null;
   private paceDeadline: number | null = null;
+  private triviaTimer: NodeJS.Timeout | null = null;
   private botTurnNumber = 0;
   private commentarySerial = 0;
   private lastCommentaryAt = 0;
@@ -533,6 +534,7 @@ export class HouseSessionRoom extends Room {
     this.unsubscribe = null;
     this.clearBotTimer();
     this.clearPaceTimer();
+    this.clearTriviaTimer();
     this.clearVoteTimer();
     this.gameRuntime?.dispose();
     this.gameRuntime = null;
@@ -624,6 +626,7 @@ export class HouseSessionRoom extends Room {
     // Establish/clear the authoritative deadline before projecting state so clients never
     // receive a stale deadline (the old ordering produced a visible 0s timer).
     this.schedulePaceTimer();
+    this.scheduleTriviaDeadline();
     for (const client of this.clients) {
       const identity = this.identities.get(client.sessionId);
       if (identity) this.sendGameState(client, identity);
@@ -662,6 +665,31 @@ export class HouseSessionRoom extends Room {
       if (changed) this.broadcastGameState();
       else this.schedulePaceTimer();
     }, delay).unref();
+  }
+
+  // Money Trivia owns its own deadlines (fastest-finger expiry, 4s auto-reveal, question timeout,
+  // lifeline expiry). Schedule a single resolver at the runtime's earliest deadline; on fire,
+  // resolve due deadlines and reschedule the next one. Cleared while the run is paused.
+  private scheduleTriviaDeadline(): void {
+    this.clearTriviaTimer();
+    const run = getSessionRecord(this.code)?.activeRuntime?.run;
+    if (!this.gameRuntime || this.gameRuntime.gameType !== 'trivia' || run?.status !== 'active') return;
+    const rt = this.gameRuntime as unknown as { nextDeadline?: () => number | null; resolveDueDeadlines?: (now?: number) => boolean };
+    if (typeof rt.nextDeadline !== 'function') return;
+    const deadline = rt.nextDeadline();
+    if (deadline == null) return;
+    const delay = Math.max(0, deadline - Date.now());
+    this.triviaTimer = setTimeout(() => {
+      if (!this.gameRuntime || typeof rt.resolveDueDeadlines !== 'function') return;
+      const changed = rt.resolveDueDeadlines(Date.now());
+      if (changed) this.broadcastGameState();
+      else this.scheduleTriviaDeadline();
+    }, delay + 50).unref();
+  }
+
+  private clearTriviaTimer(): void {
+    if (this.triviaTimer) clearTimeout(this.triviaTimer);
+    this.triviaTimer = null;
   }
 
   private clearPaceTimer(): void {
@@ -827,6 +855,9 @@ export class HouseSessionRoom extends Room {
   private async pauseGame(reason: string): Promise<void> {
     this.clearBotTimer();
     this.clearPaceTimer();
+    this.clearTriviaTimer();
+    // Freeze trivia deadlines so paused time doesn't count against players.
+    (this.gameRuntime as unknown as { pauseTimers?: (now?: number) => void })?.pauseTimers?.(Date.now());
     const runtime = pauseActiveGame(this.code, reason);
     if (!runtime) return;
     this.broadcast('session:state', getPublicSession(this.code));
@@ -849,6 +880,8 @@ export class HouseSessionRoom extends Room {
   private async resumeGame(): Promise<void> {
     const runtime = resumeActiveGame(this.code);
     if (!runtime) return;
+    // Shift trivia deadlines forward by the paused duration before rescheduling.
+    (this.gameRuntime as unknown as { resumeTimers?: (now?: number) => void })?.resumeTimers?.(Date.now());
     this.broadcast('session:state', getPublicSession(this.code));
     this.broadcastGameState();
     const record = getSessionRecord(this.code);
