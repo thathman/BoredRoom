@@ -77,10 +77,11 @@ export function MoneyTriviaSurface({
     const key = `${state.level}:${state.reveal?.correct}`;
     if (state.reveal && !state.reveal.pending && key !== prevReveal.current) {
       prevReveal.current = key;
-      if (state.reveal.correct) sounds.feudCorrect?.();
-      else sounds.feudWrong?.();
+      if (state.phase === 'finished' && state.result && state.result.earnedAmount > 0) sounds.mtWin?.();
+      else if (state.reveal.correct) sounds.mtCorrect?.();
+      else sounds.mtWrong?.();
     }
-  }, [state.reveal, state.level]);
+  }, [state.reveal, state.level, state.phase, state.result]);
 
   useEffect(() => { setFfOrder([]); }, [state.fastestFinger?.prompt]);
 
@@ -160,7 +161,7 @@ function FastestFinger({
           <Button
             className="neon-primary h-12 flex-[2] rounded-xl font-bold"
             disabled={ffOrder.length !== 4}
-            onClick={() => { sounds.hustleCard?.(); sendIntent({ type: 'fastest_finger_submit', order: ffOrder }); }}
+            onClick={() => { sounds.mtLockIn?.(); sendIntent({ type: 'fastest_finger_submit', order: ffOrder }); }}
           >
             Lock in order
           </Button>
@@ -213,6 +214,9 @@ function HotSeat({
   const locked = state.lockedOption != null;
   const lifelinesLeft = useMemo(() => Object.entries(state.lifelines ?? {})
     .filter(([, v]) => v.enabled && !v.used).map(([k]) => k), [state.lifelines]);
+  const [pickingHelper, setPickingHelper] = useState(false);
+  const [confidence, setConfidence] = useState(65); // helper/host chosen confidence
+  const otherPlayers = state.players.filter((p) => p.id !== state.contestant?.id);
 
   const optionTone = (opt: Option) => {
     if (reveal && !reveal.pending && reveal.correctIndex != null) {
@@ -289,18 +293,18 @@ function HotSeat({
         )}
 
         {/* Contestant controls */}
-        {role === 'controller' && isContestant && !reveal?.correctIndex && (
+        {role === 'controller' && isContestant && (!reveal || reveal.pending) && (
           <div className="space-y-2">
             {!locked && (
               <Button
                 className="neon-primary h-14 w-full rounded-xl text-base font-bold"
                 disabled={state.selectedOption == null}
-                onClick={() => { sounds.hustleCard?.(); sendIntent({ type: 'lock_answer' }); }}
+                onClick={() => { sounds.mtLockIn?.(); sendIntent({ type: 'lock_answer' }); }}
               >
                 Final answer{state.selectedOption != null ? `: ${LETTERS[state.selectedOption]}` : ''}
               </Button>
             )}
-            {!locked && lifelinesLeft.length > 0 && !lifeline && (
+            {!locked && lifelinesLeft.length > 0 && !lifeline && !pickingHelper && (
               <div className="grid grid-cols-2 gap-2">
                 {lifelinesLeft.map((key) => (
                   <Button
@@ -308,15 +312,28 @@ function HotSeat({
                     variant="outline"
                     className="h-11 rounded-xl text-xs"
                     onClick={() => {
-                      if (key === 'ask_player') {
-                        const other = state.players.find((p) => p.id !== state.contestant?.id);
-                        if (other) sendIntent({ type: 'use_lifeline', lifeline: key, targetPlayerId: other.id });
-                      } else sendIntent({ type: 'use_lifeline', lifeline: key });
+                      // Ask a Player prompts an explicit contestant choice instead of auto-picking.
+                      if (key === 'ask_player') setPickingHelper(true);
+                      else sendIntent({ type: 'use_lifeline', lifeline: key });
                     }}
                   >
                     {LIFELINE_LABEL[key] ?? key}
                   </Button>
                 ))}
+              </div>
+            )}
+            {pickingHelper && (
+              <div className="rounded-xl border border-secondary/40 bg-black/40 p-3">
+                <p className="mb-2 text-xs text-white/70">Ask which player?</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {otherPlayers.map((p) => (
+                    <Button key={p.id} variant="outline" className="h-11 rounded-xl text-xs"
+                      onClick={() => { sendIntent({ type: 'use_lifeline', lifeline: 'ask_player', targetPlayerId: p.id }); setPickingHelper(false); }}>
+                      {p.name}
+                    </Button>
+                  ))}
+                </div>
+                <Button variant="ghost" className="mt-2 h-9 w-full text-xs" onClick={() => setPickingHelper(false)}>Cancel</Button>
               </div>
             )}
             {!locked && (
@@ -337,14 +354,17 @@ function HotSeat({
             ))}
           </div>
         )}
-        {/* Helper: recommend during Ask One Player. */}
+        {/* Helper: pick a confidence, then recommend, during Ask One Player. */}
         {role === 'controller' && mine.isHelper && lifeline?.type === 'ask_player' && (
-          <div className="grid grid-cols-2 gap-2">
-            {(q?.options ?? []).map((opt) => (
-              <Button key={opt.index} variant="outline" disabled={opt.removed} className="h-12 rounded-xl" onClick={() => sendIntent({ type: 'friend_answer', optionIndex: opt.index, confidence: 75 })}>
-                Suggest {LETTERS[opt.index]}
-              </Button>
-            ))}
+          <div className="space-y-2">
+            <ConfidencePicker value={confidence} onChange={setConfidence} />
+            <div className="grid grid-cols-2 gap-2">
+              {(q?.options ?? []).map((opt) => (
+                <Button key={opt.index} variant="outline" disabled={opt.removed} className="h-12 rounded-xl" onClick={() => sendIntent({ type: 'friend_answer', optionIndex: opt.index, confidence })}>
+                  Suggest {LETTERS[opt.index]}
+                </Button>
+              ))}
+            </div>
           </div>
         )}
         {role === 'controller' && !isContestant && !mine.isHelper && lifeline?.type !== 'ask_room' && (
@@ -360,11 +380,18 @@ function HotSeat({
             {reveal && !reveal.pending && reveal.correct && (
               <Button className="neon-primary h-12 flex-1 rounded-xl" onClick={() => sendIntent({ type: 'advance' })}>Next question</Button>
             )}
-            {lifeline?.type === 'ask_host' && !lifeline.recommendation && (q?.options ?? []).map((opt) => (
-              <Button key={opt.index} variant="outline" disabled={opt.removed} className="h-12 rounded-xl" onClick={() => sendIntent({ type: 'host_answer', optionIndex: opt.index, confidence: 70 })}>
-                Advise {LETTERS[opt.index]}
-              </Button>
-            ))}
+            {lifeline?.type === 'ask_host' && !lifeline.recommendation && (
+              <div className="w-full space-y-2">
+                <ConfidencePicker value={confidence} onChange={setConfidence} />
+                <div className="grid grid-cols-2 gap-2">
+                  {(q?.options ?? []).map((opt) => (
+                    <Button key={opt.index} variant="outline" disabled={opt.removed} className="h-12 rounded-xl" onClick={() => sendIntent({ type: 'host_answer', optionIndex: opt.index, confidence })}>
+                      Advise {LETTERS[opt.index]}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
             {state.questionDeadline && <Button variant="outline" className="h-12 rounded-xl" onClick={() => sendIntent({ type: 'resolve_timeout' })}>Time up</Button>}
           </div>
         )}
@@ -396,6 +423,17 @@ function Finished({ state, role, onMarkPayout }: { state: MTState; role: string;
         </div>
       )}
     </section>
+  );
+}
+
+function ConfidencePicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  const levels: Array<[string, number]> = [['Not sure', 40], ['Fairly sure', 65], ['Very sure', 90]];
+  return (
+    <div className="flex gap-2" role="group" aria-label="Confidence">
+      {levels.map(([label, n]) => (
+        <Button key={n} variant={value === n ? 'default' : 'outline'} className={`h-9 flex-1 rounded-lg text-xs ${value === n ? 'neon-primary' : ''}`} onClick={() => onChange(n)}>{label}</Button>
+      ))}
+    </div>
   );
 }
 

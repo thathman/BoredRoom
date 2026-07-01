@@ -156,6 +156,12 @@ export const sounds = {
   win() {
     [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.2, 'triangle', 0.16, i * 0.12));
   },
+  // ── Money Trivia (original cues; no reused Feud/Hustle audio) ─────────────
+  mtCountdown() { tone(880, 0.08, 'square', 0.10); },
+  mtLockIn() { tone(392, 0.09, 'sawtooth', 0.14); tone(261, 0.18, 'sine', 0.12, 0.06); },
+  mtCorrect() { [523, 784, 1047].forEach((f, i) => tone(f, 0.16, 'triangle', 0.16, i * 0.09)); },
+  mtWrong() { tone(300, 0.18, 'sawtooth', 0.16); tone(180, 0.32, 'sine', 0.14, 0.12); },
+  mtWin() { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.22, 'triangle', 0.17, i * 0.11)); },
   join() {
     tone(523, 0.08, 'sine', 0.1, 0);
     tone(784, 0.1, 'sine', 0.1, 0.08);

@@ -577,6 +577,25 @@ export default function SessionScreen() {
                 </p>
               </div>
             </div>
+            {(() => {
+              // Money Trivia cash payout persists on the recap screen (survives the transition).
+              const payout = (snapshot.lastRecap as { result?: { contestantName?: string; earnedAmount: number; currency: string; outcome: string; settlementStatus: string } }).result;
+              if (!payout) return null;
+              return (
+                <div className="neon-panel mt-4 rounded-2xl border border-amber-300/40 p-5 text-center">
+                  <p className="text-[11px] uppercase tracking-[0.3em] text-amber-300">Money Trivia payout</p>
+                  <p className="mt-2 text-4xl font-black tabular-nums text-amber-200">{payout.currency === 'NGN' ? '₦' : ''}{payout.earnedAmount.toLocaleString()}</p>
+                  <p className="mt-1 text-sm text-white/70">{payout.contestantName ?? 'Contestant'} · settlement: <span className="font-bold">{payout.settlementStatus}</span></p>
+                  <p className="mt-1 text-xs text-white/45">Host-funded prize · BoredRoom never collects or transfers money.</p>
+                  {isHost && (
+                    <div className="mx-auto mt-3 flex max-w-sm gap-2">
+                      <Button className="neon-primary h-11 flex-1 rounded-xl" onClick={() => markPayout('paid')}>Mark paid</Button>
+                      <Button variant="outline" className="h-11 flex-1 rounded-xl" onClick={() => markPayout('waived')}>Waive</Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {(snapshot.session.standings?.length ?? 0) > 0 && (
               <div className="neon-panel mt-4 rounded-2xl p-5 text-left">
                 <div className="flex items-center justify-between">

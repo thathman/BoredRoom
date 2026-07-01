@@ -187,7 +187,8 @@ export function GameConfigSheet({
         <p className="mt-1 text-sm text-muted-foreground">{readyPlayers} ready player(s) · {game.minPlayers}–{game.maxPlayers} seats</p>
 
         <div className="mt-6 space-y-5">
-          {game.id !== 'whot' && <div>
+          {/* Money Trivia has a fixed 15-question ladder — the generic Rounds/Pace knobs don't apply. */}
+          {game.id !== 'whot' && !isMoney && <div>
             <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Rounds</p>
             <div className="mt-2 grid grid-cols-4 gap-2">
               {[3, 5, 7, 10].map((n) => (
@@ -196,7 +197,7 @@ export function GameConfigSheet({
             </div>
           </div>}
 
-          <div>
+          <div className={isMoney ? 'hidden' : ''}>
             <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{game.id === 'whot' ? 'Turn time' : 'Pace (round timer)'}</p>
             <div className="mt-2 grid grid-cols-4 gap-2">
               {(Object.keys(PACE_MS) as GamePace[]).map((p) => (
